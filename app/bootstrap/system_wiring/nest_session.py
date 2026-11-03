@@ -38,6 +38,7 @@ from infrastructure.persistence.configuration.bundled_defaults import (
     load_nest_config,
     load_reasoning_constitution,
 )
+from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
@@ -52,6 +53,7 @@ from infrastructure.persistence.layout.data_home import (
     data_home_from_db_path,
     get_elfie_config_dir,
 )
+from infrastructure.persistence.layout.data_layout import FinalRootLayout
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.ontology_loader import (
     load_memory_ontology_snapshot,
@@ -140,6 +142,9 @@ def build_nest_session_services(
 ) -> NestSessionServices:
     """Construct the existing Engine without starting any lifecycle-owned channel."""
     selected_nest_config = nest_config or load_nest_config()
+    settings = RuntimeSettingsAdapter(
+        FinalRootLayout(data_home_from_db_path(db_path)).runtime_config
+    )
     gateway = GodotAPIServer(
         host="127.0.0.1",
         port=godot_ws_port,
@@ -169,6 +174,7 @@ def build_nest_session_services(
             ),
             nest_config=selected_nest_config,
             local_time=lambda: datetime.now().astimezone(),
+            environment_schedule=settings.load_environment_settings,
         ),
         world_runtime=world_runtime,
         model_port_factory=model_port_factory,

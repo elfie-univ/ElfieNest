@@ -75,7 +75,10 @@ is an internal runtime connection, not a second web page.
 ## Data isolation
 
 The unified entry point stores web workbench data under independent
-subdirectories of `${ELFIE_DEV_HOME:-~/.elfienest-dev}`. Providing an explicit
+subdirectories of `${ELFIE_DEV_HOME:-~/.elfienest-dev}`. Without `--data-dir`,
+the Elfie library honors Elfie Lab's existing `ELFIE_LAB_DATA_DIR` override;
+all three pages share that same storage instance. An explicit `--data-dir`
+still overrides the default root. Providing an explicit
 temporary directory for a single experiment makes cleanup easier:
 
 ```bash
@@ -129,8 +132,66 @@ when missing or when the Godot source has changed, never recompiled otherwise.
 macOS auto-discovers standard Godot install locations; only set `--godot` or
 `GODOT_BIN` when auto-discovery fails or multiple versions coexist. Each
 browser launch uses a fresh local URL so that stale workspace page caches do
-not shadow the new UI. Bed, temporary character, random walk, pause, resume and
-reset all act only on the in-memory state of this one Lab process.
+not shadow the new UI. Bed assignment, random walk, pause, resume and reset act
+only on this process's scene state. Newly created Elfies are saved in the shared
+experiment library and can be reused after restarts.
+
+Nest Lab opens a full-height estate monitor with one full-width cascade toolbar.
+The first dropdown selects View or Action; subsequent dropdowns depend on that
+selection and are separated by `>`. Only the middle control area scrolls on narrow
+screens. Time/lighting, Play/Pause and Run log remain on the right. Play/Pause toggles
+automatic wandering; Run log toggles a translucent panel without resizing the monitor.
+The lighting selector offers Live, Day, Evening and Late night. Selectors fit their
+current label; longer entries can wrap in independently sized popup menus.
+
+View offers fixed cameras (with Reset) or Elfie view (actor, then follow/first-person).
+Follow orbit keeps lens clearance from geometry and limits its height and distance
+around the selected actor. Live lighting keeps evening lights on until midnight;
+quiet hours run from 00:00 to 06:00 in local time.
+There is no frame-freeze control. Both View and Elfie actions share the selected actor
+and the same picker, whose last entry opens Manage Elfies.
+In unified Developer Tools, Nest Lab automatically reads saved Elfies from the
+single-Elfie experiment under the same data root, reusing their IDs, names and
+resolved appearances after service restarts (up to 32 actors in the scene).
+Newly saved Elfies appear on the next list refresh. Removing a saved Elfie only
+removes it from the scene; its source profile is never deleted or regenerated.
+Restarting the service reloads the saved actors.
+The dialog creates and saves experiment Elfies using an optional name, species,
+age and sex through Elfie Lab's existing creation and storage flow. Both pages
+reuse the resulting ID, profile and appearance across refreshes and restarts.
+The default uses the global Developer data root; `--data-dir` selects a local
+root without copying or merging the two libraries. Age bounds follow Genesis
+creation policy. Resetting the scene or removing an actor preserves its profile.
+
+Actions, positions, fixed cameras, scene objects and demonstrations use two-level
+cascaders. Clicking a category opens the second column; only selecting a leaf triggers
+the operation. Search matches category or item names. Compact controls display only
+the selected leaf; short menus such as lighting and perspective remain ordinary dropdowns.
+Fixed cameras and action positions pair each bedroom and its terrace under the same
+M-number category, with the bedroom and terrace adjacent in the camera submenu.
+
+Elfie actions use one grouped action selector and, when needed, one position selector
+grouped by scene. Selecting a clip or final position submits it directly and switches
+to that actor's follow camera, as do combinations and door passages, without Execute
+or Stop buttons. Switching cancels the old command and starts the latest
+selection after its terminal acknowledgement; rapid selections replace pending work.
+Lab previews may use any bed without changing home ownership. Single furniture previews
+relocate to the Runtime's target approach before playing the action. One position selector
+groups paired bedrooms/terraces, central floors and outdoor furniture; random selection displays
+the actual chosen position. The central sofa has three independent contacts with exclusive
+occupancy, and outdoor benches use the production sitting and standing transitions.
+Scene controls offer each door's open, close and automatic modes, retaining anti-crush
+collision checks. Automatic mode demonstrates a passage when an actor is selected.
+Fountain and lake playback have independent clocks. One grouped demonstration selector
+offers morning and evening routines, the building ring, forest trail, lakeside platform,
+top-floor arrival with a wave, and sofa-seat inspection. Runtime geometry and navigation
+determine routes; disconnected routes are disabled with a reason. Selecting a new actor
+action cancels the running demonstration. Time/lighting
+provides live/day/evening/late-night preview independently of camera and actor actions.
+Manual actor actions resume a paused simulation and take over automatic wandering;
+Run log shows actual command results. The workbench does not implement animation,
+navigation, furniture or water effects. World controls stay disabled when Runtime
+configuration fails.
 
 The three pages share the React + TypeScript + Vite source in
 `devtools/web/`; on startup they reuse or build `build/components/devtools-web/`
@@ -159,3 +220,12 @@ adapter, success rule, and evidence path exist.
 - Do not let Brain Eval read production `ELFIE_HOME`, write outside `build/brain-eval/`,
   or turn an uncalibrated Judge into an automatic promotion;
 - Tests for tool behavior live in mirrored paths under `test/devtools/`.
+
+The Elfie action dropdown exposes complete sit/stand and sleep/wake cycles without
+separate sleep-pose menus. The runtime retains back/left/right sleep animations as
+named `furniture_cycle` variants of the authenticated `use_anchor` command, with
+target validation and cancellation. Lab previews do not change home ownership. The
+production implementations live under `godot_project/runtime/actor/`; the Lab
+contains only controls and camera observation. The three sofa contacts are estate
+metadata, not animation-specific duplicate scenes. A cycle failure remains visible
+in Run log; a matching source animation alone does not establish furniture fit.

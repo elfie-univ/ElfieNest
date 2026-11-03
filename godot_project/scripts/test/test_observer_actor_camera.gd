@@ -89,8 +89,35 @@ func run() -> void:
 	for frame in range(60):
 		nest._process(1.0 / 60.0)
 	_check(camera.global_position.distance_to(safe_position) < 0.01, "stationary corner camera keeps changing sides")
+	# User drags must stay on the resident's floor and outside the walls.
+	var drag := InputEventMouseMotion.new()
+	drag.button_mask = MOUSE_BUTTON_MASK_LEFT
+	for relative: Vector2 in [Vector2(900,-900), Vector2(-1800,900), Vector2(900,0)]:
+		drag.relative = relative
+		nest._unhandled_input(drag)
+		_check(camera.global_position.y <= actor.global_position.y + 2.001, "follow drag crossed into the floor above")
+		_check(camera.global_position.y >= actor.global_position.y + 0.249, "follow drag crossed below the floor")
+		_check(camera.global_position.x < side_wall.global_position.x - 0.1, "drag carried lens into corner wall")
 	side_wall.queue_free()
 	wall.queue_free()
+	await physics_frame
+	await physics_frame
+	# A centre ray misses this side wall, but the lens volume must avoid it.
+	var lens_wall := StaticBody3D.new()
+	var lens_shape := CollisionShape3D.new()
+	var lens_box := BoxShape3D.new()
+	lens_box.size = Vector3(0.2, 2, 2)
+	lens_shape.shape = lens_box
+	lens_wall.add_child(lens_shape)
+	root.add_child(lens_wall)
+	lens_wall.position = follow_target + Vector3(0.24, 0, 1.5)
+	await physics_frame
+	await physics_frame
+	var lens_query := PhysicsRayQueryParameters3D.create(follow_target, follow_target + Vector3(0,0,3))
+	_check(nest.get_world_3d().direct_space_state.intersect_ray(lens_query).is_empty(), "lens test centre ray unexpectedly hits geometry")
+	var lens_safe: Vector3 = nest._follow_camera_clear_position(follow_target,follow_target + Vector3(0,0,3),lens_query)
+	_check(lens_safe.z - follow_target.z < 1.0, "centre-ray-only collision let the lens enter a wall")
+	lens_wall.queue_free()
 	nest.select_observer_overview()
 	await process_frame
 	_check(nest.observer_camera_catalog()["active_id"] == "overview", "follow overrides explicit overview selection")

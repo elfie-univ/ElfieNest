@@ -156,17 +156,17 @@ describe("ObservationMonitor", () => {
     expect(screen.getAllByRole("toolbar")).toHaveLength(1)
   })
 
-  it.each(["", "0", "true"])("does not enable time preview for debug=%s", (value) => {
+  it.each(["", "0", "true", "1"])("keeps lighting preview in Developer Tools for debug=%s", (value) => {
     window.history.replaceState(null, "", `/monitor?debug=${value}`)
     renderMonitor()
     expect(screen.queryByRole("combobox", { name: "时间" })).not.toBeInTheDocument()
     expect(fixture.calls.select).not.toHaveBeenCalled()
   })
 
-  it("opens debug time preview at live time without restoring a saved preview", () => {
+  it("keeps the product monitor focused on observation with debug=1", () => {
     window.history.replaceState(null, "", "/monitor?room=local-nest&debug=1")
     renderMonitor()
-    expect(screen.getByRole("combobox", { name: "时间" })).toHaveTextContent("本地实时")
+    expect(screen.queryByRole("combobox", { name: "时间" })).not.toBeInTheDocument()
     expect(screen.queryByRole("separator")).not.toBeInTheDocument()
     expect(fixture.calls.select).not.toHaveBeenCalled()
   })
@@ -289,13 +289,11 @@ describe("ObservationMonitor", () => {
     expect(fixture.calls.select).not.toHaveBeenCalled()
   })
 
-  it("selects time independently and pauses through the presentation bridge", async () => {
+  it("pauses through the presentation bridge without a lighting override", async () => {
     window.history.replaceState(null, "", "/monitor?debug=1")
     const user = userEvent.setup()
     renderMonitor()
-    await user.click(screen.getByRole("combobox", { name: "时间" }))
-    await user.click(screen.getByRole("option", { name: "白天 06:00–18:00" }))
-    expect(fixture.calls.select).toHaveBeenLastCalledWith("lighting-day")
+    expect(screen.queryByRole("combobox", { name: "时间" })).not.toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "视角" })).toHaveTextContent("全园总览")
     await user.click(screen.getByRole("button", { name: "暂停观察" }))
     expect(fixture.calls.setLocalPresentationPaused).toHaveBeenCalledWith(true)

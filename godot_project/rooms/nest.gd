@@ -15,6 +15,9 @@ const CAMERA_ORBIT_SPEED: float = 0.008
 const FOLLOW_CAMERA_OFFSET := Vector3(1.8, 1.3, 3.2)
 const FOLLOW_CAMERA_MIN_DISTANCE := 1.8
 const FOLLOW_CAMERA_WALL_MARGIN := 0.2
+const FOLLOW_CAMERA_LENS_RADIUS := 0.18
+const FOLLOW_CAMERA_MAX_HEIGHT := 2.0
+const FOLLOW_CAMERA_MAX_DISTANCE := 4.5
 const CAMERA_MIN_PITCH: float = deg_to_rad(12.0)
 const CAMERA_MAX_PITCH: float = deg_to_rad(82.0)
 const CAMERA_MIN_SIZE: float = 5.0
@@ -41,6 +44,7 @@ var bed_count: int = FIXED_BED_COUNT:
 var _rebuilding := false
 var physical_authority := false
 var _pov_body_layers: Array[Dictionary] = []
+var _follow_lens: SphereShape3D
 var _camera_target := Vector3.ZERO
 var _camera_default_target := Vector3.ZERO
 var _camera_yaw: float = 0.0
@@ -128,7 +132,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_camera_pitch = clampf(
 				_camera_pitch - mouse_motion.relative.y * CAMERA_ORBIT_SPEED,
 				deg_to_rad(-35) if _camera_views[_active_camera_index].has("floor_height_limits") else CAMERA_MIN_PITCH,
-				CAMERA_MAX_PITCH
+				deg_to_rad(35) if current_view.has("actor") else CAMERA_MAX_PITCH
 			)
 			_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
@@ -759,10 +763,31 @@ func _process(delta: float) -> void:
 
 
 func _follow_camera_clear_position(target: Vector3, desired: Vector3, query: PhysicsRayQueryParameters3D) -> Vector3:
+	desired = _constrain_camera_position(desired)
 	query.from = target
 	query.to = desired
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	return desired if hit.is_empty() else (hit["position"] as Vector3).move_toward(target, FOLLOW_CAMERA_WALL_MARGIN)
+	var space := get_world_3d().direct_space_state
+	var hit := space.intersect_ray(query)
+	if not hit.is_empty(): desired = (hit["position"] as Vector3).move_toward(target, FOLLOW_CAMERA_WALL_MARGIN)
+	if _follow_lens == null:
+		_follow_lens = SphereShape3D.new()
+		_follow_lens.radius = FOLLOW_CAMERA_LENS_RADIUS
+	var lens := PhysicsShapeQueryParameters3D.new()
+	lens.shape = _follow_lens
+	lens.collision_mask = query.collision_mask
+	lens.exclude = query.exclude
+	lens.transform = Transform3D(Basis.IDENTITY,target)
+	lens.motion = desired - target
+	lens.margin = 0.02
+	var fractions := space.cast_motion(lens)
+	if fractions.size() == 2 and fractions[0] < 1.0:
+		desired = target + lens.motion * maxf(0.0, fractions[0] - 0.01)
+	# The near-plane volume also needs to be clear when the ray begins inside
+	# furniture; a centre ray alone misses thin walls beside the lens.
+	lens.motion = Vector3.ZERO
+	lens.transform.origin = desired
+	if not space.intersect_shape(lens,1).is_empty(): return target
+	return desired
 
 
 func _follow_camera_position(view: Dictionary, target: Vector3, offset: Vector3, minimum_distance: float, query: PhysicsRayQueryParameters3D) -> Vector3:
@@ -984,7 +1009,13 @@ func _set_camera_region(view: Dictionary, frame: Transform3D, bounds: AABB) -> v
 
 func _constrain_camera_position(position: Vector3) -> Vector3:
 	var view := _camera_views[_active_camera_index]
-	if view.has("actor") or not view.has("movement_bounds"):
+	if view.has("actor") and is_instance_valid(view["actor"]):
+		var actor := view["actor"] as CharacterBody3D
+		var target := actor.global_position + Vector3.UP * 0.6
+		var bounded := target + (position - target).limit_length(FOLLOW_CAMERA_MAX_DISTANCE)
+		bounded.y = clampf(bounded.y, actor.global_position.y + 0.25, actor.global_position.y + FOLLOW_CAMERA_MAX_HEIGHT)
+		return bounded
+	if not view.has("movement_bounds"):
 		return position
 	var frame: Transform3D = view["movement_frame"]
 	var bounds: AABB = view["movement_bounds"]

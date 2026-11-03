@@ -27,6 +27,23 @@ var _on_screen := false
 var _paused := false
 var _epoch_msec := 0
 var _paused_msec := 0
+var _component_holds: Dictionary = {}
+var _component_offsets := {"fountain": 0.0, "lake": 0.0}
+
+func component_time(component: String, seconds: float) -> float:
+	return float(_component_holds[component]) if _component_holds.has(component) else seconds - float(_component_offsets[component])
+
+func set_component_paused(component: String, paused: bool) -> bool:
+	if not _component_offsets.has(component): return false
+	var now := presentation_seconds()
+	if paused and not _component_holds.has(component): _component_holds[component] = component_time(component, now)
+	elif not paused and _component_holds.has(component):
+		_component_offsets[component] = now - float(_component_holds[component])
+		_component_holds.erase(component)
+	return true
+
+func component_paused(component: String) -> bool:
+	return _component_holds.has(component)
 
 func bind(geometry: Node3D, environment: Environment, manage_environment: bool = true) -> void:
 	_manage_environment = manage_environment
@@ -186,28 +203,35 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 		_spillway_edges.append(material)
 
 func sample(seconds: float, night: bool) -> void:
+	var fountain_seconds := component_time("fountain", seconds)
+	var lake_seconds := component_time("lake", seconds)
 	var phase := fposmod(seconds, 24.0) / 8.0
 	var index := int(phase)
 	var color: Color = COLORS[index].lerp(COLORS[(index + 1) % COLORS.size()], smoothstep(0.0, 1.0, phase - index))
 	# A subdued accent on the existing lake surface, without added beams or stripes.
 	var lake_material := lake.get_active_material(0) as ShaderMaterial
+	lake_material.set_shader_parameter("presentation_time", lake_seconds)
+	lake_material.set_shader_parameter("show_time", lake_seconds)
 	lake_material.set_shader_parameter("accent_color",Vector3(color.r,color.g,color.b))
 	lake_material.set_shader_parameter("accent_strength",0.15 if night else 0.0)
 	# Light only the original fountain water, never a free-standing beam.
 	for material: ShaderMaterial in fountain_materials:
+		material.set_shader_parameter("presentation_time", fountain_seconds)
 		material.set_shader_parameter("accent_color", Vector3(color.r, color.g, color.b))
 		var strength := 0.35
 		material.set_shader_parameter("accent_strength", strength if night else 0.0)
 	# Each actual pool ring peaks later than the smaller one, then fades.
-	var cycle := fposmod(seconds,5.0)
+	var cycle := fposmod(fountain_seconds,5.0)
 	for ring_index in range(fountain_rings.size()):
 		var material := fountain_rings[ring_index]["material"] as ShaderMaterial
 		var distance := (cycle-(0.55+float(ring_index)*0.7))/0.33
 		var pulse := exp(-distance*distance)
 		material.set_shader_parameter("accent_strength",0.04+1.8*pulse if night else 0.0)
-	var lead: Dictionary = fountain_show.sample(seconds,night)
+	var lead: Dictionary = fountain_show.sample(fountain_seconds,night)
 	for material: ShaderMaterial in _wave_materials:
-		material.set_shader_parameter("show_time", seconds)
+		var time := lake_seconds if material == lake_material else fountain_seconds
+		material.set_shader_parameter("show_time", time)
+		material.set_shader_parameter("presentation_time", time)
 		material.set_shader_parameter("show_night", 1.0 if night else 0.0)
 		material.set_shader_parameter("flower_height", lead.flower_height)
 		material.set_shader_parameter("flower_reach", lead.flower_reach)
@@ -222,6 +246,7 @@ func sample(seconds: float, night: bool) -> void:
 	for material: StandardMaterial3D in _spillway_edges:
 		material.emission_energy_multiplier = 1.1 if night else 0.0
 	for material: ShaderMaterial in spillway_materials:
+		material.set_shader_parameter("presentation_time", fountain_seconds)
 		var role := str(material.get_meta("estate_water_role"))
 		var strength := 0.5 if role == "jet" else (0.22 if role == "foam" else 0.32)
 		material.set_shader_parameter("accent_color", Vector3(0.35, 0.68, 0.78))

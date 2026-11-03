@@ -11,6 +11,13 @@ system:
       完全随机: true
   engine:
     tick_interval_sec: 1.5
+  environment:
+    daylight_source: manual
+    sunrise_time: "06:00"
+    sunset_time: "18:00"
+    rest_time: "00:00"
+    latitude: null
+    longitude: null
   security:
     session_ttl_days: 7
     rate_limit:

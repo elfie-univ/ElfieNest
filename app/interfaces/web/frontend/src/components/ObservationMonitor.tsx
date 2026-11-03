@@ -74,7 +74,6 @@ function monitorHelpKey(
 
 export function ObservationMonitor({ elfieScope = "owned", immersive = false, mode = "embedded", onExitImmersive, roomId }: ObservationMonitorProps) {
   const { t } = useTranslation("monitor")
-  const debug = new URLSearchParams(window.location.search).get("debug") === "1"
   const observer = useOptionalObserver()
   const cameraCatalog = observer?.cameraCatalog ?? null
   const cameraViews = cameraCatalog?.views.filter((view) => view.id === "overview" || view.id === "estate-ring" || /^(central-[1-4]|dorm-0[1-8]|terrace-0[1-8])$/.test(view.id)) ?? []
@@ -131,15 +130,6 @@ export function ObservationMonitor({ elfieScope = "owned", immersive = false, mo
     label: `${elfie.name || elfie.elfie_id}${canObserve(elfie.elfie_id, elfieView) ? "" : ` · ${t("controls.notInScene")}`}`,
     disabled: !canObserve(elfie.elfie_id, elfieView),
   }))
-  const supportsTimePreview = cameraCatalog?.views.some((view) => view.id === "lighting-live") ?? false
-  const [timePreview, setTimePreview] = useState("lighting-live")
-  useEffect(() => { if (cameraCatalog === null) setTimePreview("lighting-live") }, [cameraCatalog])
-  const timeOptions = [
-    { value: "lighting-live", label: t("controls.localTime") },
-    { value: "lighting-day", label: t("controls.daytime") },
-    { value: "lighting-night", label: t("controls.evening") },
-    { value: "lighting-quiet", label: t("controls.quietHours") },
-  ]
   const presentationPaused = cameraCatalog?.presentationPaused ?? false
   const pauseIcon = presentationPaused ? "play" : "pause"
   const pauseLabel = presentationPaused ? t("controls.resume") : t("controls.pause")
@@ -191,7 +181,6 @@ export function ObservationMonitor({ elfieScope = "owned", immersive = false, mo
           </>}
         </div>
         <div className="observation-monitor__playback" role="group" aria-label={t("controls.playbackGroup")}>
-          {debug ? <div className="observation-monitor__selector observation-monitor__time"><SelectField disabled={cameraCommandDisabled || !supportsTimePreview} label={t("controls.time")} onValueChange={(value) => { setTimePreview(value); observer?.select(value) }} options={timeOptions} value={timePreview} /></div> : null}
         <Button aria-label={pauseLabel} className="observation-monitor__command observation-monitor__pause" disabled={pauseCommandDisabled} onClick={() => observer?.setLocalPresentationPaused(!presentationPaused)} type="button" variant="outline">
           <Icon name={pauseIcon} size={16} /><span>{pauseLabel}</span>
         </Button>

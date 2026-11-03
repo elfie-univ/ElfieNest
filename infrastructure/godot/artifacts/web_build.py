@@ -43,7 +43,7 @@ ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
 LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v3"
 CANVAS_CAPTURE_VERSION = "canvas-capture-v3"
-PACK_OWNERSHIP_VERSION = "pack-ownership-v3-authority"
+PACK_OWNERSHIP_VERSION = "pack-ownership-v4-authority-lab-visual"
 LAN_HTTP_COMPATIBILITY_MARKER = "elfienest:lan-http-compatibility"
 CANVAS_CAPTURE_MARKER = "elfienest:webgl-canvas-capture"
 _SECURE_CONTEXT_FEATURE = "Secure Context - Check web server configuration (use HTTPS)"
@@ -388,7 +388,7 @@ def current_species_catalog_digest() -> str:
 def patch_web_authority_pack(entry: Path, size: int) -> None:
     """Select the physical package only for the existing authority entry mode."""
     text = entry.read_text(encoding="utf-8")
-    marker = "// elfienest:authority-pack-v1"
+    marker = "// elfienest:authority-pack-v2"
     if marker in text:
         return
     before = "const engine = new Engine(GODOT_CONFIG);"
@@ -396,7 +396,8 @@ def patch_web_authority_pack(entry: Path, size: int) -> None:
         raise RuntimeError(f"Unsupported Godot authority pack entry: {entry}")
     script = (
         marker + "\n"
-        "if (new URLSearchParams(window.location.search).get('mode') === 'authority') {\n"
+        "if (new URLSearchParams(window.location.search).get('mode') === 'authority'\n"
+        "    && new URLSearchParams(window.location.search).get('lab') !== 'nest_lab') {\n"
         "  GODOT_CONFIG.mainPack = 'elfienest-authority.pck';\n"
         f"  GODOT_CONFIG.fileSizes['elfienest-authority.pck'] = {size};\n"
         "}\n"

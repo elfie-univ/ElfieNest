@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
+from devtools.elfie_lab.storage import ElfieLabStorage
+from devtools.nest_lab.saved_actors import SavedLabActors
 from devtools.nest_lab.world import NestLabWorld
 from infrastructure.godot.gateway.messages import CommandName
 from test.infrastructure.godot.gateway.fake_runtime import FakeRuntime
+
+
+def _saved_actors(root):
+    return SavedLabActors(ElfieLabStorage(str(root / "elfie_lab")))
 
 
 class _LabGateway(FakeRuntime):
@@ -55,6 +61,7 @@ def test_lab_translates_actor_and_wander_controls_to_v3_commands(tmp_path) -> No
         http_port=8890,
         websocket_port=8891,
         gateway=gateway,
+        saved_actors=_saved_actors(tmp_path),
     )
 
     # When: the Runtime supplies its semantic manifest, then a developer adds a saevi.
@@ -78,7 +85,7 @@ def test_lab_translates_actor_and_wander_controls_to_v3_commands(tmp_path) -> No
             "actor_id": actor.actor_id,
             "species": "saevi",
             "spawn_anchor_id": "dorm-01/bed-01",
-            "appearance": {},
+            "appearance": actor.appearance.to_payload(),
         }
     ]
 
@@ -91,6 +98,7 @@ def test_pausing_wander_cancels_an_inflight_semantic_move(tmp_path) -> None:
         http_port=8890,
         websocket_port=8891,
         gateway=gateway,
+        saved_actors=_saved_actors(tmp_path),
     )
     world.poll()
     world.add_actor("tovren")
@@ -105,7 +113,12 @@ def test_pausing_wander_cancels_an_inflight_semantic_move(tmp_path) -> None:
 
 def test_concurrent_actor_additions_preserve_capacity_and_unique_ids(tmp_path) -> None:
     """The polling frontend and control requests share one synchronized Lab state."""
-    world = NestLabWorld(data_dir=tmp_path, http_port=8890, websocket_port=8891)
+    world = NestLabWorld(
+        data_dir=tmp_path,
+        http_port=8890,
+        websocket_port=8891,
+        saved_actors=_saved_actors(tmp_path),
+    )
     world.set_bed_count(32)
 
     with ThreadPoolExecutor(max_workers=4) as executor:

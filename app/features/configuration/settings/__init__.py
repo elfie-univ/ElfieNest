@@ -8,7 +8,9 @@ from .errors import (
 )
 from .models import (
     ElfieSettingsResult,
+    EnvironmentSettingsResult,
     GetElfieSettingsQuery,
+    GetEnvironmentSettingsQuery,
     GetRuntimeSettingsQuery,
     GetSecuritySettingsQuery,
     LoginRateLimit,
@@ -17,6 +19,7 @@ from .models import (
     SecuritySettingsResult,
     SettingsResetResult,
     UpdateElfieSettingsCommand,
+    UpdateEnvironmentSettingsCommand,
     UpdateRuntimeSettingsCommand,
     UpdateSecuritySettingsCommand,
 )
@@ -30,6 +33,9 @@ from .ports import SecuritySettingsChangedPort, SettingsStorePort
 from .service import SettingsService
 
 __all__ = (
+    "GetEnvironmentSettingsQuery",
+    "UpdateEnvironmentSettingsCommand",
+    "EnvironmentSettingsResult",
     "ElfieSettingsResult",
     "GetElfieSettingsQuery",
     "GetRuntimeSettingsQuery",

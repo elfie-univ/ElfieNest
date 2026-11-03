@@ -379,6 +379,7 @@ def test_authority_pack_selection_preserves_observer_package(tmp_path: Path) -> 
         "assert.equal(run('?mode=authority').mainPack,'elfienest-authority.pck');"
         "assert.equal(run('?mode=authority').fileSizes['elfienest-authority.pck'],123);"
         "assert.equal(run('?observer=product').mainPack,undefined);"
+        "assert.equal(run('?mode=authority&lab=nest_lab').mainPack,undefined);"
         "assert.equal(run('').fileSizes['elfienest.pck'],456);"
     )
     subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)

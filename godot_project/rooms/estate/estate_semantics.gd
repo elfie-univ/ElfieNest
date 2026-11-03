@@ -94,9 +94,25 @@ func build(parent: Node3D, estate: Node3D) -> void:
 			var approach := point + Vector3(0, 0, 1 if source == "Picnic seat plank" else -1)
 			approach.y = 0.02
 			var marker := _add_anchor(id, "courtyard", "chair", "野餐长凳" if source == "Picnic seat plank" else "湖边长凳", approach, mesh)
+			marker.set_meta("furniture_type", "bench")
 			_interaction_pose(marker, mesh, point, "sitting")
+	bind_sofas(estate)
 	zones.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["zone_id"]) < str(b["zone_id"]))
 	print("ESTATE_SEMANTICS anchors=%d zones=%d beds=%d" % [anchors.size(), zones.size(), descriptors.filter(func(a: Dictionary) -> bool: return a["kind"] == "bed").size()])
+
+
+func bind_sofas(estate: Node3D) -> void:
+	for seat: Dictionary in preload("res://rooms/estate/estate_seating.gd").new().bind(estate):
+		var id := "central-01/sofa" if str(seat.id).begins_with("F08") else ("terrace-01/sofa" if seat.id == "F10" else "terrace-07/sofa")
+		if seat.id in ["F08-left", "F08-right"]: id += "-" + str(seat.id).trim_prefix("F08-")
+		if anchors.has(id): continue
+		var contact: Transform3D = seat.contact
+		var point := contact.origin + contact.basis.z * 1.4
+		point.y = seat.floor_y + 0.02
+		var marker := _add_anchor(id, id.get_slice("/",0), "chair", str(seat.label) + " 沙发", point, estate)
+		marker.set_meta("interaction_transform", contact)
+		marker.set_meta("interaction_posture", "sitting")
+		marker.set_meta("furniture_type", "sofa")
 
 
 func _interaction_pose(marker: Marker3D, mesh: MeshInstance3D, point: Vector3, posture: String) -> void:

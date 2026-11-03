@@ -2,16 +2,26 @@
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from functools import wraps
 from pathlib import Path
 from secrets import token_urlsafe
 from threading import RLock
-from typing import Any, Callable
+from typing import Any, Callable, Literal, Optional
 
+from devtools.nest_lab.actions import LabActions
 from devtools.nest_lab.actor_sync import sync_actors
 from devtools.nest_lab.event_log import LabEventLog
-from devtools.nest_lab.models import LabActor, LabSpecies, NestLabConflictError
+from devtools.nest_lab.models import (
+    LabActionRequest,
+    LabActor,
+    LabEnvironmentState,
+    LabSpecies,
+    NestLabConflictError,
+)
 from devtools.nest_lab.residents import assign_missing_homes
+from devtools.nest_lab.saved_actors import SavedLabActors
 from devtools.nest_lab.simulation import WanderScheduler
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.gateway.messages import (
@@ -24,6 +34,8 @@ from infrastructure.godot.nest_session.mapper import (
     parse_scene_manifest,
     parse_world_snapshot,
 )
+from infrastructure.persistence.configuration.settings import RuntimeSettingsAdapter
+from infrastructure.persistence.layout.data_layout import FinalRootLayout
 from nest import FIXED_BED_COUNT, Nest, NestConfig
 from nest.living_rules.models import RuntimeResidentMirror
 from nest.space_facilities.models import (
@@ -55,6 +67,7 @@ class NestLabWorld:
         websocket_port: int,
         data_dir: Path,
         gateway: GodotAPIServer | None = None,
+        saved_actors: SavedLabActors,
     ) -> None:
         self._lock = RLock()
         self._gateway = gateway or GodotAPIServer(
@@ -64,14 +77,19 @@ class NestLabWorld:
         )
         self._data_dir = data_dir
         self._nest = Nest(NestConfig())
+        self._settings = RuntimeSettingsAdapter(
+            FinalRootLayout(data_dir).runtime_config
+        )
         self._bed_count = FIXED_BED_COUNT
         self._world_revision = 1
         self._actors: dict[str, LabActor] = {}
+        self._saved_actors = saved_actors
+        self._dismissed_saved_actors: set[str] = set()
         self._events = LabEventLog()
+        self._actions = LabActions(self._gateway, self._nest, self._events)
         self._wander_scheduler = WanderScheduler(
             self._gateway, self._nest, self._events
         )
-        self._next_actor_sequence = 0
         self._connection_token: tuple[str, int] | None = None
         self._manifest_revision: int | None = None
         self._configured_revision: int | None = None
@@ -117,6 +135,21 @@ class NestLabWorld:
         }
 
     @_synchronized
+    def environment(self) -> LabEnvironmentState:
+        """Use the production time owner with this Lab's isolated configuration."""
+        self._nest.tick(
+            0,
+            local_time=datetime.now().astimezone(),
+            environment_schedule=self._settings.load_environment_settings(),
+        )
+        desired = self._nest.desired_environment
+        return LabEnvironmentState(
+            phase=self._nest.life_phase,
+            lights_on=desired.lights_on,
+            quiet_mode=desired.quiet_mode,
+        )
+
+    @_synchronized
     def world(self) -> dict[str, bool | int | str]:
         """Return the semantic Lab world state without spatial coordinates."""
         self.poll()
@@ -136,8 +169,40 @@ class NestLabWorld:
     @_synchronized
     def actors(self) -> tuple[LabActor, ...]:
         """Return Lab actors in stable insertion order."""
+        self._refresh_saved_actors()
         self.poll()
         return tuple(self._actors.values())
+
+    @_synchronized
+    def restore_saved_actors(self) -> tuple[LabActor, ...]:
+        """Rejoin saved experiment actors dismissed from this scene."""
+        self._dismissed_saved_actors.clear()
+        return self.actors()
+
+    def _refresh_saved_actors(self) -> None:
+        saved = {actor.actor_id: actor for actor in self._saved_actors()}
+        for actor in tuple(self._actors.values()):
+            if actor.saved and actor.actor_id not in saved:
+                self.remove_actor(actor.actor_id)
+                self._dismissed_saved_actors.discard(actor.actor_id)
+        for actor in saved.values():
+            if actor.actor_id in self._dismissed_saved_actors:
+                continue
+            current = self._actors.get(actor.actor_id)
+            if current == actor:
+                continue
+            if current is None:
+                if len(self._actors) >= self._bed_count:
+                    break
+                self._gateway.register_body_sink(actor.actor_id, self)
+                self._nest.register_resident(actor.actor_id)
+            else:
+                self._wander_scheduler.cancel_active(self._configured_revision)
+                self._actions.remove_actor(actor.actor_id, self._configured_revision)
+            self._actors[actor.actor_id] = actor
+            self._actor_catalog_dirty = True
+            self._events.append("saved_actor_loaded", actor.actor_id)
+        assign_missing_homes(self._nest, self._actors)
 
     @_synchronized
     def events(self) -> tuple[dict[str, str | int], ...]:
@@ -155,13 +220,20 @@ class NestLabWorld:
         return self.world()
 
     @_synchronized
-    def add_actor(self, species: LabSpecies) -> LabActor:
+    def add_actor(
+        self,
+        species: LabSpecies,
+        *,
+        age_years: Optional[int] = None,
+        gender: Optional[Literal["male", "female"]] = None,
+        name: Optional[str] = None,
+    ) -> LabActor:
         """Add one actor if the configured room has a free bed."""
+        self._refresh_saved_actors()
         self.poll()
         if len(self._actors) >= self._bed_count:
             raise NestLabConflictError("当前床位已满，不能再添加角色")
-        self._next_actor_sequence += 1
-        actor = LabActor(f"lab-{species}-{self._next_actor_sequence:03d}", species)
+        actor = self._saved_actors.create(species, age_years, gender, name)
         self._actors[actor.actor_id] = actor
         self._gateway.register_body_sink(actor.actor_id, self)
         self._nest.register_resident(actor.actor_id)
@@ -170,6 +242,71 @@ class NestLabWorld:
         self._events.append("actor_added", f"{actor.actor_id} ({species})")
         self.poll()
         return actor
+
+    @_synchronized
+    def update_actor(
+        self,
+        actor_id: str,
+        species: LabSpecies,
+        *,
+        age_years: Optional[int] = None,
+        gender: Optional[Literal["male", "female"]] = None,
+    ) -> LabActor:
+        self.poll()
+        if actor_id not in self._actors:
+            raise NestLabConflictError("精灵不存在")
+        raise NestLabConflictError(
+            "已保存的实验精灵请在单精灵实验中管理，不能在场景中重新生成"
+        )
+
+    @_synchronized
+    def remove_actor(self, actor_id: str) -> dict[str, str]:
+        self.poll()
+        if actor_id not in self._actors:
+            raise NestLabConflictError("精灵不存在")
+        if self._actors[actor_id].saved:
+            self._dismissed_saved_actors.add(actor_id)
+        self._wander_scheduler.cancel_active(self._configured_revision)
+        self._actions.remove_actor(actor_id, self._configured_revision)
+        self._gateway.unregister_body_sink(actor_id, self)
+        self._nest.remove_resident(actor_id)
+        del self._actors[actor_id]
+        self._actor_catalog_dirty = True
+        self._events.append("actor_removed", actor_id)
+        self.poll()
+        return {"actor_id": actor_id}
+
+    @_synchronized
+    def action_targets(self) -> list[dict[str, str | None]]:
+        self.poll()
+        return self._actions.targets()
+
+    @_synchronized
+    def execute_action(self, request: LabActionRequest) -> dict[str, str]:
+        self.poll()
+        if self._paused:
+            raise NestLabConflictError("模拟已暂停，请先继续模拟")
+        self._wandering = False
+        self._wander_scheduler.cancel_active(self._configured_revision)
+        return self._actions.execute(request, self._actors, self._configured_revision)
+
+    @_synchronized
+    def stop_action(self, actor_id: str) -> dict[str, str]:
+        self.poll()
+        self._wandering = False
+        self._wander_scheduler.cancel_active(self._configured_revision)
+        return self._actions.stop(actor_id, self._actors, self._configured_revision)
+
+    @_synchronized
+    def prepare_demonstration(self, actor_id: str) -> dict[str, str]:
+        self.poll()
+        if actor_id not in self._actors or self._configured_revision is None:
+            raise NestLabConflictError("请选择当前场景中已就绪的精灵")
+        self._wandering = False
+        self._paused = False
+        self._wander_scheduler.cancel_active(self._configured_revision)
+        self._actions.remove_actor(actor_id, self._configured_revision)
+        return {"actor_id": actor_id}
 
     @_synchronized
     def set_wandering(self) -> dict[str, bool]:
@@ -187,6 +324,7 @@ class NestLabWorld:
         self.poll()
         self._paused = True
         self._wander_scheduler.cancel_active(self._configured_revision)
+        self._actions.stop_all(self._actors, self._configured_revision)
         self._events.append("simulation_paused", "active moves cancelled")
         return {"paused": True}
 
@@ -207,6 +345,7 @@ class NestLabWorld:
             self._gateway.unregister_body_sink(actor_id, self)
             self._nest.remove_resident(actor_id)
         self._actors.clear()
+        self._actions.clear()
         self._wander_scheduler.clear()
         self._wandering = False
         self._paused = False
@@ -255,6 +394,7 @@ class NestLabWorld:
         self._nest.invalidate_runtime_state()
         self._actor_catalog_dirty = True
         self._wander_scheduler.clear()
+        self._actions.clear()
         if token is None:
             self._events.append("runtime_disconnected", "waiting for Godot Web")
             return
@@ -275,7 +415,15 @@ class NestLabWorld:
             self._events.append("configure_world", f"revision={self._world_revision}")
 
     def _consume_runtime_event(self, event: RuntimeEventFrame) -> None:
-        self._events.append(event.name.value, event.message_id)
+        detail = {
+            key: value
+            for key, value in event.payload.items()
+            if key in {"actor_id", "command_id", "status", "detail", "reason", "code"}
+        }
+        self._events.append(
+            event.name.value,
+            json.dumps(detail, ensure_ascii=False) if detail else event.message_id,
+        )
         if event.name is EventName.SCENE_MANIFEST:
             catalog = _nest_catalog(event.payload)
             if catalog.revision != self._world_revision:
@@ -313,6 +461,7 @@ class NestLabWorld:
             if revision == self._configured_revision:
                 self._nest.apply_runtime_mirrors(mirrors)
         elif event.name is EventName.INTENT_TERMINAL:
+            self._actions.complete(event.payload)
             command_id = event.payload.get("command_id")
             if isinstance(command_id, str):
                 self._wander_scheduler.complete(command_id)

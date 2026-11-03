@@ -5,6 +5,7 @@ import { FIXED_BED_COUNT } from "../constants";
 export const runtimeSchema = z.object({
   runtime_connected: z.boolean(),
   runtime_ready: z.boolean(),
+  world_configured: z.boolean(),
   websocket_url: z.string(),
   nonce: z.string(),
   paused: z.boolean(),
@@ -19,14 +20,12 @@ export const worldSchema = z.object({
   wandering: z.boolean(),
 });
 
-export const actorsSchema = z.object({
-  items: z.array(
-    z.object({
-      actor_id: z.string(),
-      species: z.union([z.literal("tovren"), z.literal("saevi")]),
-    }),
-  ),
+export const actorSchema = z.object({
+  actor_id: z.string(), species: z.enum(["tovren", "saevi"]),
+  age_years: z.number().int(), gender: z.enum(["male", "female"]),
+  name: z.string().optional(), saved: z.boolean().optional(),
 });
+export const actorsSchema = z.object({ items: z.array(actorSchema) });
 
 export const eventsSchema = z.object({
   items: z.array(
@@ -46,6 +45,12 @@ export const godotWebSchema = z.object({
 });
 
 export type NestRuntime = z.infer<typeof runtimeSchema>;
+export const environmentSchema = z.object({ phase: z.enum(["day", "dawn", "dusk", "night"]), lights_on: z.boolean(), quiet_mode: z.boolean() }).strict();
+export type NestEnvironment = z.infer<typeof environmentSchema>;
+export const targetsSchema = z.object({ items: z.array(z.object({
+  anchor_id: z.string(), kind: z.string(), label: z.string(), owner_id: z.string().nullable(),
+})) });
+export type NestTarget = z.infer<typeof targetsSchema>["items"][number];
 export type NestWorld = z.infer<typeof worldSchema>;
 export type NestActor = z.infer<typeof actorsSchema>["items"][number];
 export type NestEvent = z.infer<typeof eventsSchema>["items"][number];
@@ -59,3 +64,6 @@ export const viewIntents = {
 } as const;
 
 export type ViewIntent = (typeof viewIntents)[keyof typeof viewIntents];
+
+export const actorSpeciesSchema = z.object({ items: z.array(z.object({ id: z.enum(["saevi", "tovren"]), label: z.string(), min_age: z.number().int(), max_age: z.number().int() })) });
+export type ActorSpecies = z.infer<typeof actorSpeciesSchema>["items"][number];

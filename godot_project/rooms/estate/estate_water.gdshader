@@ -18,6 +18,7 @@ uniform vec3 fountain_center;
 uniform float pool_radius = 5.0;
 uniform float channel_end_radius = 8.0;
 uniform float show_time = 0.0;
+uniform float presentation_time = -1.0;
 uniform float show_night = 0.0;
 uniform float flower_height = 0.0;
 uniform float flower_reach = 2.1;
@@ -35,7 +36,7 @@ void vertex() {
 
 void fragment() {
 	float speed = is_spillway ? 1.1 : wave_speed;
-	float phase = TIME * speed;
+	float phase = (presentation_time >= 0.0 ? presentation_time : TIME) * speed;
 	vec2 slope = vec2(
 		cos(water_position.x * 2.1 + water_position.z * 1.3 - phase),
 		sin(water_position.z * 2.7 - water_position.x * 0.7 + phase * 0.71)

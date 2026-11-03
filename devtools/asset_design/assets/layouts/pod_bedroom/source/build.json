@@ -12,8 +12,8 @@
     "M08": 847
   },
   "instanceCount": 8,
-  "sourceSha256": "911865543f5226173b76c6ba34b14ccac9df8e2f595a2e1fa5eefc4c00e25f12",
-  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "sourceSha256": "cedf561fffa3a5e0bd9eda18c489eaea4be19f52f8447a265487d3f317c3caaf",
+  "description": "四组床桌接缝最终修复：按实测床壳曲线贴合桌面上下沿；四张桌面均修复旧自交、退化面和开边，保留原轮廓、摆放、材质及 UV。",
   "reuseMasters": {
     "layout:pod:rug-A": {
       "object": "part:shared_natural_woven_rug_562b20302f",
@@ -92,5 +92,32 @@
     "triangleMeshPreservesOpenings": true,
     "retainedGroups": [],
     "nativeValidated": true
+  },
+  "bedDeskFit": {
+    "residents": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "replicatedRooms": 8,
+    "samples": {
+      "heightsInBedFrameM": [
+        0.551,
+        0.575,
+        0.599
+      ],
+      "headAnglesDegrees": [
+        -100,
+        -90,
+        -80,
+        -70,
+        -60
+      ]
+    },
+    "maximumOpenGapM": 0.001,
+    "maximumJointEmbedM": 0.007,
+    "verification": "test/devtools/asset_design/test_pod_desktop_contacts.py",
+    "allFourWorktopsClosedManifold": true
   }
 }

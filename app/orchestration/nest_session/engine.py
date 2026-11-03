@@ -13,7 +13,7 @@ from app.orchestration.nest_session.ports import (
     NestStateStorePort,
 )
 from app.orchestration.nest_session.session import NestSession
-from nest.public import Nest, NestConfig
+from nest.public import EnvironmentSchedule, Nest, NestConfig
 
 logger = logging.getLogger("app.orchestration.engine")
 
@@ -43,6 +43,7 @@ class ElfieNestEngine:
         state_store: NestStateStorePort | None = None,
         nest_config: NestConfig | None = None,
         local_time: Callable[[], datetime] | None = None,
+        environment_schedule: Callable[[], EnvironmentSchedule] | None = None,
     ) -> None:
         """初始化引擎。
 
@@ -62,8 +63,15 @@ class ElfieNestEngine:
         )
         self.coordinator = self.session
         self._local_time = local_time
+        self._environment_schedule = environment_schedule
         if local_time is not None:
-            self.nest.tick(0.0, local_time=local_time())
+            self.nest.tick(
+                0.0,
+                local_time=local_time(),
+                environment_schedule=(
+                    environment_schedule() if environment_schedule is not None else None
+                ),
+            )
         self._loop_started = False
         self._stop_event = Event()
         self._running_event = Event()
@@ -127,6 +135,11 @@ class ElfieNestEngine:
         self.nest.tick(
             seconds,
             local_time=self._local_time() if self._local_time is not None else None,
+            environment_schedule=(
+                self._environment_schedule()
+                if self._environment_schedule is not None
+                else None
+            ),
         )
         self.session.persist_time_environment()
         self.session.flush_environment_state()

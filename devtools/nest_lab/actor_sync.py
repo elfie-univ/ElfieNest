@@ -31,7 +31,7 @@ def sync_actors(
             "actor_id": actor.actor_id,
             "species": actor.species,
             "spawn_anchor_id": spawn_anchor_id,
-            "appearance": {},
+            "appearance": actor.appearance.to_payload() if actor.appearance else {},
         }
         descriptors.append(descriptor)
     message_id = gateway.send_runtime_command(

@@ -21,6 +21,7 @@ uniform bool show_central = false;
 uniform float jet_height = 1.0;
 uniform float jet_radius = 0.022;
 uniform float show_time = 0.0;
+uniform float presentation_time = -1.0;
 uniform float jet_seed = 0.0;
 uniform float water_pressure = 1.0;
 uniform float flower_angle = 0.0;
@@ -73,12 +74,12 @@ void fragment() {
 	// Animate highlights and coverage within the authored jet/ring geometry.
 	// Hidden authority scenes submit no water draws; no CPU clock is needed.
 	float coordinate = is_ripple ? length(water_position.xy) * 18.0 : water_position.y * 24.0;
-	float flow_time = (show_jet || show_central) ? show_time : TIME;
+	float flow_time = (show_jet || show_central) ? show_time : (presentation_time >= 0.0 ? presentation_time : TIME);
 	float phase = coordinate - flow_time * (show_jet ? 12.0 : (is_ripple ? 0.8 : -2.6));
 	float wave = sin(phase);
 	vec4 tint = source_albedo;
 	if (use_source_texture) {
-		tint *= texture(source_texture, UV + vec2(0.0, TIME * 0.025));
+		tint *= texture(source_texture, UV + vec2(0.0, flow_time * 0.025));
 	}
 	ALBEDO = source_unshaded ? vec3(0.0) : tint.rgb;
 	EMISSION = (source_unshaded ? tint.rgb : vec3(0.0)) + accent_color * accent_strength;

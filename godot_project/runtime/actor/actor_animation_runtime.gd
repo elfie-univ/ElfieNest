@@ -8,6 +8,10 @@ const SHARED_ANIMATIONS := {
 	"jump": "res://characters/animation/jump.fbx",
 	"twist_dance": "res://characters/animation/Twist Dance.fbx",
 	"pose_waving": "res://characters/animation/pose_waving.fbx",
+	"pose_thinking": "res://characters/animation/pose_thinking.fbx",
+	"pose_victory": "res://characters/animation/pose_victory.fbx",
+	"pose_thumbs_up": "res://characters/animation/pose_thumbs_up.fbx",
+	"pose_hands_on_hips": "res://characters/animation/pose_hands_on_hips.fbx",
 	"left_strafe": "res://characters/animation/left strafe.fbx",
 	"left_strafe_walking": "res://characters/animation/left strafe walking.fbx",
 	"left_turn": "res://characters/animation/left turn.fbx",
@@ -222,8 +226,14 @@ func play_expression(expression: String) -> bool:
 	if not SHARED_ANIMATIONS.has(animation_name) or not _animation_player.has_animation(animation_name):
 		return false
 	cancel_expression()
+	if animation_name == "idle":
+		_animation_player.playback_active = true
+		play("idle")
+		return true
 	_actor.set_meta("runtime_expression", expression)
 	_expression_animation = animation_name
+	if PREVIEW_POSE_FRAME_RATIOS.has(animation_name) and animation_name != "pose_waving":
+		return _play_frozen_pose(animation_name)
 	play(animation_name)
 	return true
 

@@ -138,6 +138,12 @@ Monitor 地址参数 `fountain=fixed` 可切回固定节目，`fountain=random&f
 接触元数据无效或退出位置受阻都会明确失败。走开时恢复站立身体与碰撞。这些操作仍由
 Godot 拥有，不增加 Python 几何模型、第二个 Gateway 或 Observer 模拟权威。
 
+动画检查时，`use_anchor` 还支持可选的命名 `furniture_cycle`：`seat`、`sleep-back`、
+`sleep-left`、`sleep-right`。它选择 Godot 自有的已创作流程，不接受变换矩阵或任意姿态。
+普通 Body `furniture.use` 仍只传 `anchor_id`。流程执行、根运动、接触采样、转椅旋转、
+睡姿和被子变形位于 `runtime/actor/`；家具接触点和碰撞仍属于 `rooms/estate/`。
+Nest Lab 选择并观察同一个实现；完成、取消和失败沿用原命令身份与唯一终态。
+
 ## Runtime 产物契约
 
 产物清单只接受四个原生 target：`darwin-arm64`、`darwin-x64`、`win32-x64` 与

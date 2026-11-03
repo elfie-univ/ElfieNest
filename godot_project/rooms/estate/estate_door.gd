@@ -9,6 +9,13 @@ const SAFETY_MARGIN := 0.05
 
 var _door: Dictionary
 var _hold_seconds := 0.0
+var preview_mode := "auto"
+
+
+func set_preview_mode(mode: String) -> bool:
+	if mode not in ["open", "closed", "auto"]: return false
+	preview_mode = mode
+	return true
 
 
 func _init(door: Dictionary) -> void:
@@ -22,6 +29,7 @@ func advance(delta: float, default_open: bool, actors: Array[Node3D]) -> void:
 	else:
 		_hold_seconds = maxf(0.0, _hold_seconds - maxf(delta, 0.0))
 	var target := 1.0 if default_open or nearby or _hold_seconds > 0.0 else 0.0
+	if preview_mode != "auto": target = 1.0 if preview_mode == "open" else 0.0
 	var current := float(_door["amount"])
 	var amount := move_toward(current, target, maxf(delta, 0.0) * SLIDE_SPEED)
 	# Test the full physical door sweep against every supplied body shape.

@@ -9,6 +9,7 @@ var _lab_camera: Camera3D
 var _actor_scenes: Dictionary
 var _lab_controller: Node
 var _lab_browser_bridge_ready := false
+var _nest_console: Node
 
 
 func setup(
@@ -43,17 +44,14 @@ func setup_elfie_lab() -> void:
 
 
 func setup_nest_lab() -> void:
-	"""Start the same-origin named-camera bridge used by Nest Lab."""
-	JavaScriptBridge.eval(
-		"(() => { window.__elfieNestLabCameraQueue = [];"
-		+ " window.addEventListener('message', (event) => {"
-		+ " if (event.origin !== window.location.origin) return;"
-		+ " const data = event.data;"
-		+ " if (data && data.channel === 'elfienest-nest-lab'"
-		+ " && data.type === 'camera' && typeof data.intent === 'string')"
-		+ " window.__elfieNestLabCameraQueue.push(data.intent);"
-		+ " }); })()"
-	)
+	_nest.set_meta("lab_action_preview", true)
+	var console_script := load("res://runtime/lab/nest_lab_console.gd") as GDScript
+	_nest_console = console_script.new()
+	add_child(_nest_console)
+	_nest_console.setup(_nest, _characters)
+
+func bind_actor_controller(controller: Node) -> void:
+	if _nest_console != null: _nest_console.bind_actor_controller(controller)
 
 
 func process_elfie_lab_frame() -> void:
@@ -64,18 +62,7 @@ func process_elfie_lab_frame() -> void:
 
 
 func process_nest_lab_frame() -> void:
-	var raw_batch: Variant = JavaScriptBridge.eval(
-		"window.__elfieNestLabCameraQueue && window.__elfieNestLabCameraQueue.length"
-		+ " ? JSON.stringify(window.__elfieNestLabCameraQueue.splice(0)) : ''"
-	)
-	if not raw_batch is String or String(raw_batch).is_empty():
-		return
-	var parsed_batch: Variant = JSON.parse_string(String(raw_batch))
-	if not parsed_batch is Array:
-		return
-	for raw_intent: Variant in parsed_batch as Array:
-		if raw_intent is String:
-			_select_nest_lab_camera_preset(String(raw_intent))
+	_nest_console.process_frame()
 
 
 func _initialize_lab_browser_bridge() -> void:
@@ -97,22 +84,6 @@ func _initialize_lab_browser_bridge() -> void:
 	)
 	_lab_browser_bridge_ready = true
 	_post_lab_message("ready", {})
-
-
-func _select_nest_lab_camera_preset(intent: String) -> void:
-	match intent:
-		"overview":
-			_nest.select_observer_overview()
-		"activity":
-			_nest.select_observer_camera_by_id("central-1")
-		"dorm":
-			_nest.select_observer_camera_by_id("dorm-01")
-		"portal":
-			_nest.select_observer_camera_by_id("central-4")
-		"restore":
-			_nest.reset_observation_camera()
-		_:
-			return
 
 
 func _disable_nest_cameras() -> void:

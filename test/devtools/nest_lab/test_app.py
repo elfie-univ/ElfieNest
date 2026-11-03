@@ -70,7 +70,7 @@ def test_nest_lab_exposes_world_module_status_without_user_auth(tmp_path) -> Non
     # Then
     assert response.status_code == 200
     assert response.json()["module"] == "elfienest-world"
-    assert Path(response.json()["data_dir"]) == tmp_path
+    assert Path(response.json()["data_dir"]) == tmp_path / "nest_lab"
 
 
 def test_nest_lab_exposes_an_isolated_runtime_control_surface(tmp_path) -> None:

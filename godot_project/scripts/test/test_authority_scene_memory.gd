@@ -21,8 +21,12 @@ func run() -> void:
   fail("Hidden authority must not load or retain the display model");return
  if bytes > 900*1024*1024:
   fail("Authority exceeds the physical-only memory budget");return
- if nest.semantic_anchor_ids().size()!=87 or nest._estate_physics.collider_count!=1257 or nest._estate_physics._doors.size()!=10:
+ if nest.semantic_anchor_ids().size()!=92 or nest._estate_physics.collider_count!=1258 or nest._estate_physics._doors.size()!=10:
   fail("Authority must retain all anchors, colliders and sliding doors");return
+ for anchor:String in ["central-01/sofa-left","central-01/sofa","central-01/sofa-right"]:
+  var marker := nest.resolve_anchor(anchor)
+  if marker == null or str(marker.get_meta("kind", "")) != "chair":
+   fail("Authority must preserve each independent sofa seat: "+anchor);return
  if not nest.bake_navigation() or not await nest.wait_for_navigation_sync() or not nest.validate_navigation_anchors():
   fail("Authority physical navigation must remain connected");return
  var manifest := nest.scene_manifest()

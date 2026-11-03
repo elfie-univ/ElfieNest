@@ -15,6 +15,12 @@ var _characters: Node3D
 var _actor_scenes: Dictionary
 var _actors: Dictionary = {}
 var _actor_catalog: Dictionary = {}
+var preview_demonstrations: Node
+var _preview_switches: Dictionary = {}
+
+func home_anchor_for(actor_id: String) -> String:
+	var data: Variant = JSON.parse_string(str(_actor_catalog.get(actor_id,"{}")))
+	return str(data.get("spawn_anchor_id", "")) if data is Dictionary else ""
 var _command_actor_ids: Dictionary = {}
 var _command_metadata: Dictionary = {}
 var _terminal_commands: Dictionary = {}
@@ -161,9 +167,20 @@ func execute_intent(command: Dictionary) -> void:
 		"body_generation": body_generation,
 	}
 	_emit_command_event("intent_accepted", command_id, actor_id)
+	if preview_demonstrations != null and not command_id.begins_with("demo-") and preview_demonstrations.running(actor_id):
+		var prior := str(_preview_switches.get(actor_id,""))
+		if not prior.is_empty(): _emit_terminal(prior, actor_id, "cancelled", "superseded_before_start")
+		_preview_switches[actor_id] = command_id
+		preview_demonstrations.cancel(actor_id)
+		while preview_demonstrations.running(actor_id): await get_tree().physics_frame
+		if _preview_switches.get(actor_id) != command_id: return
+		_preview_switches.erase(actor_id)
 	var actor_instance := actor(actor_id)
 	if actor_instance == null:
 		_emit_terminal(command_id, actor_id, "failed", "actor_not_found")
+		return
+	if actor_instance.has_method("play_furniture_cycle") and not str(actor_instance.get("furniture_cycle_command")).is_empty():
+		_emit_terminal(command_id, actor_id, "failed", "actor_busy")
 		return
 	if bool(actor_instance.get_meta("hosted", false)) or not bool(actor_instance.get_meta("arrival_completed", true)):
 		_emit_terminal(command_id, actor_id, "failed", "virtual_body_unavailable")
@@ -206,7 +223,14 @@ func cancel_intent(command: Dictionary) -> void:
 	var actor_id := String(_command_actor_ids.get(command_id, ""))
 	if actor_id.is_empty() or _terminal_commands.has(command_id):
 		return
+	if _preview_switches.get(actor_id) == command_id:
+		_preview_switches.erase(actor_id)
+		_emit_terminal(command_id, actor_id, "cancelled", "cancelled_before_start")
+		return
 	var actor_instance := actor(actor_id)
+	if actor_instance != null and actor_instance.has_method("play_furniture_cycle") and str(actor_instance.get("furniture_cycle_command")) == command_id:
+		actor_instance.call("cancel_furniture_cycle", "cancelled_by_controller")
+		return
 	if actor_instance == null or actor_instance.active_command_id != command_id:
 		_emit_terminal(command_id, actor_id, "failed", "command_not_active")
 		return
@@ -266,6 +290,8 @@ func _remove_actor(actor_id: String) -> void:
 	_actor_catalog.erase(actor_id)
 
 
+var _cycle_requests: Dictionary = {}
+
 func _on_actor_navigation_terminal(
 	command_id: String,
 	status: String,
@@ -274,7 +300,17 @@ func _on_actor_navigation_terminal(
 ) -> void:
 	if _pending_anchor_uses.has(command_id):
 		var anchor_id := String(_pending_anchor_uses[command_id])
+		if status == "completed" and _cycle_requests.has(command_id):
+			var body := actor(actor_id)
+			var variant := str(_cycle_requests[command_id])
+			_cycle_requests.erase(command_id)
+			if body != null and body.has_method("play_furniture_cycle"):
+				var result: Dictionary = await body.play_furniture_cycle(_nest.resolve_anchor(anchor_id), anchor_id, command_id, variant, _nest)
+				_pending_anchor_uses.erase(command_id)
+				_emit_terminal(command_id, actor_id, str(result.status), str(result.reason))
+				return
 		_pending_anchor_uses.erase(command_id)
+		_cycle_requests.erase(command_id)
 		if status == "completed":
 			var actor_instance := actor(actor_id)
 			var marker := _nest.resolve_anchor(anchor_id)
@@ -306,6 +342,17 @@ func _execute_use_anchor(command: Dictionary, actor_instance: ElfieActor) -> voi
 	if _pending_anchor_uses.values().has(anchor_id):
 		_emit_terminal(command_id, actor_id, "failed", "furniture_occupied")
 		return
+	if bool(_nest.get_meta("lab_action_preview", false)):
+		if not actor_instance.leave_furniture():
+			_emit_terminal(command_id, actor_id, "failed", "preview_exit_blocked")
+			return
+		# The Runtime's semantic anchor is already the validated approach point.
+		# Keep all coordinates and furniture contact motion in this authority.
+		actor_instance.global_position = marker.global_position
+		actor_instance.velocity = Vector3.ZERO
+	if command.has("furniture_cycle"):
+		_cycle_requests[command_id] = command["furniture_cycle"]
+		actor_instance.set_meta("furniture_cycle_deadline", Time.get_ticks_msec() + int(float(command["deadline_seconds"])*1000.0))
 	_pending_anchor_uses[command_id] = anchor_id
 	if not actor_instance.move_to(
 		command_id, marker.global_position, float(command["deadline_seconds"]),
@@ -321,7 +368,9 @@ func _valid_use_anchor_payload(command: Dictionary) -> bool:
 	var text_fields := [
 		"command_id", "intent_id", "actor_id", "initiator", "intent", "anchor_id",
 	]
-	if command.size() != text_fields.size() + 2:
+	var cycle := str(command.get("furniture_cycle", ""))
+	if command.has("furniture_cycle") and cycle not in ["seat", "sleep-back", "sleep-left", "sleep-right"]: return false
+	if command.size() != text_fields.size() + (3 if not cycle.is_empty() else 2):
 		return false
 	for key: String in text_fields:
 		if not command.get(key) is String or String(command[key]).strip_edges().is_empty():
@@ -453,6 +502,8 @@ func _emit_terminal(
 	if _terminal_commands.has(command_id):
 		return
 	_terminal_commands[command_id] = true
+	_cycle_requests.erase(command_id)
+	_pending_anchor_uses.erase(command_id)
 	var actor_instance := actor(actor_id)
 	if status != "completed" and actor_instance != null and (actor_instance.active_command_id.is_empty() or actor_instance.active_command_id == command_id):
 		actor_instance.set_meta("action_anchor_id", "")

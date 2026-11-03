@@ -1,0 +1,56 @@
+body:has(.nest-monitor) { overflow: hidden; background: #dce4e5; }
+.nest-monitor { position: fixed; inset: 0 0 0 var(--global-nav-width); margin: 0; width: auto; max-width: none; height: 100vh; height: 100dvh; min-width: 0; overflow: hidden; color: #28352e; font-family: "PingFang SC", sans-serif; }
+.nest-monitor-stage { position: absolute; inset: 0; overflow: hidden; background: #b9c7ce; }
+.nest-monitor-stage iframe { display: block; width: 100%; height: 100%; border: 0; }
+.nest-monitor-placeholder { display: grid; height: 100%; place-items: center; color: #44584e; }
+.nest-menu-dock { position: absolute; z-index: 20; bottom: 0; left: 0; right: 0; width: 100%; }
+.nest-primary-menu { display: flex; align-items: center; gap: 0; width: 100%; min-width: 0; height: 40px; padding: 4px; border-top: 1px solid #d3dfd8; background: #fafcfb; white-space: nowrap; }
+.nest-menu-groups, .nest-menu-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 2px; }
+.nest-menu-groups > .ant-btn, .nest-menu-actions > .ant-btn { height: 30px; padding-inline: 8px; font-size: 12px; box-shadow: none; }
+.nest-menu-groups > .ant-btn[aria-pressed="true"], .nest-menu-actions > .ant-btn[aria-pressed="true"] { color: #1d694b; background: #dfece4; }
+.nest-inline-controls { flex: 1 1 auto; min-width: 0; height: 32px; margin: 0 6px; border-inline: 1px solid #d3dfd8; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.nest-control-panel { width: max-content; min-width: 100%; }
+.nest-control-panel[hidden] { display: none; }
+.nest-menu-divider { width: 1px; height: 20px; background: #b8cabe; margin: 0 4px; flex-shrink: 0; }
+.nest-monitor-toolbar { display: flex; align-items: center; gap: 6px; width: max-content; min-width: 100%; padding: 0 7px; height: 30px; white-space: nowrap; }
+.nest-monitor-toolbar .ant-segmented { font-size: 12px; }
+.nest-monitor-toolbar > * { flex-shrink: 0; }
+.nest-monitor-toolbar .ant-btn { height: 28px; padding-inline: 9px; font-size: 12px; box-shadow: none; }
+.nest-primary-menu .ant-btn-default { color: #334d3e; border-color: #b9cfc1; background: #eaf2ed; }
+.nest-primary-menu .ant-btn-default:not(:disabled):hover { color: #1d694b; border-color: #82aa91; background: #dcebe1; }
+.nest-primary-menu .ant-btn-default:disabled { color: #96a59d; border-color: #d7e1da; background: #f0f4f1; }
+.nest-monitor-toolbar .ant-btn, .nest-monitor-toolbar .ant-select-selector { border-radius: 6px; }
+.nest-monitor-toolbar .ant-btn[aria-pressed="true"] { color: #1d694b; background: #e4eee8; border-color: #8aac9a; }
+.nest-field { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #697b70; }
+.nest-primary-menu .ant-select { width: max-content; min-width: 0; max-width: 220px; flex: 0 0 auto; font-size: 12px; }
+.nest-menu-popup { max-width: min(420px, calc(100vw - 24px)); }
+.nest-menu-popup .ant-select-item-option-content { white-space: normal; overflow-wrap: anywhere; }
+.nest-field .ant-select { width: 200px; }
+.nest-action-state { color: #71857c; font-size: 12px; }
+.nest-monitor-notice { position: absolute; z-index: 25; top: 12px; left: 12px; max-width: calc(100% - 24px); opacity: .96; }
+.nest-startup-error { position: absolute; z-index: 25; top: 12px; left: 12px; right: 12px; }
+.nest-run-records { position: absolute; z-index: 10; top: 12px; right: 12px; bottom: 52px; width: 330px; max-width: calc(100% - 24px); overflow: auto; border: 1px solid #d3dfd8c9; border-radius: 10px; background: #fafcfbd9; backdrop-filter: blur(10px); box-shadow: 0 6px 22px #20352d1a; }
+.nest-run-records header { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: #f1f6f2ee; border-bottom: 1px solid #dce5e0; font-size: 13px; }
+.nest-run-records header .ant-btn { font-size: 18px; }
+.nest-events { list-style: none; padding: 0 12px; margin: 0; }
+.nest-events li { border-bottom: 1px solid #dce5e0; padding: 10px 0; }
+.nest-events strong { font-size: 12px; }
+.nest-events time { color: #71857c; font: 11px ui-monospace, monospace; margin-right: 8px; }
+.nest-events p { font: 11px/1.6 ui-monospace, monospace; color: #64766b; overflow-wrap: anywhere; margin: 6px 0 0; }
+@media (max-width: 760px) { .nest-menu-groups > .ant-btn, .nest-menu-actions > .ant-btn { padding-inline: 5px; } .nest-menu-actions .ant-btn-icon { display: none; } }
+.nest-primary-menu .nest-category-select { width: 60px; flex-basis: 60px; }
+.nest-cascade-separator { color: #95a49c; font-size: 12px; flex: 0 0 auto; padding: 0 3px; }
+.nest-inline-controls { border: 0; margin: 0 4px 0 0; }
+.nest-monitor-toolbar { padding: 0; }
+.nest-primary-menu .nest-time-select { width: 64px; flex-basis: 64px; }
+.nest-primary-menu .nest-cascade-select { width: 156px; }
+.nest-cascade-popup .ant-cascader-menu { height: auto; max-height: 260px; min-width: 112px; max-width: 260px; }
+.nest-cascade-popup .ant-cascader-menu-item-content { white-space: normal; overflow-wrap: anywhere; }
+.nest-actor-list { max-height: 220px; overflow-y: auto; margin: 12px 0; }
+.nest-actor-row { display: flex; align-items: center; gap: 6px; padding: 9px 0; border-bottom: 1px solid #edf0ee; }
+.nest-actor-row > span { flex: 1; }
+.nest-actor-row small { display: block; color: #71857c; font-size: 12px; }
+.nest-actor-form { display: grid; gap: 12px; padding-top: 12px; border-top: 1px solid #e4eae6; }
+.nest-actor-form-title, .nest-actor-form-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.nest-actor-form label { display: grid; grid-template-columns: 48px 1fr; align-items: center; }
+.nest-actor-form .ant-input-number { width: 100%; }

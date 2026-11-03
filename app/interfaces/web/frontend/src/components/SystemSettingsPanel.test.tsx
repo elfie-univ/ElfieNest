@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { adminElfies } from "../api/admin/elfies"
 import {
   elfieSettings,
+  environmentSettings,
   runtimeSettings,
   securitySettings,
   updateElfieSettings,
@@ -24,6 +25,7 @@ import { ToastProvider } from "./ui/toast"
 vi.mock("../api/admin/elfies", () => ({ adminElfies: vi.fn() }))
 vi.mock("../api/admin/settings", () => ({
   elfieSettings: vi.fn(),
+  environmentSettings: vi.fn(), updateEnvironmentSettings: vi.fn(),
   runtimeSettings: vi.fn(),
   securitySettings: vi.fn(),
   updateElfieSettings: vi.fn(),
@@ -64,6 +66,7 @@ const tools = {
 
 describe("SystemSettingsPanel", () => {
   beforeEach(() => {
+    vi.mocked(environmentSettings).mockResolvedValue({ settings: { daylight_source: "manual", sunrise_time: "06:00", sunset_time: "18:00", rest_time: "00:00", latitude: null, longitude: null }, today: { date: "2026-11-03", timezone: "UTC", sunrise_time: "06:00", sunset_time: "18:00", condition: "normal" } })
     vi.mocked(runtimeSettings).mockResolvedValue(engine)
     vi.mocked(elfieSettings).mockResolvedValue(adoption)
     vi.mocked(securitySettings).mockResolvedValue(security)

@@ -9,7 +9,13 @@ from .settings import (
     ElfieSettingsResult as ElfieSettingsResult,
 )
 from .settings import (
+    EnvironmentSettingsResult as EnvironmentSettingsResult,
+)
+from .settings import (
     GetElfieSettingsQuery as GetElfieSettingsQuery,
+)
+from .settings import (
+    GetEnvironmentSettingsQuery as GetEnvironmentSettingsQuery,
 )
 from .settings import (
     GetRuntimeSettingsQuery as GetRuntimeSettingsQuery,
@@ -66,6 +72,9 @@ from .settings import (
     UpdateElfieSettingsCommand as UpdateElfieSettingsCommand,
 )
 from .settings import (
+    UpdateEnvironmentSettingsCommand as UpdateEnvironmentSettingsCommand,
+)
+from .settings import (
     UpdateRuntimeSettingsCommand as UpdateRuntimeSettingsCommand,
 )
 from .settings import (
@@ -77,6 +86,9 @@ __all__ = (
     + _providers_all
     + (
         "ElfieSettingsResult",
+        "GetEnvironmentSettingsQuery",
+        "UpdateEnvironmentSettingsCommand",
+        "EnvironmentSettingsResult",
         "FoodService",
         "GetElfieSettingsQuery",
         "GetRuntimeSettingsQuery",

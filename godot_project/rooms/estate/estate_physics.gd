@@ -77,7 +77,7 @@ func build(estate: Node3D, authoring: bool = false) -> void:
 				if outdoor_access.contains_outdoor_point(Vector2(point.x,point.z)):_add_mesh(mesh,false)
 			continue
 		if uses_furniture_collision(mesh):
-			_add_mesh(mesh, false)
+			_add_mesh(mesh, uses_concave_collision(mesh))
 			continue
 		if module.is_empty():
 			if "Inset natural lake" in source or source == "Reference fountain water":
@@ -209,6 +209,8 @@ static func uses_furniture_collision(mesh: MeshInstance3D) -> bool:
 
 static func uses_concave_collision(mesh: MeshInstance3D) -> bool:
 	var e := mesh.get_meta("extras", {}) as Dictionary
+	# Preserve the seating recess of integrated sofa bodies.
+	if e.get("kind") == "sofa" or str(mesh.name) in ["Soft V2 continuous sculpted back and integrated arms", "Soft V2 single rounded upholstered body"]: return true
 	var module := str(e.get("module", ""))
 	if module.is_empty() or bool(e.get("furniture", false)) or bool(e.get("door_leaf", false)):
 		return false
@@ -353,6 +355,29 @@ func _physics_process(delta: float) -> void:
 			actors.append(node)
 	for control: RefCounted in _door_controls:
 		control.advance(delta, _doors_default_open, actors)
+
+
+func preview_doors() -> Array[Dictionary]:
+	var items: Array[Dictionary] = []
+	for index in range(_doors.size()):
+		items.append({"id": "door-%d" % index, "label": str((_doors[index]["mesh"] as Node3D).name), "mode": _door_controls[index].preview_mode})
+	return items
+
+
+func preview_door(id: String, mode: String) -> bool:
+	if not id.begins_with("door-") or not id.trim_prefix("door-").is_valid_int(): return false
+	var index := int(id.trim_prefix("door-"))
+	return index >= 0 and index < _door_controls.size() and _door_controls[index].set_preview_mode(mode)
+
+func preview_door_path(id: String) -> PackedVector3Array:
+	if not id.begins_with("door-") or not id.trim_prefix("door-").is_valid_int(): return PackedVector3Array()
+	var index := int(id.trim_prefix("door-"))
+	if index < 0 or index >= _doors.size(): return PackedVector3Array()
+	var door: Dictionary = _doors[index]
+	var center: Vector3 = door["center"]
+	center.y -= 1.2
+	var normal := (door["offset"] as Vector3).cross(Vector3.UP).normalized()
+	return PackedVector3Array([center + normal * 4.0, center - normal * 4.0])
 
 
 func _add_water_exclusion(mesh: MeshInstance3D) -> void:

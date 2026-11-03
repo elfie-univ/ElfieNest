@@ -107,6 +107,7 @@ def create_app(
     nest_world = None
     nest_runtime_startup_error: Optional[str] = None
     if shell == "unified":
+        from devtools.nest_lab.saved_actors import SavedLabActors
         from devtools.nest_lab.world import NestLabWorld
 
         nest_root = (
@@ -119,6 +120,7 @@ def create_app(
             data_dir=nest_root,
             http_port=nest_http_port,
             websocket_port=nest_godot_ws_port or nest_http_port + 1,
+            saved_actors=SavedLabActors(storage),
         )
 
     @asynccontextmanager
@@ -612,7 +614,7 @@ def create_unified_app(
         else get_elfie_developer_home()
     )
     return create_app(
-        str(root / "elfie_lab"),
+        str(root / "elfie_lab") if data_dir is not None else None,
         shell="unified",
         default_path=default_path,
         nest_data_dir=root / "nest_lab",
