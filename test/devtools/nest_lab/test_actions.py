@@ -7,6 +7,7 @@ from devtools.nest_lab.app import create_app
 from devtools.nest_lab.models import LabActionRequest, NestLabConflictError
 from devtools.nest_lab.world import NestLabWorld
 from infrastructure.godot.gateway.messages import CommandName
+from nest.space_facilities.models import AnchorKind, InteractionAnchor
 from test.devtools.nest_lab.test_world import (
     _LabGateway,
     _PendingLabGateway,
@@ -42,6 +43,27 @@ def test_animation_preview_uses_the_existing_runtime_expression(tmp_path):
     assert revision == 1
     assert result["command_id"] == payload["command_id"]
     assert "completed" in world.events()[-1]["detail"]
+
+
+def test_inspection_chairs_stay_selectable_without_becoming_wander_targets(tmp_path):
+    world, _, _ = _world(tmp_path)
+    catalog = world._nest.world_catalog
+    assert catalog is not None
+    inspection = InteractionAnchor(
+        anchor_id="dorm-01/inspection-chair",
+        kind=AnchorKind.CHAIR,
+        label="检查单人沙发",
+        order=99,
+        active=False,
+    )
+    zone = catalog.zones[0].model_copy(
+        update={"anchors": (*catalog.zones[0].anchors, inspection)}
+    )
+    world._nest.apply_catalog(
+        catalog.model_copy(update={"zones": (zone, *catalog.zones[1:])})
+    )
+    assert any(t["anchor_id"] == inspection.anchor_id for t in world.action_targets())
+    assert inspection.anchor_id not in world._wander_scheduler._available_anchors()
 
 
 def test_switch_waits_for_cancellation_and_starts_only_latest_selection(tmp_path):

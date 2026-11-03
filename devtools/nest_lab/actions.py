@@ -9,6 +9,7 @@ from devtools.nest_lab.models import LabActionRequest, NestLabConflictError
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.gateway.messages import CommandName, JsonObject
 from nest import Nest
+from nest.space_facilities.models import AnchorKind
 
 
 class LabActions:
@@ -35,7 +36,7 @@ class LabActions:
             }
             for zone in catalog.zones
             for anchor in zone.anchors
-            if anchor.active
+            if anchor.active or anchor.kind is AnchorKind.CHAIR
         ]
 
     def execute(

@@ -74,12 +74,6 @@ export function DebugToolbar(props: Props) {
     if (value.startsWith("clip:")) void previewActorAction(actorId,"animation",value.slice(5),undefined,run,props.send);
   }
   function chooseLocation(value:string) {
-    if (value.startsWith("random:")) {
-      const group = actionLocationGroups(targets, selection).find(item => item.label === value.slice(7));
-      const picked = group?.options[Math.floor(Math.random() * (group?.options.length ?? 0))];
-      if (!picked) return;
-      value = picked.value;
-    }
     setLocation(value);
     void previewActorAction(actorId,selection as Action,undefined,value,run,props.send);
   }
@@ -93,7 +87,7 @@ export function DebugToolbar(props: Props) {
         groups={[...animationGroups,{label:"坐卧",options:[{value:"seat",label:"坐下并起来"},{value:"sleep-back",label:"上床睡觉并起床"}]},{label:"移动",options:[{value:"move",label:"走到指定位置"}]}]}
         onSelect={chooseAction}/> }
       {category === "elfie" && needsLocation ? <><CascadeSeparator/><TwoLevelMenu label="动作位置" placeholder="选择位置" value={location} disabled={disabled}
-        groups={actionLocationGroups(targets,selection).map(group=>({...group, options:[...group.options,{value:`random:${group.label}`,label:`${group.label}·随机一个`}]}))} onSelect={chooseLocation}/></> : null}
+        groups={actionLocationGroups(targets,selection)} onSelect={chooseLocation}/></> : null}
       {actor ? <span className="nest-action-state">{category === "demo" ? actor.demonstration_state || "等待选择演示" : actor.command_id ? (stageLabels[actor.posture] ?? "执行中") : actor.posture === "idle" ? "等待选择动作" : actor.posture}</span> : null}
     </>}
   </div>;

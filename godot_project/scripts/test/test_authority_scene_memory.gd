@@ -32,6 +32,12 @@ func run() -> void:
  var manifest := nest.scene_manifest()
  if manifest["zones"].size()!=21:
   fail("Authority must preserve the complete world's semantic zones");return
+ var inspection := "terrace-04/lilac-game-armchair-3"
+ if nest.resolve_anchor(inspection) != null or manifest["anchors"].size() != 92:
+  fail("Inspection contacts must not become normal navigation targets");return
+ nest.set_meta("lab_action_preview",true)
+ if nest.resolve_anchor(inspection) == null or nest.scene_manifest()["anchors"].size() != 137 or not nest.validate_navigation_anchors():
+  fail("Lab must expose all real furniture contacts from the same compiled scene");return
  var doors: Array=nest._estate_physics._doors
  for door: Dictionary in doors:
   if not is_instance_valid(door.body) or not is_instance_valid(door.mesh):

@@ -318,6 +318,7 @@ func _parse_protocol_integer(value: Variant) -> int:
 
 func resolve_anchor(anchor_id: String) -> Marker3D:
 	var marker := _anchor_markers.get(anchor_id) as Marker3D
+	if marker != null and bool(marker.get_meta("inspection_only", false)) and not bool(get_meta("lab_action_preview", false)): return null
 	return null if marker != null and bool(marker.get_meta("access_restricted",false)) else marker
 
 
@@ -1121,7 +1122,7 @@ func scene_manifest() -> Dictionary:
 		"bed_count": FIXED_BED_COUNT,
 		"capabilities": ["semantic_anchors", "complete_actor_sync", "navigation"],
 		"zones": _estate_semantics.zones if _estate_semantics != null else [],
-		"anchors": _estate_semantics.manifest_anchors(FIXED_BED_COUNT) if _estate_semantics != null else [],
+		"anchors": _estate_semantics.manifest_anchors(FIXED_BED_COUNT, bool(get_meta("lab_action_preview", false))) if _estate_semantics != null else [],
 		"facilities": _estate_semantics.facility_descriptors if _estate_semantics != null else [],
 	}
 
@@ -1143,6 +1144,9 @@ func validate_navigation_anchors() -> bool:
 	for id in semantic_anchor_ids():
 		var marker := resolve_anchor(id)
 		if marker == null: continue
+		# Inspection contacts are direct-placement action fixtures, not walk routes.
+		# They are unavailable to the normal production resolver and manifest.
+		if bool(marker.get_meta("inspection_only", false)): continue
 		var nearest := NavigationServer3D.map_get_closest_point(map, marker.global_position)
 		if nearest.distance_to(marker.global_position) > 0.3:
 			push_warning("Complete estate approach off navigation: %s at %s, nearest %s" % [id, marker.global_position, nearest])

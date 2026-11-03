@@ -105,14 +105,16 @@ func bind_sofas(estate: Node3D) -> void:
 	for seat: Dictionary in preload("res://rooms/estate/estate_seating.gd").new().bind(estate):
 		var id := "central-01/sofa" if str(seat.id).begins_with("F08") else ("terrace-01/sofa" if seat.id == "F10" else "terrace-07/sofa")
 		if seat.id in ["F08-left", "F08-right"]: id += "-" + str(seat.id).trim_prefix("F08-")
+		id = str(seat.get("anchor_id", id))
 		if anchors.has(id): continue
 		var contact: Transform3D = seat.contact
 		var point := contact.origin + contact.basis.z * 1.4
 		point.y = seat.floor_y + 0.02
-		var marker := _add_anchor(id, id.get_slice("/",0), "chair", str(seat.label) + " 沙发", point, estate)
+		var marker := _add_anchor(id, id.get_slice("/",0), "chair", str(seat.label), point, seat.get("source", estate))
 		marker.set_meta("interaction_transform", contact)
 		marker.set_meta("interaction_posture", "sitting")
 		marker.set_meta("furniture_type", "sofa")
+		if seat.has("anchor_id"): marker.set_meta("inspection_only", true)
 
 
 func _interaction_pose(marker: Marker3D, mesh: MeshInstance3D, point: Vector3, posture: String) -> void:
@@ -158,11 +160,14 @@ func restrict_outdoor_anchors(access: Node3D) -> void:
 		marker.set_meta("access_restricted", not access.contains_point(Vector2(point.x, point.z)))
 
 
-func manifest_anchors(capacity: int) -> Array[Dictionary]:
+func manifest_anchors(capacity: int, include_inspection: bool = false) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for descriptor: Dictionary in descriptors:
 		var copy := descriptor.duplicate()
 		var marker := anchors[str(copy["anchor_id"])] as Marker3D
+		if bool(marker.get_meta("inspection_only", false)):
+			if not include_inspection: continue
+			copy["active"] = false
 		if marker.has_meta("bed_order"):
 			copy["active"] = int(marker.get_meta("bed_order")) < capacity
 		if bool(marker.get_meta("access_restricted", false)):
@@ -197,6 +202,7 @@ func align_approaches(map: RID) -> void:
 	var courtyard := anchors.get("courtyard/activity") as Marker3D
 	var destination := NavigationServer3D.map_get_closest_point(map, courtyard.global_position) if courtyard != null else Vector3.INF
 	for marker: Marker3D in anchors.values():
+		if bool(marker.get_meta("inspection_only", false)): continue
 		if bool(marker.get_meta("access_restricted", false)): continue
 		var point := marker.global_position
 		var nearest := NavigationServer3D.map_get_closest_point(map, point)

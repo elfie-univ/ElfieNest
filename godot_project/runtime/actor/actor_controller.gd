@@ -354,6 +354,16 @@ func _execute_use_anchor(command: Dictionary, actor_instance: ElfieActor) -> voi
 		_cycle_requests[command_id] = command["furniture_cycle"]
 		actor_instance.set_meta("furniture_cycle_deadline", Time.get_ticks_msec() + int(float(command["deadline_seconds"])*1000.0))
 	_pending_anchor_uses[command_id] = anchor_id
+	if bool(_nest.get_meta("lab_action_preview", false)) and command.has("furniture_cycle"):
+		# The inspection already placed the actor at this fixture. Start the
+		# production cycle directly; its docking and root motion keep collisions.
+		actor_instance.set_meta("action_anchor_id", anchor_id)
+		_emit_command_event("intent_started", command_id, actor_id)
+		var result: Dictionary = await actor_instance.play_furniture_cycle(marker, anchor_id, command_id, str(command["furniture_cycle"]), _nest)
+		_cycle_requests.erase(command_id)
+		_pending_anchor_uses.erase(command_id)
+		_emit_terminal(command_id, actor_id, str(result.status), str(result.reason))
+		return
 	if not actor_instance.move_to(
 		command_id, marker.global_position, float(command["deadline_seconds"]),
 	):

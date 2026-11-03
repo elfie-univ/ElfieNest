@@ -177,9 +177,13 @@ or Stop buttons. Switching cancels the old command and starts the latest
 selection after its terminal acknowledgement; rapid selections replace pending work.
 Lab previews may use any bed without changing home ownership. Single furniture previews
 relocate to the Runtime's target approach before playing the action. One position selector
-groups paired bedrooms/terraces, central floors and outdoor furniture; random selection displays
-the actual chosen position. The central sofa has three independent contacts with exclusive
-occupancy, and outdoor benches use the production sitting and standing transitions.
+groups paired bedrooms/terraces, central floors and outdoor furniture, with explicit positions
+and no random entry. The seating catalog includes the living-room armchairs, upper-floor
+seating and all eight terraces. The central sofa has three independent contacts with exclusive
+occupancy. Additional furniture inspection contacts are available only in Nest Lab;
+they start the production cycle directly and do not become normal wandering destinations.
+The original navigable anchors retain their full route checks. Outdoor benches use the production
+sitting and standing transitions.
 Scene controls offer each door's open, close and automatic modes, retaining anti-crush
 collision checks. Automatic mode demonstrates a passage when an actor is selected.
 Fountain and lake playback have independent clocks. One grouped demonstration selector
