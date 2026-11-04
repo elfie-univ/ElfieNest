@@ -28,6 +28,10 @@ func run() -> void:
 	var arrays := ribbon.mesh.surface_get_arrays(0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	for i in range(path.size()):
+		var outside := Vector2(vertices[i*4].x, vertices[i*4].z)
+		var seam := Vector2(path[i].x, path[i].z)
+		check(outside.distance_to(seam) >= 0.16, "Shore ribbon must cover the trimmed land edge without an exposed gap")
 	check(vertices.size() == path.size() * 4 and indices.size() == (path.size() - 1) * 18, "One shared full-height profile must cover every contour segment")
 	var curtain := estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
 	var curtain_box := curtain.global_transform * curtain.get_aabb()

@@ -61,6 +61,12 @@ func run() -> void:
 		transforms[mesh] = mesh.transform
 		previous[mesh] = mesh.get_active_material(0)
 	counts = water.attach(estate)
+	var channel := estate.find_child("COMPLETE Short east spillway", true, false) as MeshInstance3D
+	var bed := estate.find_child("CY R001 spillway sealed trough bed", true, false) as MeshInstance3D
+	var channel_material := channel.get_active_material(0) as ShaderMaterial
+	var bed_material := bed.get_active_material(0) as ShaderMaterial
+	if not _require(channel_material != null and channel_material.shader.code.contains("ALPHA"), "Shallow channel water does not reveal its existing bed"): return
+	if not _require(bed_material != null and bed_material.get_meta("estate_shallow_bed", false), "Real channel bed lacks the pebble finish"): return
 	if not _require(counts == {"surface": 3, "spillway": 1, "jet": 11, "ripple": 9, "foam": 1}, "Actual source water inventory changed: " + str(counts)):
 		return
 	var changed := 0
@@ -81,7 +87,7 @@ func run() -> void:
 			source = input.get_meta("source_material") as BaseMaterial3D
 		if not _require(material.get_shader_parameter("source_albedo") == source.albedo_color and material.get_shader_parameter("source_roughness") == source.roughness, "Actual source water appearance inputs changed"):
 			return
-	if not _require(changed == 25, "Unexpected non-water material changes"):
+	if not _require(changed == 26, "Unexpected material changes outside water and its shallow bed"):
 		return
 	water.attach(estate)
 	estate.free()

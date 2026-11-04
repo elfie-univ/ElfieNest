@@ -522,6 +522,24 @@
       ],
       "title": "八主题露台 · 单间休闲区最终效果图",
       "kind": "reference"
+    },
+    {
+      "path": "layouts/pod_bedroom/versions/v027/images/desktop-uv-day.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "desktop-uv-day.png",
+      "kind": "render",
+      "version": "layout_pod_v027"
+    },
+    {
+      "path": "layouts/pod_bedroom/versions/v027/images/desktop-uv-night.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "desktop-uv-night.png",
+      "kind": "render",
+      "version": "layout_pod_v027"
     }
   ],
   "stats": {

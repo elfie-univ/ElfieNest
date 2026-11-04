@@ -3,7 +3,7 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "description": "公共母版：卧室琥珀球台灯；当前 32 处引用。8 间小屋卧室：A/B/C/D 书桌各 1 盏，每间 4 盏，共 32 盏。",
+  "description": "模型接触修复候选：按当前实物支撑面修正悬空、穿插或灯带贴合；保留原布局、节点、材质及交互。",
   "reuse": {
     "identity": "ac3d236f494d1e4ca63f30db89f3691e92d8e25f24f38529db190776ef5358e3",
     "category": "lighting",
@@ -21,5 +21,14 @@
     "description": "8 间小屋卧室：A/B/C/D 书桌各 1 盏，每间 4 盏，共 32 盏。",
     "scope": "latest-scene-per-object",
     "historicalVersionsCounted": false
+  },
+  "sourceSha256": "a144e91717fccefe551434d1f8d64acd97ca08348d796d70f2f94fcd20d4fffd",
+  "contactFit": {
+    "nodes": {
+      "A | Desk | amber globe": "larger decoration on unchanged desktop contact",
+      "A | Desk | globe warm center": "larger decoration on unchanged desktop contact",
+      "A | Desk | round champagne lamp base": "larger decoration on unchanged desktop contact"
+    },
+    "basis": "Actual current supporting meshes; no placement or interaction deletion"
   }
 }

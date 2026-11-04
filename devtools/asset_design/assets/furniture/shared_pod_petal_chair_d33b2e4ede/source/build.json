@@ -3,7 +3,7 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "description": "公共母版：卧室花瓣旋转椅；当前 32 处引用。8 间小屋卧室：A/B/C/D 各 1 把，每间 4 把，共 32 把。",
+  "description": "卧室花瓣椅恢复 V003 原始靠背与缝线网格；保持底座、坐面、变换及其他家具不变。",
   "reuse": {
     "identity": "d33b2e4ede61c863d7d929c9bea340cd74aaf17daade10b97029113e6cc90f80",
     "category": "chair",
@@ -30,5 +30,6 @@
     "movable": true,
     "renderGeometryUnchanged": true,
     "seatCavityOpen": true
-  }
+  },
+  "sourceSha256": "39d91b89f1016284bcb835d252b5aa7544603cb96626e7da53571defbbb05f9b"
 }

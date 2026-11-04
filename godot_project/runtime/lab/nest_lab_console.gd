@@ -1,5 +1,6 @@
 extends Node
 
+const LAYERS := preload("res://runtime/world/collision_layers.gd")
 var _nest: ModularNest
 var _characters: Node3D
 var _registered: Array[String] = []
@@ -70,10 +71,12 @@ func camera_command(message: Dictionary) -> bool:
 		"scene":
 			var target := str(message.get("target", ""))
 			if target.begins_with("door-"):
-				return _nest._estate_physics != null and _nest._estate_physics.preview_door(target, str(message.get("mode", "")))
+				if _nest._estate_physics == null or not _nest._estate_physics.preview_door(target, str(message.get("mode", ""))): return false
+				return _focus_scene(target)
 			var water := _nest.get_node_or_null("Generated/ObserverFountainLighting")
 			if water == null or not message.get("paused") is bool: return false
-			return water.set_component_paused(target, bool(message["paused"]))
+			if not water.set_component_paused(target, bool(message["paused"])): return false
+			return _focus_scene(target)
 		"demonstration":
 			if _demonstrations == null: return false
 			_demonstrations.play(str(message.get("actor_id","")),str(message.get("demonstration_id","")))
@@ -83,6 +86,63 @@ func camera_command(message: Dictionary) -> bool:
 		_:
 			return false
 	return true
+
+
+func _door_label(door: Dictionary) -> String:
+	var source := str(door.label)
+	for index in range(1, 9):
+		var module_name := "M%02d" % index
+		if source.contains(module_name): return module_name + " 卧室门"
+	return "主楼入口·" + ("左门" if source.to_lower().contains("left") else "右门")
+
+
+func _focus_scene(target: String) -> bool:
+	var view_id := "scene-" + target
+	if not _nest.observer_camera_catalog()["views"].any(func(view: Dictionary) -> bool: return view.id == view_id):
+		var center: Vector3
+		var position: Vector3
+		var label := ""
+		var field_of_view := 65.0
+		if target.begins_with("door-"):
+			var index := int(target.trim_prefix("door-"))
+			var door: Dictionary = _nest._estate_physics._doors[index]
+			center = door.center
+			var normal := (door.offset as Vector3).cross(Vector3.UP).normalized()
+			# Observe bedroom doors from the central hall, not from inside a wall.
+			if normal.dot(center - _nest.global_position) > 0: normal = -normal
+			# Close framing keeps low railings out of the lower half of the image,
+			# even when the ray to the door centre clears the top of a railing.
+			position = center + normal * 1.9 + Vector3.UP * 0.3
+			field_of_view = 85.0
+			var query := PhysicsRayQueryParameters3D.create(center, position, LAYERS.PERCEPTION_MASK)
+			var excluded: Array[RID] = []
+			for leaf: Dictionary in _nest._estate_physics._doors:
+				excluded.append((leaf.body as CollisionObject3D).get_rid())
+			query.exclude = excluded
+			var hit := _nest.get_world_3d().direct_space_state.intersect_ray(query)
+			if not hit.is_empty():
+				position = (hit.position as Vector3) - (position - center).normalized() * 0.35
+				field_of_view = clampf(rad_to_deg(2.0 * atan(1.7 / position.distance_to(center))), 65.0, 105.0)
+			label = _door_label(_nest._estate_physics.preview_doors()[index])
+		else:
+			var estate := _nest.get_node("Generated/CompleteEstate")
+			var source := "Reference fountain water" if target == "fountain" else "COMPLETE Inset natural lake"
+			var mesh := estate.find_child(source, true, false) as MeshInstance3D
+			if mesh == null: return false
+			var bounds := mesh.global_transform * mesh.get_aabb()
+			center = bounds.get_center()
+			var radius := maxf(bounds.size.x, bounds.size.z) * 0.5
+			var outward := center - _nest.global_position
+			outward.y = 0
+			position = center + outward.normalized() * (radius * 1.7 + 2.0) + Vector3.UP * (radius * 0.65 + 2.5)
+			if target == "lake":
+				# Stay on the west bank; framing the full long lake from beyond its
+				# farthest edge puts the lens outside the authored backdrop.
+				position = Vector3(bounds.position.x - 2.0, center.y + 3.5, center.z)
+			center.y += 0.8 if target == "fountain" else 0.0
+			label = "喷泉" if target == "fountain" else "湖面波浪／波光"
+		_nest._add_complete_view(_nest.get_node("Generated"), view_id, label, position, center, field_of_view)
+	return _nest.select_observer_camera_by_id(view_id)
 
 
 func catalog() -> Dictionary:
@@ -104,7 +164,7 @@ func catalog() -> Dictionary:
 	result["scene_actions"] = []
 	if _nest._estate_physics != null:
 		for door: Dictionary in _nest._estate_physics.preview_doors():
-			result["scene_actions"].append({"id":door.id,"label":door.label,"paused":false,"mode":door.mode})
+			result["scene_actions"].append({"id":door.id,"label":_door_label(door),"paused":false,"mode":door.mode})
 	var water := _nest.get_node_or_null("Generated/ObserverFountainLighting")
 	if water != null:
 		result["scene_actions"].append({"id": "fountain", "label": "喷泉", "paused": water.component_paused("fountain")})

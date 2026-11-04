@@ -5,6 +5,7 @@ extends RefCounted
 var opening_bounds := AABB()
 var leaves: Array[Dictionary] = []
 var _frame_vertices := PackedVector3Array()
+var _frame_faces := PackedVector3Array()
 var _root: Node3D
 
 
@@ -17,6 +18,8 @@ func build(parent: Node3D, source_frame: MeshInstance3D, front_glass: MeshInstan
 		var vertices: PackedVector3Array = source_frame.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
 		for vertex: Vector3 in vertices:
 			_frame_vertices.append(source_frame.global_transform * vertex)
+	for vertex: Vector3 in source_frame.mesh.get_faces():
+		_frame_faces.append(source_frame.global_transform * vertex)
 	var center := bounds.get_center()
 	var half_width := INF
 	var top := INF
@@ -28,7 +31,17 @@ func build(parent: Node3D, source_frame: MeshInstance3D, front_glass: MeshInstan
 	var bottom := bounds.position.y + 0.01
 	half_width -= 0.01
 	top -= 0.01
-	opening_bounds = AABB(Vector3(center.x - half_width, bottom, center.z - 0.02), Vector3(half_width * 2.0, top - bottom, 0.04))
+	# The curved frame is asymmetric in depth; its AABB centre is not the
+	# contact plane of the two inner vertical edges.
+	var depth_sum := 0.0
+	var depth_count := 0
+	for vertex: Vector3 in _frame_vertices:
+		if absf(absf(vertex.x - center.x) - (half_width + 0.01)) < 0.002 and vertex.y > bounds.position.y + 0.3 and vertex.y < center.y + 0.4:
+			depth_sum += vertex.z
+			depth_count += 1
+	assert(depth_count > 0, "Garden entrance inner frame must have a contact plane")
+	var contact_depth := depth_sum / float(depth_count)
+	opening_bounds = AABB(Vector3(center.x - half_width, bottom, contact_depth - 0.02), Vector3(half_width * 2.0, top - bottom, 0.04))
 	var ivory := source_frame.get_active_material(0).duplicate() as Material
 	var glazing := front_glass.get_active_material(0).duplicate() as Material
 	for side in [-1, 1]:
@@ -48,8 +61,8 @@ func _add_leaf(side: int, glazing: Material, ivory: Material, layer_mask: int, c
 	leaf.set_meta("generated_garden_leaf", true)
 	leaf.global_position = leaf_center
 	var outline := PackedVector2Array([Vector2(left, opening_bounds.position.y), Vector2(right, opening_bounds.position.y)])
-	for step in range(25):
-		var x := lerpf(right, left, float(step) / 24.0)
+	for step in range(97):
+		var x := lerpf(right, left, float(step) / 96.0)
 		outline.append(Vector2(x, _profile_top(x)))
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
@@ -117,8 +130,13 @@ func _add_leaf(side: int, glazing: Material, ivory: Material, layer_mask: int, c
 
 
 func _profile_top(x: float) -> float:
+	# Intersect the imported frame triangles instead of rounding to nearby vertices.
 	var height := opening_bounds.end.y
-	for vertex: Vector3 in _frame_vertices:
-		if absf(vertex.x - x) < 0.025 and vertex.y > opening_bounds.end.y - 0.4:
-			height = minf(height, vertex.y - 0.01)
+	for index in range(0, _frame_faces.size(), 3):
+		for edge in range(3):
+			var a := _frame_faces[index + edge]
+			var b := _frame_faces[index + (edge + 1) % 3]
+			if absf(a.x-b.x) < 0.000001 or x < minf(a.x,b.x) or x > maxf(a.x,b.x): continue
+			var y := lerpf(a.y,b.y,(x-a.x)/(b.x-a.x))
+			if y > opening_bounds.end.y - 0.4: height = minf(height, y - 0.01)
 	return height

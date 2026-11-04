@@ -19,6 +19,11 @@
       "id": "layout_central_2_v028",
       "file": "layouts/central_floor_2/versions/v028/version.json",
       "order": 509
+    },
+    {
+      "id": "layout_central_2_v029",
+      "file": "layouts/central_floor_2/versions/v029/version.json",
+      "order": 534
     }
   ]
 }

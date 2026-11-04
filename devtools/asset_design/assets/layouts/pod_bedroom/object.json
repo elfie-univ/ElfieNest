@@ -24,6 +24,21 @@
       "id": "layout_pod_v024",
       "file": "layouts/pod_bedroom/versions/v024/version.json",
       "order": 516
+    },
+    {
+      "id": "layout_pod_v025",
+      "file": "layouts/pod_bedroom/versions/v025/version.json",
+      "order": 531
+    },
+    {
+      "id": "layout_pod_v026",
+      "file": "layouts/pod_bedroom/versions/v026/version.json",
+      "order": 537
+    },
+    {
+      "id": "layout_pod_v027",
+      "file": "layouts/pod_bedroom/versions/v027/version.json",
+      "order": 542
     }
   ]
 }

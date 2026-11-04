@@ -4,7 +4,9 @@ static func is_bank(mesh: MeshInstance3D) -> bool:
  return str(mesh.name) in ["CY R003 corrected CY R002 lakeside returned solid planting bank","CY R003 corrected CY SHORE solid Continuous planted lake bank","CY R003 corrected CY SHORE solid Lake sloping bank","CY R003 corrected CY R002 continuous natural shore slope 0","CY R003 corrected CY R002 continuous natural shore slope 1"]
 
 static func apply(estate: Node3D, water: PackedVector2Array, bounds: Rect2, height: float) -> int:
- var expanded:=Geometry2D.offset_polygon(water,0.02,Geometry2D.JOIN_ROUND)
+ # Clear the full shoreline ribbon rather than trimming only the water itself.
+ var margin:=0.12
+ var expanded:=Geometry2D.offset_polygon(water,margin,Geometry2D.JOIN_ROUND)
  assert(expanded.size()==1,"Bank trimming requires the single real lake footprint")
  var clip_water: PackedVector2Array=expanded[0]
  var total:=0
@@ -29,7 +31,7 @@ static func apply(estate: Node3D, water: PackedVector2Array, bounds: Rect2, heig
     var polygon:=PackedVector2Array()
     for point in world:polygon.append(Vector2(point.x,point.z))
     var box:=Rect2(polygon[0],Vector2.ZERO).expand(polygon[1]).expand(polygon[2])
-    if top<=height+0.015 or not bounds.grow(0.02).intersects(box,true):
+    if top<=height+0.015 or not bounds.grow(margin).intersects(box,true):
      kept.append_array(tri);continue
     var area: float=(polygon[1]-polygon[0]).cross(polygon[2]-polygon[0])
     if absf(area)<0.0000001:

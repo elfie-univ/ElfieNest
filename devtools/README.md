@@ -186,7 +186,9 @@ The original navigable anchors retain their full route checks. Outdoor benches u
 sitting and standing transitions.
 Scene controls offer each door's open, close and automatic modes, retaining anti-crush
 collision checks. Automatic mode demonstrates a passage when an actor is selected.
-Fountain and lake playback have independent clocks. One grouped demonstration selector
+Scene selection frames the actual door or water feature; selecting fountain or lake starts
+its independent playback directly, without another play/pause selector. Door names use
+Chinese bedroom numbers and entrance sides instead of model node names. One grouped demonstration selector
 offers morning and evening routines, the building ring, forest trail, lakeside platform,
 top-floor arrival with a wave, and sofa-seat inspection. Runtime geometry and navigation
 determine routes; disconnected routes are disabled with a reason. Selecting a new actor

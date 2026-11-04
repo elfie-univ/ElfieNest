@@ -3,7 +3,7 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "sourceSha256": "81fa01d543bc15edd6a9b747dca5e6e0a9d4c078d63d85319003614b9fd03a1f",
+  "sourceSha256": "1d54df6904f8380b953b97bfceda4228e13174ab8f4d0a5d656c21106eab0935",
   "design": {
     "status": "review candidate",
     "reference": "../references/approved-second-floor.png",
@@ -199,7 +199,7 @@
       "frameHeightM": 0.32
     }
   },
-  "description": "恢复游戏桌四处桌沿封口和两处桌腿顶部封口：六个错位部件沿 X 轴归位 0.66 米，接缝与原有边界对齐；保留全部三角面、材质、法线、UV 及家具摆放。",
+  "description": "模型接触修复候选：按当前实物支撑面修正悬空、穿插或灯带贴合；保留原布局、节点、材质及交互。",
   "reuseMasters": {
     "layout:central:2:plant-1": {
       "object": "part:floor_plant",
@@ -418,5 +418,11 @@
       "Collision games_rear_display"
     ],
     "nativeValidated": true
+  },
+  "contactFit": {
+    "nodes": {
+      "Draft L2 curved bookcase continuous hidden diffuser": "diffuser exposed below its actual shelf"
+    },
+    "basis": "Actual current supporting meshes; no placement or interaction deletion"
   }
 }

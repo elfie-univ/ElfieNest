@@ -24,6 +24,11 @@
       "id": "building_central_v056",
       "file": "buildings/central/versions/v056/version.json",
       "order": 507
+    },
+    {
+      "id": "building_central_v057",
+      "file": "buildings/central/versions/v057/version.json",
+      "order": 517
     }
   ]
 }

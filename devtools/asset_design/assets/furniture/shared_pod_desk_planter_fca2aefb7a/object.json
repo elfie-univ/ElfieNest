@@ -27,6 +27,11 @@
       "id": "part_shared_pod_desk_planter_fca2aefb7a_v001",
       "file": "furniture/shared_pod_desk_planter_fca2aefb7a/versions/v001/version.json",
       "order": 160
+    },
+    {
+      "id": "part_shared_pod_desk_planter_fca2aefb7a_v002",
+      "file": "furniture/shared_pod_desk_planter_fca2aefb7a/versions/v002/version.json",
+      "order": 525
     }
   ]
 }

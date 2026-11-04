@@ -14,6 +14,11 @@
       "id": "layout_terrace_M02_v017",
       "file": "layouts/terraces/M02/versions/v017/version.json",
       "order": 479
+    },
+    {
+      "id": "layout_terrace_M02_v018",
+      "file": "layouts/terraces/M02/versions/v018/version.json",
+      "order": 528
     }
   ]
 }

@@ -43,7 +43,7 @@ func apply(estate: Node3D, layout: Node3D) -> void:
 		if not Geometry2D.is_point_in_polygon(point + inward * 0.02, contour): inward = -inward
 		# The same softly rounded, full-height cross-section runs around the
 		# entire shore. Shared indexed vertices leave no independent end caps.
-		for profile: Vector2 in [Vector2(-0.035, top - 0.02), Vector2(0.0, top), Vector2(0.04, top - 0.035), Vector2(0.085, water_height + 0.002)]:
+		for profile: Vector2 in [Vector2(-0.17, top - 0.02), Vector2(0.0, top), Vector2(0.04, top - 0.035), Vector2(0.085, water_height + 0.002)]:
 			var xz := point + inward * profile.x
 			vertices.append(Vector3(xz.x, profile.y, xz.y))
 			normals.append(Vector3(inward.x, 0.2, inward.y).normalized())
@@ -128,7 +128,9 @@ static func ribbon_path(estate: Node3D) -> PackedVector3Array:
 	var south_box := south.global_transform * south.get_aabb()
 	var curtain := estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
 	var fall := curtain.global_transform * curtain.get_aabb()
-	var opening := Rect2(Vector2(fall.position.x - 0.4, north_box.end.z - 0.05), Vector2(fall.size.x + 0.8, south_box.position.z + 0.05 - (north_box.end.z - 0.05)))
+	# Clear the stone shoulders with the full 0.17 m bank-light profile.
+	# Cutting at the water's inner edges buried the ribbon ends in the slopes.
+	var opening := Rect2(Vector2(fall.position.x - 0.4, north_box.position.z - 0.20), Vector2(fall.size.x + 0.8, south_box.end.z + 0.20 - (north_box.position.z - 0.20)))
 	# Split at the real channel sides before opening the loop. Both guides
 	# then terminate on these exact crest vertices, leaving the water clear.
 	var split := PackedVector3Array()
@@ -194,11 +196,11 @@ func retreat_plants(mesh: Mesh, buffer: PackedFloat32Array) -> int:
 		for attempt in range(6):
 			var nearest := nearest_edge(destination)
 			var inside := Geometry2D.is_point_in_polygon(destination, water)
-			if not inside and destination.distance_to(nearest) >= radius + 0.55: break
+			if not inside and destination.distance_to(nearest) >= radius + 0.17: break
 			var outward := (destination - nearest).normalized()
 			if inside: outward = -outward
 			if outward.is_zero_approx(): outward = (nearest - water_bounds.get_center()).normalized()
-			destination = nearest + outward * (radius + 0.56)
+			destination = nearest + outward * (radius + 0.18)
 		if destination.distance_to(root) < 0.001: continue
 		buffer[offset + 3] = destination.x
 		buffer[offset + 11] = destination.y

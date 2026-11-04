@@ -27,6 +27,11 @@
       "id": "part_shared_pod_amber_lamp_ac3d236f49_v001",
       "file": "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v001/version.json",
       "order": 161
+    },
+    {
+      "id": "part_shared_pod_amber_lamp_ac3d236f49_v002",
+      "file": "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v002/version.json",
+      "order": 526
     }
   ]
 }

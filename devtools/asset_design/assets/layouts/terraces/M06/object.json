@@ -14,6 +14,26 @@
       "id": "layout_terrace_M06_v017",
       "file": "layouts/terraces/M06/versions/v017/version.json",
       "order": 475
+    },
+    {
+      "id": "layout_terrace_M06_v018",
+      "file": "layouts/terraces/M06/versions/v018/version.json",
+      "order": 529
+    },
+    {
+      "id": "layout_terrace_M06_v019",
+      "file": "layouts/terraces/M06/versions/v019/version.json",
+      "order": 536
+    },
+    {
+      "id": "layout_terrace_M06_v020",
+      "file": "layouts/terraces/M06/versions/v020/version.json",
+      "order": 540
+    },
+    {
+      "id": "layout_terrace_M06_v021",
+      "file": "layouts/terraces/M06/versions/v021/version.json",
+      "order": 543
     }
   ]
 }

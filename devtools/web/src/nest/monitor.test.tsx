@@ -5,7 +5,7 @@ import { CameraSelectors, ObservationToolbar } from "./ObservationToolbar";
 import { EnvironmentToolbar } from "./EnvironmentToolbar";
 import { actorOptions } from "./ActorPicker";
 import { MenuDock } from "./MenuDock";
-import { SceneToolbar } from "./SceneToolbar";
+import { SceneToolbar, previewSceneAction } from "./SceneToolbar";
 import { cameraGroups, previewCatalogSchema } from "./preview-contracts";
 
 const actors = [{ actor_id: "actor", species: "saevi" as const, age_years: 5, gender: "female" as const }];
@@ -80,12 +80,37 @@ describe("Nest Lab cascade", () => {
     expect(actionLocationGroups(targets,"seat").map(group=>group.label)).toEqual(["主楼 1 层","户外"]);
     expect(actionLocationGroups([...targets, {...targets[0]!, anchor_id:"dorm-02/bed-01", label:"02 卧室·床 01"}],"sleep-back").map(group=>group.label)).toEqual(["M01 卧室与露台","M02 卧室与露台"]);
   });
-  it("uses two-level scene objects while keeping the short operation menu flat", () => {
+  it("uses two-level scene objects without an extra water playback selector", () => {
     const html = renderToStaticMarkup(<SceneToolbar catalog={catalog} send={() => {}} />);
     expect(html).toContain("ant-cascader");
     expect(html).toContain('aria-label="场景对象"');
-    expect(html).toContain('aria-label="场景动作"');
+    expect(html).not.toContain('aria-label="场景动作"');
     expect(cameraGroups(catalog.views).map(group=>group.label)).toEqual(["室外","主楼","M01 卧室与露台"]);
+  });
+  it("plays each selected water effect directly, without needing an actor", async () => {
+    const send = vi.fn();
+    for (const id of ["fountain", "lake"]) {
+      await previewSceneAction({id,label:id,paused:true}, send);
+      expect(send).toHaveBeenLastCalledWith({action:"scene",target:id,paused:false});
+    }
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+  it("focuses a door through its scene command before preparing the followed passage", async () => {
+    const calls: unknown[] = [];
+    const send = vi.fn(command => {calls.push(command);});
+    const run = vi.fn(async () => {calls.push("prepare");return true;});
+    await previewSceneAction({id:"door-0",label:"M01 卧室门",paused:false,mode:"auto"},send,"actor",run);
+    expect(calls).toEqual([{action:"scene",target:"door-0",mode:"auto"},"prepare",{action:"select",view_id:"elfie-actor"},{action:"demonstration",actor_id:"actor",demonstration_id:"door-0"}]);
+    calls.length = 0;
+    await previewSceneAction({id:"door-0",label:"M01 卧室门",paused:false},send,"actor",run,"closed");
+    expect(calls).toEqual([{action:"scene",target:"door-0",mode:"closed"}]);
+  });
+  it("does not let an obsolete door passage steal the newly selected scene camera", async () => {
+    let current = true;
+    const send = vi.fn();
+    const run = vi.fn(async () => {current = false;return true;});
+    await previewSceneAction({id:"door-0",label:"M01 卧室门",paused:false},send,"actor",run,"auto",() => current);
+    expect(send.mock.calls).toEqual([[{action:"scene",target:"door-0",mode:"auto"}]]);
   });
   it("pairs the same bedroom and terrace inside each M-number category", () => {
     const views = [...catalog.views,{id:"terrace-02",label:"M02露台"},{id:"dorm-02",label:"M02卧室"}];

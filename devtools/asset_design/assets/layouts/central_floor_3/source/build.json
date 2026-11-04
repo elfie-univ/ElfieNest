@@ -3,7 +3,7 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "sourceSha256": "0573bd48b0480d44d58caf681d2ffcb4db2c9bfe859896d71cdc01a644718043",
+  "sourceSha256": "1b32fd6337f6b9d3fba95d5545048900a05ba4c404a5ae2a949def5f19dac382",
   "design": {
     "reference": "approved-third-floor-20261017.png",
     "scope": "Window daybed group only: shorter lower body, fixed curved head support, sewn plump leaning pillows and surface-fitted opaque throw; own rug and side table rebalanced",
@@ -61,7 +61,7 @@
       "nonDaybedGeometryAndPlacement": "unchanged"
     }
   },
-  "description": "三楼阅读照明工作稿：现有书柜层板下藏灯、原边桌上的小型独立阅读台灯；保留原家具、摆放、公共模型引用和确认记录。",
+  "description": "模型接触修复候选：按当前实物支撑面修正悬空、穿插或灯带贴合；保留原布局、节点、材质及交互。",
   "reuseMasters": {
     "layout:central:3:quiet_central_reading_chair_0": {
       "object": "part:shared_quiet_central_reading_chair_3418a9defb",
@@ -313,5 +313,12 @@
       "Collision quiet_right_journaling_desk"
     ],
     "nativeValidated": true
+  },
+  "contactFit": {
+    "nodes": {
+      "Draft L3 writing desk concealed downward task lens": "Draft L3 writing desk concealed downward task lens",
+      "Draft L3 writing desk seated eye glare shield": "Draft L3 writing desk seated eye glare shield"
+    },
+    "basis": "Actual current supporting meshes; no placement or interaction deletion"
   }
 }

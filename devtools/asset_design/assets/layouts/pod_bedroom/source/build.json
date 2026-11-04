@@ -12,8 +12,8 @@
     "M08": 847
   },
   "instanceCount": 8,
-  "sourceSha256": "cedf561fffa3a5e0bd9eda18c489eaea4be19f52f8447a265487d3f317c3caaf",
-  "description": "四组床桌接缝最终修复：按实测床壳曲线贴合桌面上下沿；四张桌面均修复旧自交、退化面和开边，保留原轮廓、摆放、材质及 UV。",
+  "sourceSha256": "7227a6f7d10a9d79e09b2f07b29f88ebf3ce196c193b3e774061f103a55d5eda",
+  "description": "恢复原蜂蜜橡木贴图与材质参数，补齐桌面 UV0 并修正非法 texCoord=-1；保持几何与摆放。",
   "reuseMasters": {
     "layout:pod:rug-A": {
       "object": "part:shared_natural_woven_rug_562b20302f",

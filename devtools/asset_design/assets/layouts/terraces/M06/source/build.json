@@ -37,7 +37,7 @@
     "warmer cabinet light wash; original viewer lighting unchanged"
   ],
   "cabinetLightWashStrength": 1.4,
-  "sourceSha256": "05140cbc734fe969c1a572a555400318d45ac00ba0040f48cf570125efa864ed",
+  "sourceSha256": "0f3c4a6581d796bb7c9b00e63466fbf9286699c3bccb37b4686a21d6dc6a7004",
   "restoredSeating": [
     "apricot_craft_armchair"
   ],
@@ -62,7 +62,7 @@
     "screensAndPrints": "single texture planes with open ring frames; no layered graphic meshes",
     "proportions": "native object dimensions; no axis squashing"
   },
-  "description": "木座扶手椅统一引用共用母版；保留原实例的杏色/蓝色、摆放、朝向与缩放，采用棋桌扶手椅形状。",
+  "description": "M06 画纸改为独立哑光白纸材质；几何、摆放和画作图案不变。正面近景显示仍待验收。",
   "collisionPreparation": {
     "format": [
       "OMI_physics_body",

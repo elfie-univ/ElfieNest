@@ -29,6 +29,35 @@ func run() -> void:
 	if not check(not console.catalog()["presentation_paused"], "Water pause froze the entire view"): return
 	if not check(not console.camera_command({"action": "scene", "target": "missing", "paused": true}), "Unknown scene object accepted"): return
 	console.camera_command({"action": "scene", "target": "fountain", "paused": false})
+	for target in ["fountain", "lake"]:
+		if not check(console.camera_command({"action":"scene", "target":target, "paused":false}), "Cannot preview " + target): return
+		if not check(console.catalog()["active_id"] == "scene-" + target, "Water preview did not focus its own camera: " + target): return
+		var camera := nest._active_camera()
+		if not check(camera != null, "Water preview has no actual camera"): return
+		if target == "lake":
+			var mesh := nest.get_node("Generated/ObserverFountainLighting").lake as MeshInstance3D
+			var center := (mesh.global_transform * mesh.get_aabb()).get_center()
+			if not check(camera.global_position.distance_to(center) < 20.0, "Lake camera backed away beyond the shoreline/backdrop"): return
+	var scene_items: Array = console.catalog()["scene_actions"]
+	var labels: Array[String] = []
+	for item: Dictionary in scene_items:
+		if not item.id.begins_with("door-"): continue
+		labels.append(str(item.label))
+		if not check(str(item.label).contains("门") and not str(item.label).contains("Central") and not str(item.label).contains("movable"), "Model name leaked into door menu: " + str(item.label)): return
+		for mode in ["open", "closed", "auto"]:
+			if not check(console.camera_command({"action":"scene", "target":item.id, "mode":mode}), "Cannot preview door mode"): return
+			if not check(console.catalog()["active_id"] == "scene-" + str(item.id), "Door preview kept unrelated camera"): return
+			var door: Dictionary = nest._estate_physics._doors[int(str(item.id).trim_prefix("door-"))]
+			if not check(nest._active_camera().global_position.distance_to(door.center) <= 2.0, "Door camera includes distant foreground furniture"): return
+			var query := PhysicsRayQueryParameters3D.create(door.center, nest._active_camera().global_position, preload("res://runtime/world/collision_layers.gd").PERCEPTION_MASK)
+			var excluded: Array[RID] = []
+			for leaf: Dictionary in nest._estate_physics._doors: excluded.append((leaf.body as CollisionObject3D).get_rid())
+			query.exclude = excluded
+			if not check(nest.get_world_3d().direct_space_state.intersect_ray(query).is_empty(), "Furniture or railing obscures door camera: " + str(item.label)): return
+	if not check(labels.size() == 10 and labels.all(func(label: String) -> bool: return labels.count(label) == 1), "Door labels are incomplete or ambiguous"): return
+	var view_count: int = console.catalog()["views"].size()
+	console.camera_command({"action":"scene", "target":"fountain", "paused":false})
+	if not check(console.catalog()["views"].size() == view_count, "Repeated preview duplicated scene cameras"): return
 	if not check(console.camera_command({"action": "pause", "paused": true}), "Cannot pause local presentation"): return
 	if not check(not paused, "Observation pause stopped the authority simulation"): return
 	if not check(console.catalog()["presentation_paused"], "Pause state not acknowledged"): return

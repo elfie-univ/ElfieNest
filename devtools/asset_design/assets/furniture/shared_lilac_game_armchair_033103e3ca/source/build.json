@@ -3,7 +3,7 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "description": "共用木座软包扶手椅：M04 淡紫色、M06 杏色、M08 蓝色由场景实例材质决定；保留原三角面及编辑部件。",
+  "description": "模型接触修复候选：按当前实物支撑面修正悬空、穿插或灯带贴合；保留原布局、节点、材质及交互。",
   "reuse": {
     "identity": "033103e3ca836cdeff7ef34a0f5482e7954433a7ea8ef664a30a9155edf10f85",
     "category": "chair",
@@ -32,5 +32,12 @@
     "movable": true,
     "renderGeometryUnchanged": true,
     "seatCavityOpen": true
+  },
+  "sourceSha256": "74a237cb67d42195bda622c80b687ac0cd815fb59d64606c1e441cb87b060445",
+  "contactFit": {
+    "nodes": {
+      "lilac_game_armchair_1": "feet reach actual floor or rug without moving the seat"
+    },
+    "basis": "Actual current supporting meshes; no placement or interaction deletion"
   }
 }

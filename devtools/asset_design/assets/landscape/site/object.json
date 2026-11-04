@@ -29,6 +29,26 @@
       "id": "landscape_site_v028",
       "file": "landscape/site/versions/v028/version.json",
       "order": 514
+    },
+    {
+      "id": "landscape_site_v029",
+      "file": "landscape/site/versions/v029/version.json",
+      "order": 518
+    },
+    {
+      "id": "landscape_site_v030",
+      "file": "landscape/site/versions/v030/version.json",
+      "order": 519
+    },
+    {
+      "id": "landscape_site_v031",
+      "file": "landscape/site/versions/v031/version.json",
+      "order": 520
+    },
+    {
+      "id": "landscape_site_v032",
+      "file": "landscape/site/versions/v032/version.json",
+      "order": 521
     }
   ]
 }

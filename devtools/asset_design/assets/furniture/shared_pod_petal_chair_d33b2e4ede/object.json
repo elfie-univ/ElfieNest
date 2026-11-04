@@ -27,6 +27,16 @@
       "id": "part_shared_pod_petal_chair_d33b2e4ede_v003",
       "file": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/version.json",
       "order": 462
+    },
+    {
+      "id": "part_shared_pod_petal_chair_d33b2e4ede_v004",
+      "file": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v004/version.json",
+      "order": 524
+    },
+    {
+      "id": "part_shared_pod_petal_chair_d33b2e4ede_v005",
+      "file": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v005/version.json",
+      "order": 541
     }
   ]
 }

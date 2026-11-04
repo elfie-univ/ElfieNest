@@ -31,6 +31,11 @@
       "id": "part_shared_lilac_game_armchair_033103e3ca_v005",
       "file": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/version.json",
       "order": 459
+    },
+    {
+      "id": "part_shared_lilac_game_armchair_033103e3ca_v006",
+      "file": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v006/version.json",
+      "order": 533
     }
   ]
 }

@@ -49,7 +49,7 @@
     "warmer cabinet light wash; original viewer lighting unchanged"
   ],
   "cabinetLightWashStrength": 1.4,
-  "sourceSha256": "0a3ecd8a35edc3f41a53463812d8db8eb28dcb6ec47b5b2dda556352b5b117f1",
+  "sourceSha256": "4b5d25af23cf71d1d52177fcbed23cc1e0d6284abc4853e70a6365b77277d108",
   "restoredSeating": [
     "gaming_sofa_linen_throw",
     "wall_fitted_gaming_sofa"
@@ -77,7 +77,7 @@
     "screensAndPrints": "single texture planes with open ring frames; no layered graphic meshes",
     "proportions": "native object dimensions; no axis squashing"
   },
-  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "description": "模型接触修复候选：按当前实物支撑面修正悬空、穿插或灯带贴合；保留原布局、节点、材质及交互。",
   "collisionPreparation": {
     "format": [
       "OMI_physics_body",
@@ -114,5 +114,11 @@
       "Collision M02 theme-cabinet"
     ],
     "nativeValidated": true
+  },
+  "contactFit": {
+    "nodes": {
+      "gaming_sofa_linen_throw": "clear isolated degenerate-support contact"
+    },
+    "basis": "Actual current supporting meshes; no placement or interaction deletion"
   }
 }

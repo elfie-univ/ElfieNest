@@ -15,30 +15,35 @@ func run() -> void:
 	var candidate: Node3D = DISPLAY.new()
 	root.add_child(candidate)
 	candidate.call("bind",source,Environment.new(),false)
+	var sill := candidate.get_node_or_null("SubmergedInletSill") as MeshInstance3D
+	if not _require(sill != null and sill.mesh != null, "The shallow channel needs its submerged stone inlet edge"): return
+	var splash := candidate.get_node_or_null("WaterfallLandingSplash") as CPUParticles3D
+	if not _require(splash != null and splash.emitting and splash.mesh != null, "The waterfall needs visible landing droplets"): return
 	candidate.call("sample",0.55,true)
 	var strips := candidate.find_children("SpillwayEdge*", "MeshInstance3D", true, false)
 	if not _require(strips.size() == 2, "The short spillway needs exactly two warm edge lights"): return
-	var ribbon := source.find_child("WholeLakeRibbon", true, false) as MeshInstance3D
-	var outline: PackedVector3Array = ribbon.get_meta("shoreline")
 	for strip: MeshInstance3D in strips:
 		var points: PackedVector3Array = strip.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 		for vertex in range(0, points.size(), 2):
-			if not _require(is_equal_approx(points[vertex].distance_to(points[vertex + 1]), 0.10), "Both channel guides must have the fountain rim's 10 cm width throughout"): return
+			# A corner miter is longer than the strip width; its projection across
+			# the flow must retain 10 cm and share the complete ring cut edge.
+			var width := absf(points[vertex + 1].z - points[vertex].z)
+			if not _require(is_equal_approx(width, 0.10), "Both channel guides must have the fountain rim's 10 cm width across the flow"): return
+			if vertex >= 2 and not _require((points[vertex + 1] - points[vertex]).dot(points[1] - points[0]) > 0.009, "Channel guide twists at the waterfall corner"): return
 		var rim := source.find_child("FountainConcealedRim", true, false) as MeshInstance3D
 		var rim_material := rim.get_active_material(0) as BaseMaterial3D
 		var edge_material := strip.get_active_material(0) as BaseMaterial3D
 		if not _require(edge_material.emission == rim_material.emission and edge_material.albedo_color == rim_material.albedo_color and is_equal_approx(edge_material.emission_energy_multiplier, rim_material.emission_energy_multiplier), "Channel guides must match the fountain rim color and night brightness"): return
 		var route: PackedVector3Array = strip.get_meta("light_route")
-		var nearest := INF
-		for i in range(outline.size() - 1):
-			nearest = minf(nearest, Geometry3D.get_closest_point_to_segment(route[-1], outline[i], outline[i + 1]).distance_to(route[-1]))
-		if not _require(nearest < 0.001, "Each channel edge must terminate exactly on the unified lake ribbon"): return
+		if not _require(route.size() >= 2 and points.size() == route.size() * 2, "Keep only the upper-edge lamps; omit the waterfall slope and vertical returns"): return
+		if not _require(absf(route[0].y-route[-1].y) < 0.1, "Channel lamps must follow the gently graded upper edge"): return
 		var coping := source.find_child("ROAD REF • fountain radial limestone coping", true, false) as MeshInstance3D
 		if not _require(absf(route[0].y - (coping.global_transform * coping.get_aabb()).end.y - 0.008) < 0.002, "The channel must touch the fountain rim at its real elevation"): return
-		if not _require(route[-1].is_equal_approx(outline[0]) or route[-1].is_equal_approx(outline[-1]), "Both channel guides must meet the two actual open bank endpoints"): return
+		var curtain_edge := source.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
+		var end_x := (curtain_edge.global_transform * curtain_edge.get_aabb()).position.x
+		if not _require(absf(route[-1].x - end_x) < 0.002, "Each channel lamp must reach the waterfall lip without descending"): return
 		var coping_faces := coping.mesh.get_faces()
-		for step in range(21):
-			var point := route[0].lerp(route[1], float(step) / 20.0)
+		for point: Vector3 in route:
 			for face in range(0, coping_faces.size(), 3):
 				var hit: Variant = Geometry3D.segment_intersects_triangle(Vector3(point.x, 2.0, point.z), Vector3(point.x, -1.0, point.z), coping.global_transform * coping_faces[face], coping.global_transform * coping_faces[face + 1], coping.global_transform * coping_faces[face + 2])
 				if hit is Vector3 and not _require(point.y >= hit.y + 0.004, "The inlet guide must remain above the real coping rather than disappear inside its stone"): return
@@ -91,7 +96,7 @@ func run() -> void:
 	if not _require(is_zero_approx(float(curtain_material.get_shader_parameter("waterfall_glow"))), "Daytime waterfall area effect must be off"): return
 	for material: ShaderMaterial in candidate.get("fountain_materials"):
 		if not _require(is_zero_approx(float(material.get_shader_parameter("accent_strength"))),"Daytime retained fountain emission"):return
-	if not _require(candidate.find_children("*","MeshInstance3D",true,false).size() == 29 and source.find_children("*","MeshInstance3D",true,false).size()==original_meshes,"Add only one central main plume, eight outer jets, nine lamp lenses/housings and the two existing edge strips; retain source geometry"):return
+	if not _require(candidate.find_children("*","MeshInstance3D",true,false).size() == 30 and source.find_children("*","MeshInstance3D",true,false).size()==original_meshes,"Retain the fountain and edge strips plus the submerged inlet sill without altering source meshes"):return
 	print("PASS two joined spillway ribbons, full-sheet animated waterfall without point lamp, four landing rings; original fountain retained; daytime off; visual approval pending")
 	source.free()
 	candidate.free()

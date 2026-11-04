@@ -14,6 +14,21 @@
       "id": "building_pod_v049",
       "file": "buildings/pod/versions/v049/version.json",
       "order": 486
+    },
+    {
+      "id": "building_pod_v051",
+      "file": "buildings/pod/versions/v051/version.json",
+      "order": 530
+    },
+    {
+      "id": "building_pod_v052",
+      "file": "buildings/pod/versions/v052/version.json",
+      "order": 538
+    },
+    {
+      "id": "building_pod_v053",
+      "file": "buildings/pod/versions/v053/version.json",
+      "order": 544
     }
   ]
 }

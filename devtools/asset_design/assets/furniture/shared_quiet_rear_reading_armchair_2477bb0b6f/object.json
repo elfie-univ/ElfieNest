@@ -25,6 +25,11 @@
       "id": "part_shared_quiet_rear_reading_armchair_2477bb0b6f_v003",
       "file": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/version.json",
       "order": 465
+    },
+    {
+      "id": "part_shared_quiet_rear_reading_armchair_2477bb0b6f_v004",
+      "file": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v004/version.json",
+      "order": 522
     }
   ]
 }

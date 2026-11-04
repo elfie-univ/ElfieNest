@@ -16,6 +16,8 @@ var spillway_materials: Array[ShaderMaterial] = []
 var spillway_rings: Array[Dictionary] = []
 var _spillway_edges: Array[StandardMaterial3D] = []
 var _waterfall_material: ShaderMaterial
+var _waterfall_splash: CPUParticles3D
+var _waterfall_bounds := AABB()
 var night_enabled := false
 var _manage_environment := true
 var _seconds := 0.0
@@ -40,6 +42,7 @@ func set_component_paused(component: String, paused: bool) -> bool:
 	elif not paused and _component_holds.has(component):
 		_component_offsets[component] = now - float(_component_holds[component])
 		_component_holds.erase(component)
+	if component == "fountain" and is_instance_valid(_waterfall_splash): _waterfall_splash.emitting = not paused and not _paused
 	return true
 
 func component_paused(component: String) -> bool:
@@ -73,6 +76,7 @@ func bind(geometry: Node3D, environment: Environment, manage_environment: bool =
 	var pool_bounds := pool.global_transform * pool.get_aabb()
 	var channel := geometry.find_child("COMPLETE Short east spillway", true, false) as MeshInstance3D
 	var channel_bounds := channel.global_transform * channel.get_aabb()
+	_add_submerged_inlet(geometry, channel, channel_bounds.end.y)
 	for water: MeshInstance3D in [pool, channel]:
 		var material := water.get_active_material(0) as ShaderMaterial
 		material.set_shader_parameter("fountain_waves", true)
@@ -135,16 +139,63 @@ func bind(geometry: Node3D, environment: Environment, manage_environment: bool =
 	sample(0.0, false)
 	refresh_visibility()
 
+func _add_submerged_inlet(geometry: Node3D, channel: MeshInstance3D, water_height: float) -> void:
+	# The channel's highest row is the actual curved pool/channel join.
+	var points: Array[Vector3] = []
+	for surface in range(channel.mesh.get_surface_count()):
+		for vertex: Vector3 in channel.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]:
+			var world := channel.global_transform * vertex
+			if absf(world.y - water_height) < 0.001 and not points.any(func(point: Vector3) -> bool: return point.distance_to(world) < 0.001):
+				points.append(world)
+	points.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.z < b.z)
+	if points.size() < 2: return
+	var vertices := PackedVector3Array()
+	for index in range(points.size() - 1):
+		var a := points[index] + Vector3.DOWN * 0.004
+		var b := points[index + 1] + Vector3.DOWN * 0.004
+		var c := a + Vector3.RIGHT * 0.12
+		var d := b + Vector3.RIGHT * 0.12
+		for point: Vector3 in [a, b, c, c, b, d]: vertices.append(to_local(point))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	var normals := PackedVector3Array()
+	normals.resize(vertices.size())
+	normals.fill(Vector3.UP)
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var sill := MeshInstance3D.new()
+	sill.name = "SubmergedInletSill"
+	sill.mesh = mesh
+	var bed := geometry.find_child("CY R001 spillway sealed trough bed", true, false) as MeshInstance3D
+	var source := bed.get_active_material(0)
+	if source is ShaderMaterial: source = source.get_meta("source_material", null) as Material
+	if source != null: sill.material_override = source.duplicate()
+	sill.layers = bed.layers
+	add_child(sill)
+
+
 func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 	var coping := geometry.find_child("ROAD REF • fountain radial limestone coping", true, false) as MeshInstance3D
 	var rim_y := (coping.global_transform * coping.get_aabb()).end.y + 0.008
 	var waterfall := geometry.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
 	assert(waterfall != null, "The area effect requires the authored water curtain")
+	_waterfall_bounds = (waterfall.global_transform * waterfall.get_aabb()).grow(0.6)
 	_waterfall_material = waterfall.get_active_material(0) as ShaderMaterial
+	_waterfall_material.shader = preload("res://rooms/estate/estate_waterfall.gdshader")
 	_waterfall_material.set_shader_parameter("is_waterfall", true)
 	_waterfall_material.set_shader_parameter("waterfall_min", waterfall.get_aabb().position)
 	_waterfall_material.set_shader_parameter("waterfall_size", waterfall.get_aabb().size)
-	var outline := preload("res://rooms/estate/estate_shore_finish.gd").ribbon_path(geometry)
+	var contact := _waterfall_lake_contact(waterfall)
+	_bind_landing_foam(geometry, waterfall, contact)
+	_add_waterfall_splash(waterfall, contact)
+	var rim := geometry.find_child("FountainConcealedRim", true, false) as MeshInstance3D
+	var rim_arrays: Array = []
+	var rim_points := PackedVector3Array()
+	if rim != null:
+		rim_arrays = rim.mesh.surface_get_arrays(0).duplicate(true)
+		rim_points = rim_arrays[Mesh.ARRAY_VERTEX]
 	for side: String in ["north", "south"]:
 		var wall := geometry.find_child("CY R001 spillway %s continuous side wall" % side, true, false) as MeshInstance3D
 		assert(wall != null, "The spillway edge light requires its authored stone wall")
@@ -155,6 +206,9 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 		material.emission_enabled = true
 		material.emission = Color(1.0, 0.77, 0.44)
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		if rim != null:
+			material = rim.get_active_material(0).duplicate() as StandardMaterial3D
+			assert(material != null, "Channel lamps require the actual fountain rim material")
 		var z := bounds.end.z - 0.05 if side == "north" else bounds.position.z + 0.05
 		var center := (pool.global_transform * pool.get_aabb()).get_center()
 		var radius := INF
@@ -163,23 +217,39 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 			radius = minf(radius, Vector2(point.x - center.x, point.z - center.z).length())
 		radius += 0.05
 		var ring_x := center.x + sqrt(radius * radius - (z - center.z) * (z - center.z))
-		var shore_join := outline[0] if absf(outline[0].z - z) < absf(outline[-1].z - z) else outline[-1]
-		assert(absf(shore_join.z - z) < 0.001, "The guide must meet the open ribbon endpoint at its real channel side")
-		var route := PackedVector3Array([
-			Vector3(ring_x, rim_y, z),
-			Vector3(bounds.end.x, rim_y, z),
-			Vector3(bounds.end.x, shore_join.y, z),
-			shore_join,
-		])
+		# The upper edge gradually falls towards the lip; selecting only its
+		# highest vertices truncated the lights immediately after the fountain.
+		var crest_x := (waterfall.global_transform * waterfall.get_aabb()).position.x
+		var route := PackedVector3Array([Vector3(ring_x, rim_y, z)])
+		for step in range(1, 33):
+			var x := lerpf(ring_x, crest_x, float(step) / 32.0)
+			var top := _spillway_wall_top(wall, x, z)
+			route.append(Vector3(x, top + 0.008 if not is_inf(top) else rim_y, z))
+		var inlet_across := Vector3(0, 0, 0.05)
+		if rim != null:
+			# Match both borders of the existing ring, not just the centreline.
+			var first := side == "south"
+			var joint := route[0]
+			var near := rim.global_transform * ((rim_points[2] + rim_points[3]) * 0.5 if first else (rim_points[-4] + rim_points[-3]) * 0.5)
+			var incoming := Vector3.LEFT if first else (joint - near).normalized()
+			var outgoing := (near - joint).normalized() if first else Vector3.RIGHT
+			var n0 := Vector3(-incoming.z, 0, incoming.x)
+			var n1 := Vector3(-outgoing.z, 0, outgoing.x)
+			var miter := (n0 + n1).normalized()
+			miter *= 0.05 / miter.dot(n0)
+			inlet_across = -miter if first else miter
+			if first:
+				rim_points[0] = rim.to_local(joint - miter)
+				rim_points[1] = rim.to_local(joint + miter)
+			else:
+				rim_points[-2] = rim.to_local(joint + miter)
+				rim_points[-1] = rim.to_local(joint - miter)
 		var vertices := PackedVector3Array()
 		var normals := PackedVector3Array()
 		var indices := PackedInt32Array()
 		for route_index in range(route.size()):
 			var point := route[route_index]
-			# A shared miter joins the descent to the sideways bank return.
-			var tangent := route[mini(route_index + 1, route.size() - 1)] - route[maxi(route_index - 1, 0)]
-			var across := Vector3(-tangent.z, 0, tangent.x).normalized() * 0.05
-			if across.is_zero_approx(): across = Vector3(0, 0, 0.05)
+			var across := inlet_across if route_index == 0 else Vector3(0, 0, 0.05)
 			vertices.append_array(PackedVector3Array([point - across, point + across]))
 			normals.append_array(PackedVector3Array([Vector3.UP, Vector3.UP]))
 		for segment in range(route.size() - 1):
@@ -196,11 +266,103 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 		var edge := MeshInstance3D.new()
 		edge.name = "SpillwayEdge_" + side
 		edge.mesh = ribbon
+		edge.layers = rim.layers if rim != null else wall.layers
 		edge.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(edge)
 		edge.global_transform = Transform3D.IDENTITY
 		edge.set_meta("light_route", route)
 		_spillway_edges.append(material)
+	if rim != null:
+		rim_arrays[Mesh.ARRAY_VERTEX] = rim_points
+		var joined := ArrayMesh.new()
+		joined.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, rim_arrays)
+		joined.surface_set_material(0, rim.get_active_material(0))
+		rim.mesh = joined
+
+
+func _spillway_wall_top(wall: MeshInstance3D, x: float, z: float) -> float:
+	var faces := wall.mesh.get_faces()
+	var top := -INF
+	for index in range(0, faces.size(), 3):
+		var hit: Variant = Geometry3D.segment_intersects_triangle(Vector3(x, 2.0, z), Vector3(x, -2.0, z), wall.global_transform * faces[index], wall.global_transform * faces[index + 1], wall.global_transform * faces[index + 2])
+		if hit is Vector3: top = maxf(top, (hit as Vector3).y)
+	return top
+
+
+func _waterfall_lake_contact(waterfall: MeshInstance3D) -> Vector3:
+	var level := (lake.global_transform * lake.get_aabb()).end.y
+	var minimum := Vector2(INF, INF)
+	var maximum := Vector2(-INF, -INF)
+	var faces := waterfall.mesh.get_faces()
+	for index in range(0, faces.size(), 3):
+		for edge in range(3):
+			var a := waterfall.global_transform * faces[index + edge]
+			var b := waterfall.global_transform * faces[index + (edge + 1) % 3]
+			if absf(a.y - level) < 0.0001:
+				minimum = minimum.min(Vector2(a.x, a.z))
+				maximum = maximum.max(Vector2(a.x, a.z))
+			if (a.y - level) * (b.y - level) < 0.0:
+				var crossing := a.lerp(b, (level - a.y) / (b.y - a.y))
+				minimum = minimum.min(Vector2(crossing.x, crossing.z))
+				maximum = maximum.max(Vector2(crossing.x, crossing.z))
+	assert(not is_inf(minimum.x), "The waterfall must meet the lake surface")
+	return Vector3((minimum.x + maximum.x) * 0.5, level, (minimum.y + maximum.y) * 0.5)
+
+
+func _bind_landing_foam(geometry: Node3D, waterfall: MeshInstance3D, origin: Vector3) -> void:
+	var bounds := waterfall.global_transform * waterfall.get_aabb()
+	for mesh: MeshInstance3D in geometry.find_children("*", "MeshInstance3D", true, false):
+		var material := mesh.get_active_material(0) as ShaderMaterial
+		if material == null or material.get_meta("estate_water_role", "") != "foam": continue
+		# Reuse the existing landing-foam object and material, rather than stack
+		# a second transparent patch over its original surface.
+		material.shader = preload("res://rooms/estate/estate_waterfall_foam.gdshader")
+		material.set_shader_parameter("landing_origin", origin)
+		material.set_shader_parameter("landing_width", bounds.size.z)
+		var plane := PlaneMesh.new()
+		plane.size = Vector2(0.78, bounds.size.z + 0.12)
+		mesh.mesh = plane
+		mesh.set_surface_override_material(0, material)
+		mesh.global_transform = Transform3D(Basis.IDENTITY, origin + Vector3(0.08,0.012,0))
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _add_waterfall_splash(waterfall: MeshInstance3D, contact: Vector3) -> void:
+	var bounds := waterfall.global_transform * waterfall.get_aabb()
+	var splash := CPUParticles3D.new()
+	splash.name = "WaterfallLandingSplash"
+	splash.amount = 32
+	splash.lifetime = 0.55
+	splash.preprocess = 0.55
+	splash.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	splash.emission_box_extents = Vector3(0.10, 0.01, bounds.size.z * 0.47)
+	splash.direction = Vector3.UP
+	splash.spread = 68.0
+	splash.gravity = Vector3(0, -1.4, 0)
+	splash.initial_velocity_min = 0.35
+	splash.initial_velocity_max = 0.75
+	var droplet := QuadMesh.new()
+	droplet.size = Vector2(0.07,0.11)
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0,0.3,1.0])
+	gradient.colors = PackedColorArray([Color(1,1,1,0.55),Color(1,1,1,0.32),Color(1,1,1,0)])
+	var mist := GradientTexture2D.new()
+	mist.gradient = gradient
+	mist.fill = GradientTexture2D.FILL_RADIAL
+	mist.fill_from = Vector2(0.5,0.5)
+	mist.fill_to = Vector2(1.0,0.5)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.90,0.97,1.0,0.45)
+	material.albedo_texture = mist
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	material.billboard_keep_scale = true
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	droplet.material = material
+	splash.mesh = droplet
+	add_child(splash)
+	splash.global_position = contact + Vector3.UP * 0.03
+	_waterfall_splash = splash
 
 func sample(seconds: float, night: bool) -> void:
 	var fountain_seconds := component_time("fountain", seconds)
@@ -251,14 +413,15 @@ func sample(seconds: float, night: bool) -> void:
 		var strength := 0.5 if role == "jet" else (0.22 if role == "foam" else 0.32)
 		material.set_shader_parameter("accent_color", Vector3(0.35, 0.68, 0.78))
 		material.set_shader_parameter("accent_strength", strength if night else 0.0)
-	var landing_cycle := fposmod(seconds, 3.0)
+		if role == "foam": material.set_shader_parameter("night_visibility", 1.0 if night else 0.0)
+	var landing_cycle := fposmod(fountain_seconds, 3.0)
 	for landing_index in range(spillway_rings.size()):
 		var material := spillway_rings[landing_index]["material"] as ShaderMaterial
 		var distance := (landing_cycle - (0.2 + float(landing_index) * 0.35)) / 0.28
 		material.set_shader_parameter("accent_color", Vector3(0.35, 0.68, 0.78))
 		material.set_shader_parameter("accent_strength", 0.03 + 0.22 * exp(-distance * distance) if night else 0.0)
-	_waterfall_material.set_shader_parameter("waterfall_glow", 1.0 if night else 0.0)
-	_waterfall_material.set_shader_parameter("waterfall_phase", seconds)
+	_waterfall_material.set_shader_parameter("waterfall_glow", 1.25 if night else 0.0)
+	_waterfall_material.set_shader_parameter("waterfall_phase", fountain_seconds)
 	if not _manage_environment: return
 	for binding: Dictionary in _day_lights:
 		(binding["light"] as DirectionalLight3D).light_energy = float(binding["energy"]) * (0.045 if night else 1.0)
@@ -291,11 +454,19 @@ func set_presentation_paused(paused: bool) -> void:
 
 func refresh_visibility() -> void:
 	var camera := get_viewport().get_camera_3d()
-	_on_screen = not _paused and is_visible_in_tree() and camera != null and fountain_show.visible_from(camera)
+	_on_screen = not _paused and is_visible_in_tree() and camera != null and (fountain_show.visible_from(camera) or _waterfall_visible_from(camera))
 	var nearby := camera != null and camera.global_position.distance_to(fountain_show.global_position)<30.0
 	fountain_show.set_detail(_on_screen,nearby)
 	_lamp.visible = night_enabled and _on_screen
 	set_process(not _manage_environment and _on_screen)
+
+
+func _waterfall_visible_from(camera: Camera3D) -> bool:
+	# The waterfall can fill a close-up while the separate fountain is outside it.
+	for plane: Plane in camera.get_frustum():
+		var nearest := Vector3(_waterfall_bounds.position.x if plane.normal.x >= 0 else _waterfall_bounds.end.x, _waterfall_bounds.position.y if plane.normal.y >= 0 else _waterfall_bounds.end.y, _waterfall_bounds.position.z if plane.normal.z >= 0 else _waterfall_bounds.end.z)
+		if plane.distance_to(nearest) > 0: return false
+	return true
 
 
 func _process(_delta: float) -> void:

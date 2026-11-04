@@ -139,7 +139,7 @@
   ],
   "wallSofas": [],
   "cabinetLightWashStrength": 1.4,
-  "sourceSha256": "f1938b25f7bc9f8bc838ccb8f893093bafb2da202f6c46a893d35355cb821ab2",
+  "sourceSha256": "946fa194fa50176dbad393fbbcf4eccd0d65ee88875ead39579441b4353d6a12",
   "restoredSeating": [
     "linen_throw_on_fitted_sofa",
     "sofa_following_actual_wall"
@@ -169,7 +169,7 @@
     "screensAndPrints": "single texture planes with open ring frames; no layered graphic meshes",
     "proportions": "native object dimensions; no axis squashing"
   },
-  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "description": "M01 六只靠垫按真实靠背整体平移至接触；保持每只靠垫形状、尺寸、高度与全部沙发结构。",
   "collisionPreparation": {
     "format": [
       "OMI_physics_body",
@@ -204,5 +204,12 @@
       "Collision M01 rear-storage"
     ],
     "nativeValidated": true
+  },
+  "contactFit": {
+    "nodes": {
+      "linen_throw_on_fitted_sofa": "rebuilt contact geometry",
+      "sofa_following_actual_wall": "six intact cushions translated against the actual sofa back; sofa body unchanged"
+    },
+    "basis": "Actual current supporting meshes; no placement or interaction deletion"
   }
 }

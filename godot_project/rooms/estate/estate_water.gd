@@ -2,6 +2,8 @@ extends RefCounted
 ## Presentation-only material overrides; RuntimeMode owns estate visibility.
 
 const SURFACE := preload("res://rooms/estate/estate_water.gdshader")
+const SHALLOW := preload("res://rooms/estate/estate_shallow_water.gdshader")
+const BED := preload("res://rooms/estate/estate_shallow_bed.gdshader")
 const DAYLIGHT := preload("res://rooms/estate/estate_daylight.gd")
 const FLOW := preload("res://rooms/estate/estate_water_flow.gdshader")
 # Actual sourceGardenNode markers in the approved GLB reference these meshes.
@@ -35,6 +37,19 @@ static func attach(root: Node3D) -> Dictionary:
 			continue
 		for index in range(mesh.mesh.get_surface_count()):
 			var actual := mesh.get_active_material(index)
+			if str(mesh.name) == "CY R001 spillway sealed trough bed":
+				if actual != null and actual.has_meta("estate_shallow_bed"): continue
+				var bed_source := actual as BaseMaterial3D
+				if actual is ShaderMaterial: bed_source = actual.get_meta("source_material", null) as BaseMaterial3D
+				if bed_source != null:
+					var bed := ShaderMaterial.new()
+					bed.shader = BED
+					bed.set_meta("estate_shallow_bed", true)
+					bed.set_meta("source_material", bed_source)
+					bed.set_shader_parameter("source_albedo", bed_source.albedo_color)
+					bed.set_shader_parameter("source_roughness", bed_source.roughness)
+					mesh.set_surface_override_material(index, bed)
+				continue
 			if actual != null and actual.has_meta("estate_water_role"):
 				mesh.layers = (mesh.layers & ~DAYLIGHT.OUTDOOR_LIGHT_LAYER) | DAYLIGHT.WATER_LIGHT_LAYER
 				counts[str(actual.get_meta("estate_water_role"))] += 1
@@ -67,12 +82,14 @@ static func _material(original: BaseMaterial3D, role: String) -> ShaderMaterial:
 	material.resource_name = original.resource_name
 	material.set_meta("source_material", original)
 	material.set_meta("estate_water_role", role)
-	material.shader = SURFACE if role in ["surface", "spillway"] else FLOW
+	material.shader = SHALLOW if role == "spillway" else SURFACE if role == "surface" else FLOW
 	material.set_shader_parameter("source_albedo", original.albedo_color)
 	material.set_shader_parameter("source_roughness", original.roughness)
 	material.set_shader_parameter("source_metallic", original.metallic)
 	material.set_shader_parameter("source_specular", original.metallic_specular)
-	if material.shader == SURFACE:
+	if material.shader == SHALLOW:
+		material.set_shader_parameter("water_opacity", 0.62)
+	if material.shader == SURFACE or material.shader == SHALLOW:
 		var optics := original.get_meta("source_optics", {}) as Dictionary
 		material.set_shader_parameter("source_clearcoat", float(optics.get("clearcoat", 0.0)))
 		material.set_shader_parameter("source_coat_roughness", float(optics.get("clearcoat_roughness", 0.0)))

@@ -39,6 +39,11 @@
       "id": "part_shared_games_central_chair_1a067d1758_v004",
       "file": "furniture/shared_games_central_chair_1a067d1758/versions/v004/version.json",
       "order": 454
+    },
+    {
+      "id": "part_shared_games_central_chair_1a067d1758_v005",
+      "file": "furniture/shared_games_central_chair_1a067d1758/versions/v005/version.json",
+      "order": 532
     }
   ]
 }
