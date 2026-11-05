@@ -27,6 +27,20 @@ func run() -> void:
 	if not check(console.camera_command({"action": "scene", "target": "fountain", "paused": true}), "Cannot pause existing water presentation"): return
 	if not check(console.catalog()["scene_actions"].filter(func(item: Dictionary) -> bool: return item.id == "fountain")[0]["paused"], "Water pause not acknowledged"): return
 	if not check(not console.catalog()["presentation_paused"], "Water pause froze the entire view"): return
+	var waterfall_items: Array = console.catalog()["scene_actions"].filter(func(item: Dictionary) -> bool: return item.id == "waterfall")
+	if not check(waterfall_items.size() == 1 and waterfall_items[0].label == "瀑布", "The scene menu must offer one waterfall view"): return
+	if not check(console.camera_command({"action":"scene", "target":"waterfall", "paused":false}), "Cannot select waterfall view"): return
+	if not check(console.catalog()["active_id"] == "scene-waterfall", "Waterfall view did not select its camera"): return
+	var water := nest.get_node("Generated/ObserverFountainLighting")
+	if not check(water.component_paused("fountain"), "Selecting the waterfall view must not resume the fountain"): return
+	var curtain := nest.get_node("Generated/CompleteEstate").find_child("Continuous shallow waterfall from solid spillway crest",true,false) as MeshInstance3D
+	var fall := curtain.global_transform * curtain.get_aabb()
+	var fall_camera := nest._active_camera()
+	if not check(fall_camera.global_position.x > fall.end.x + 1.0 and fall_camera.global_position.y > fall.end.y, "Waterfall camera must face the outlet from above the lake"): return
+	var edge_y := fall.get_center().y
+	for point: Vector3 in [Vector3(fall.end.x,edge_y,fall.position.z-0.2),Vector3(fall.end.x,edge_y,fall.end.z+0.2),fall.position,fall.end]:
+		var direction := (point-fall_camera.global_position).normalized()
+		if not check(direction.dot(-fall_camera.global_basis.z) > cos(deg_to_rad(fall_camera.fov*0.48)), "Waterfall camera must frame the curtain and both sides"): return
 	if not check(not console.camera_command({"action": "scene", "target": "missing", "paused": true}), "Unknown scene object accepted"): return
 	console.camera_command({"action": "scene", "target": "fountain", "paused": false})
 	for target in ["fountain", "lake"]:

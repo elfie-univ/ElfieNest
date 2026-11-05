@@ -22,17 +22,19 @@ func run() -> void:
 		quit(1)
 		return
 	var banks: Array[MeshInstance3D] = [ribbon]
-	check(ribbon.mesh.get_surface_count() == 1, "All shore segments must share one surface and one light material")
+	check(ribbon.mesh.get_surface_count() == 1, "Shore lighting must use only its original sloping face, without a land cover")
 	var path: PackedVector3Array = ribbon.get_meta("shoreline")
-	check(path[0] != path[-1], "The real waterfall opening must remain clear instead of closing a lamp across the falling water")
+	check(path[0] != path[-1], "The real waterfall opening must remain clear")
 	var arrays := ribbon.mesh.surface_get_arrays(0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	check(vertices.size() == path.size() * 3 and indices.size() == (path.size() - 1) * 12, "The sloping face must have no separate horizontal luminous band")
+	var base := estate.find_child("GroundPatch_196", true, false) as MeshInstance3D
+	check(base != null and base.visible, "The extended original grass face must remain the rendered ground")
 	for i in range(path.size()):
-		var outside := Vector2(vertices[i*4].x, vertices[i*4].z)
-		var seam := Vector2(path[i].x, path[i].z)
-		check(outside.distance_to(seam) >= 0.16, "Shore ribbon must cover the trimmed land edge without an exposed gap")
-	check(vertices.size() == path.size() * 4 and indices.size() == (path.size() - 1) * 18, "One shared full-height profile must cover every contour segment")
+		var top := vertices[i * 3]
+		var height: float = estate.get("_shore")._ground_height(Vector2(top.x, top.z), top.y)
+		check(absf(top.y - height) < 0.0001, "Shore upper edge must meet the actual original ground height without a raised cover")
 	var curtain := estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
 	var curtain_box := curtain.global_transform * curtain.get_aabb()
 	for i in range(0, indices.size(), 3):
@@ -49,10 +51,10 @@ func run() -> void:
 			var key := Vector2i(mini(a, b), maxi(a, b))
 			edges[key] = int(edges.get(key, 0)) + 1
 	for key: Vector2i in edges:
-		var boundary := (key.x % 4 == 0 and key.y % 4 == 0) or (key.x % 4 == 3 and key.y % 4 == 3) or (key.x / 4 == key.y / 4 and key.x / 4 in [0, path.size() - 1])
+		var boundary := (key.x % 3 == 0 and key.y % 3 == 0) or (key.x % 3 == 2 and key.y % 3 == 2) or (key.x / 3 == key.y / 3 and key.x / 3 in [0, path.size() - 1])
 		check(int(edges[key]) == (1 if boundary else 2), "Ribbon joins must share vertices, with no cracks, caps or overlapping triangles")
 	for i in range(path.size() - 1):
-		check(vertices[i * 4 + 1].y - vertices[i * 4 + 3].y > 0.4, "Platform and bank must retain the same broad luminous face")
+		check(vertices[i * 3].y - vertices[i * 3 + 2].y > 0.25, "Platform and bank must retain the same broad luminous face")
 	var ribbon_material := ribbon.get_active_material(0) as BaseMaterial3D
 	var mask := ribbon_material.emission_texture.get_image()
 	check(mask.get_pixel(0, 63).r > 0.9 and mask.get_pixel(0, 0).r < 0.01, "The whole ribbon uses the same warm top-to-water fade")
@@ -60,7 +62,11 @@ func run() -> void:
 		if mesh == ribbon: continue
 		check(str((mesh.get_meta("extras", {}) as Dictionary).get("outdoor_fixture_id", "")) != "shoreline-wash", "Old per-bank glow must not create duplicate contours")
 	check(int(estate.get_meta("shore_retreat_count", 0)) > 0, "Overhanging land plants must actually retreat from the water")
-	check(int(estate.get("multimesh_instance_count")) + int(estate.get_meta("foliage_pruned_count",0)) == 214448, "Every original landscape instance must be retained or explicitly accounted for by clearance pruning")
+	var instance_source := FileAccess.open("res://rooms/estate/ElfieNest-complete-final.instances.bin", FileAccess.READ)
+	instance_source.seek(16)
+	var source_count := instance_source.get_32()
+	instance_source.close()
+	check(int(estate.get("multimesh_instance_count")) + int(estate.get_meta("foliage_pruned_count",0)) == source_count, "Every original landscape instance must be retained or explicitly accounted for by clearance pruning")
 	var outline: PackedVector3Array = estate.find_child("OutdoorLighting", true, false).get_meta("shoreline")
 	var water := PackedVector2Array()
 	for i in range(outline.size() - 1): water.append(Vector2(outline[i].x, outline[i].z))

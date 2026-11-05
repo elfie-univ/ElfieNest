@@ -88,7 +88,8 @@ static func _material(original: BaseMaterial3D, role: String) -> ShaderMaterial:
 	material.set_shader_parameter("source_metallic", original.metallic)
 	material.set_shader_parameter("source_specular", original.metallic_specular)
 	if material.shader == SHALLOW:
-		material.set_shader_parameter("water_opacity", 0.62)
+		material.set_shader_parameter("water_opacity", 0.72)
+		material.set_shader_parameter("water_tint", Vector3(0.48, 0.72, 0.82))
 	if material.shader == SURFACE or material.shader == SHALLOW:
 		var optics := original.get_meta("source_optics", {}) as Dictionary
 		material.set_shader_parameter("source_clearcoat", float(optics.get("clearcoat", 0.0)))

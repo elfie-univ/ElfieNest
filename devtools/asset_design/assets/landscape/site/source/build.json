@@ -1680,7 +1680,7 @@
     "activitySource": "authored_ground_mesh_boundaries",
     "pavingUnderlapM": 0.04
   },
-  "description": "庭院最新编辑源：保留确认的林间路与地面分区，对齐当前 Godot 灯具、地面分块、湖岸修整、长椅和植物净空。 喷泉出水口开放灯带、临水贴边、等高薄挡边；圆池与浅水槽共用弧形接缝，删除重叠过渡面并修正法线，保留末端跌水。",
+  "description": "瀑布两侧沿实际湖岸补种紫色及浅黄色花带，根部贴合地面，花叶避开岸灯和石墙。",
   "outdoorLighting": {
     "status": "aligned-with-current-godot",
     "fixtures": [
@@ -1732,12 +1732,12 @@
   },
   "runtimeAlignment": {
     "inputs": {
-      "godot_project/rooms/estate/ElfieNest-complete-final.glb": "5e3a88d085c2563765c1a4b245fff6acd6744d4ba6e1479e47103846e9088956",
-      "godot_project/rooms/estate/ElfieNest-complete-final.instances.bin": "9e504e1cb57dc4786225e144878ef335ce1be6d0c27f816f187fa4220a879f50",
-      "godot_project/rooms/estate/estate_outdoor_lighting.scn": "5f65e86581f7bcfa95556ef020f0fe01f028650ca29ece93f970de755ed21a3a",
+      "godot_project/rooms/estate/ElfieNest-complete-final.glb": "222810a8a4b0117855702f59acad18ebd3527b57c1b48322c7d25ad419f0903e",
+      "godot_project/rooms/estate/ElfieNest-complete-final.instances.bin": "18cd7a3718f1e1afb3edd239866bce8402bfe03be3ecc95f94be6b32026460de",
+      "godot_project/rooms/estate/estate_outdoor_lighting.scn": "07047d1c666798865fc178b869cbf7339336dfde08eb8a84332402e91befc334",
       "godot_project/rooms/estate/estate_complete_final.gd": "4ffe1d53c446bc693f20577be67759ccb16cafeefaa664281e010033bb6578cb",
-      "godot_project/rooms/estate/estate_shore_finish.gd": "57a2ab990ae8e6b6ac5c2469a368e85a123ca6c3394b450b696588775c9ca374",
-      "godot_project/rooms/estate/estate_bank_cleanup.gd": "c92b0db2f1bd16d4196142fe20ab0319609c1487bf655e7be2c2abf2f623b8cd"
+      "godot_project/rooms/estate/estate_shore_finish.gd": "cb12971d19f3c30a9ee4147bf0f7d8de74bef8f7e0a22ee7057cb86323d5bf9a",
+      "godot_project/rooms/estate/estate_bank_cleanup.gd": "ad10886b3c0533dac61cba54d9d192cfc57d84e48aaff307bd08e4d5fa12ad00"
     },
     "baselineVersion": "landscape_site_v024",
     "clippedBanks": [
@@ -1786,5 +1786,5 @@
     "instanceGroups": 131,
     "overlayMeshes": 554
   },
-  "sourceSha256": "fdd7620a7ce0a0bd987d50463c0417e71aba9aadfb938cf45eec72a83cc9892b"
+  "sourceSha256": "bdf0ee4f761ac206e328dad9ddc1fe6a31fd3ad620f05f6e24c7c8e3fab3e467"
 }

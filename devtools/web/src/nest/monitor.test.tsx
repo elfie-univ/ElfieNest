@@ -87,13 +87,13 @@ describe("Nest Lab cascade", () => {
     expect(html).not.toContain('aria-label="场景动作"');
     expect(cameraGroups(catalog.views).map(group=>group.label)).toEqual(["室外","主楼","M01 卧室与露台"]);
   });
-  it("plays each selected water effect directly, without needing an actor", async () => {
+  it("opens each selected water scene directly, without needing an actor", async () => {
     const send = vi.fn();
-    for (const id of ["fountain", "lake"]) {
+    for (const id of ["fountain", "waterfall", "lake"]) {
       await previewSceneAction({id,label:id,paused:true}, send);
       expect(send).toHaveBeenLastCalledWith({action:"scene",target:id,paused:false});
     }
-    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenCalledTimes(3);
   });
   it("focuses a door through its scene command before preparing the followed passage", async () => {
     const calls: unknown[] = [];

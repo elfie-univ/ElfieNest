@@ -41,6 +41,9 @@ func apply(estate: Node3D, layout: Node3D) -> void:
 		var tangent := (contour[mini(i + 1, contour.size() - 1)] - contour[maxi(i - 1, 0)]).normalized()
 		var inward := Vector2(-tangent.y, tangent.x)
 		if not Geometry2D.is_point_in_polygon(point + inward * 0.02, contour): inward = -inward
+		# The terminal profiles meet the vertical outer stone faces. Keep
+		# their full width on the bank side instead of cutting into the wall.
+		if i <= 8 or i >= contour.size() - 9: inward = Vector2.RIGHT
 		# The same softly rounded, full-height cross-section runs around the
 		# entire shore. Shared indexed vertices leave no independent end caps.
 		for profile: Vector2 in [Vector2(-0.17, top - 0.02), Vector2(0.0, top), Vector2(0.04, top - 0.035), Vector2(0.085, water_height + 0.002)]:
@@ -162,6 +165,37 @@ static func ribbon_path(estate: Node3D) -> PackedVector3Array:
 		var index := (start + step) % split.size()
 		if not clear[index]: break
 		path.append(split[(index + 1) % split.size()])
+	path = _join_stone_end(path, north, top, (lake.global_transform * lake.get_aabb()).end.y, north_box.position.z)
+	path = _join_stone_end(path, south, top, (lake.global_transform * lake.get_aabb()).end.y, south_box.end.z)
+	return path
+
+static func _join_stone_end(path: PackedVector3Array, wall: MeshInstance3D, top: float, water_y: float, outer_z: float) -> PackedVector3Array:
+	var reverse := absf(path[0].z - outer_z) < absf(path[-1].z - outer_z)
+	if reverse: path.reverse()
+	var bounds := wall.global_transform * wall.get_aabb()
+	var front := INF
+	# Place the complete profile against the existing stone, including its
+	# lower slope, rather than extending a strip beyond the stone's toe.
+	for y: float in [top, water_y + 0.002]:
+		var furthest := -INF
+		var faces := wall.mesh.get_faces()
+		for i in range(0, faces.size(), 3):
+			var hit: Variant = Geometry3D.segment_intersects_triangle(Vector3(bounds.end.x + 1.0,y,bounds.get_center().z), Vector3(bounds.position.x - 1.0,y,bounds.get_center().z), wall.global_transform * faces[i], wall.global_transform * faces[i+1], wall.global_transform * faces[i+2])
+			if hit is Vector3: furthest = maxf(furthest,(hit as Vector3).x)
+		assert(not is_inf(furthest), "Shore lighting must join a real stone face at both heights")
+		front = minf(front,furthest)
+	var start := path[-1]
+	var end := Vector3(front - 0.10,top,outer_z)
+	var distance := start.distance_to(end)
+	var incoming := (start - path[-2]).normalized()
+	var outgoing := Vector3(0,0,signf(end.z - start.z))
+	var control_a := start + incoming * distance * 0.35
+	var control_b := end - outgoing * distance * 0.35
+	for i in range(1,9):
+		var t := float(i) / 8.0
+		var u := 1.0 - t
+		path.append(start*u*u*u + control_a*3.0*u*u*t + control_b*3.0*u*t*t + end*t*t*t)
+	if reverse: path.reverse()
 	return path
 
 func nearest_edge(point: Vector2) -> Vector2:

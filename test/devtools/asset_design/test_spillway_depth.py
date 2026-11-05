@@ -170,6 +170,145 @@ def test_channel_walls_clear_coping_and_descend_beside_waterfall(path):
         top = max(p[1] for p in wall)
         top_end = max(p[0] for p in wall if p[1] > top - 0.002)
         bottom_end = max(p[0] for p in wall if p[1] < 0.04)
-        assert bottom_end - top_end > 0.2, (
-            "Outlet must slope downstream instead of ending in a vertical board"
+        assert bottom_end <= 24.881, "Lower wall must not project into the landing"
+        assert top_end <= 25.0, "Preserve the existing rounded wall top"
+
+
+def _front_at(triangles, y, z):
+    """First face hit looking through the waterfall towards the fountain."""
+    hits = []
+    for a, b, c in triangles:
+        determinant = (b[2] - c[2]) * (a[1] - c[1]) + (c[1] - b[1]) * (a[2] - c[2])
+        if abs(determinant) < 1e-12:
+            continue
+        u = ((b[2] - c[2]) * (y - c[1]) + (c[1] - b[1]) * (z - c[2])) / determinant
+        v = ((c[2] - a[2]) * (y - c[1]) + (a[1] - c[1]) * (z - c[2])) / determinant
+        if u >= -1e-6 and v >= -1e-6 and u + v <= 1 + 1e-6:
+            hits.append(u * a[0] + v * b[0] + (1 - u - v) * c[0])
+    assert hits, (y, z)
+    return max(hits)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "devtools/asset_design/assets/landscape/site/source/model.glb",
+        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+    ],
+)
+def test_waterfall_backing_is_vertical_and_clears_the_landing(path):
+    model = _Model(str(ROOT / path))
+    identity = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+    def triangles(name):
+        index = next(
+            i for i, node in enumerate(model.doc["nodes"]) if node.get("name") == name
         )
+        return list(_triangles(model, index, identity))
+
+    water = triangles("Continuous shallow waterfall from solid spillway crest")
+    backing = triangles("CY R001 spillway supporting outlet face")
+    water_z = (
+        min(p[2] for t in water for p in t) + max(p[2] for t in water for p in t)
+    ) * 0.5
+    sides = []
+    for side in ("north", "south"):
+        wall = triangles(f"CY R001 spillway {side} continuous side wall")
+        z = (
+            min(p[2] for t in wall for p in t) + max(p[2] for t in wall for p in t)
+        ) * 0.5
+        sides.append((side, wall, z))
+    backing_points = [p for triangle in backing for p in triangle]
+    assert min(p[1] for p in backing_points) <= -0.65 + 1e-6
+    assert max(p[1] for p in backing_points) >= 0.411
+    assert max(p[0] for p in backing_points) <= 24.881
+    front = []
+    for y in (0.35, 0.2, 0.0, -0.2, -0.35, -0.6):
+        stone_x = _front_at(backing, y, water_z)
+        front.append(stone_x)
+        for side, wall, z in sides:
+            wall_x = _front_at(wall, y, z)
+            assert abs(wall_x - stone_x) < 0.002, (side, y, wall_x, stone_x)
+    assert max(front) - min(front) < 1e-5, "Backing must descend vertically"
+    gaps = []
+    for y in (0.35, 0.2, 0.0, -0.2, -0.35):
+        water_x = _front_at(water, y, water_z)
+        stone_x = _front_at(backing, y, water_z)
+        gaps.append(water_x - stone_x)
+    assert min(gaps) >= 0.025
+    assert gaps[-1] > 0.45, "Leave the falling sheet and landing clear of stone"
+    assert gaps == sorted(gaps)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "devtools/asset_design/assets/landscape/site/source/model.glb",
+        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+    ],
+)
+def test_waterfall_backing_and_wall_fronts_do_not_overlap(path):
+    model = _Model(str(ROOT / path))
+    identity = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+    def triangles(name):
+        index = next(
+            i for i, node in enumerate(model.doc["nodes"]) if node.get("name") == name
+        )
+        return list(_triangles(model, index, identity))
+
+    backing = triangles("CY R001 spillway supporting outlet face")
+    front = max(p[0] for t in backing for p in t)
+    front_faces = [t for t in backing if all(abs(p[0] - front) < 1e-5 for p in t)]
+    assert front_faces
+    for side in ("north", "south"):
+        wall = triangles(f"CY R001 spillway {side} continuous side wall")
+        wall_faces = [t for t in wall if all(abs(p[0] - front) < 1e-5 for p in t)]
+        assert wall_faces
+        for first in front_faces:
+            for second in wall_faces:
+                yz_first = [(p[1], p[2], 0) for p in first]
+                yz_second = [(p[1], p[2], 0) for p in second]
+                assert _intersection_area(yz_first, yz_second) < 1e-8, side
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "devtools/asset_design/assets/landscape/site/source/model.glb",
+        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+    ],
+)
+def test_waterfall_wall_tips_have_no_downward_facing_lip(path):
+    model = _Model(str(ROOT / path))
+    identity = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    for side in ("north", "south"):
+        index = next(
+            i
+            for i, node in enumerate(model.doc["nodes"])
+            if node.get("name") == f"CY R001 spillway {side} continuous side wall"
+        )
+        triangles = list(_triangles(model, index, identity))
+        front = max(p[0] for t in triangles for p in t if p[1] < 0.41)
+        selected = 0
+        for a, b, c in triangles:
+            points = (a, b, c)
+            if (
+                min(p[0] for p in points) < front - 0.08
+                or max(p[0] for p in points) < front - 0.01
+            ):
+                continue
+            if min(p[1] for p in points) < 0.4119 or max(p[1] for p in points) > 0.53:
+                continue
+            u = [b[k] - a[k] for k in range(3)]
+            v = [c[k] - a[k] for k in range(3)]
+            normal = (
+                u[1] * v[2] - u[2] * v[1],
+                u[2] * v[0] - u[0] * v[2],
+                u[0] * v[1] - u[1] * v[0],
+            )
+            length = math.sqrt(sum(value * value for value in normal))
+            if length and normal[0] / length > 0.2:
+                selected += 1
+                assert normal[1] / length >= -0.04, (side, normal)
+        assert selected

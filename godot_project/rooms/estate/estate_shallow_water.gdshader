@@ -12,7 +12,7 @@ uniform float wave_amplitude = 0.025;
 uniform float detail_amplitude = 0.0;
 uniform float wave_speed = 0.22;
 uniform float water_opacity;
-uniform vec3 water_tint : source_color = vec3(0.16, 0.34, 0.35);
+uniform vec3 water_tint : source_color = vec3(0.48, 0.72, 0.82);
 uniform vec3 accent_color = vec3(0.0);
 uniform float accent_strength = 0.0;
 uniform bool fountain_waves = false;
@@ -49,7 +49,7 @@ void fragment() {
 	if (dot(NORMAL, VIEW) < 0.0) {
 		NORMAL = -NORMAL;
 	}
-	ALBEDO = mix(source_albedo.rgb, water_tint, 0.65);
+	ALBEDO = water_tint;
 	EMISSION = accent_color * accent_strength * 0.12;
     if (fountain_waves) {
         vec2 p = world_water_position.xz-fountain_center.xz;

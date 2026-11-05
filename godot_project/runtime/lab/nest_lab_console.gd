@@ -73,6 +73,8 @@ func camera_command(message: Dictionary) -> bool:
 			if target.begins_with("door-"):
 				if _nest._estate_physics == null or not _nest._estate_physics.preview_door(target, str(message.get("mode", ""))): return false
 				return _focus_scene(target)
+			if target == "waterfall":
+				return _focus_scene(target)
 			var water := _nest.get_node_or_null("Generated/ObserverFountainLighting")
 			if water == null or not message.get("paused") is bool: return false
 			if not water.set_component_paused(target, bool(message["paused"])): return false
@@ -124,6 +126,19 @@ func _focus_scene(target: String) -> bool:
 				position = (hit.position as Vector3) - (position - center).normalized() * 0.35
 				field_of_view = clampf(rad_to_deg(2.0 * atan(1.7 / position.distance_to(center))), 65.0, 105.0)
 			label = _door_label(_nest._estate_physics.preview_doors()[index])
+		elif target == "waterfall":
+			var estate := _nest.get_node("Generated/CompleteEstate")
+			var curtain := estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
+			if curtain == null: return false
+			var bounds := curtain.global_transform * curtain.get_aabb()
+			center = bounds.get_center()
+			var outward := curtain.global_basis.x
+			outward.y = 0.0
+			if outward.is_zero_approx(): return false
+			var width := maxf(bounds.size.z, 1.0)
+			position = center + outward.normalized() * width * 1.4 + Vector3.UP * width * 1.2
+			field_of_view = 50.0
+			label = "瀑布"
 		else:
 			var estate := _nest.get_node("Generated/CompleteEstate")
 			var source := "Reference fountain water" if target == "fountain" else "COMPLETE Inset natural lake"
@@ -168,6 +183,9 @@ func catalog() -> Dictionary:
 	var water := _nest.get_node_or_null("Generated/ObserverFountainLighting")
 	if water != null:
 		result["scene_actions"].append({"id": "fountain", "label": "喷泉", "paused": water.component_paused("fountain")})
+		var estate := _nest.get_node_or_null("Generated/CompleteEstate")
+		if estate != null and estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) != null:
+			result["scene_actions"].append({"id": "waterfall", "label": "瀑布", "paused": water.component_paused("fountain")})
 		result["scene_actions"].append({"id": "lake", "label": "湖面波浪／波光", "paused": water.component_paused("lake")})
 	return result
 

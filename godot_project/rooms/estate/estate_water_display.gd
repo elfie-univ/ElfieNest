@@ -220,11 +220,17 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 		# The upper edge gradually falls towards the lip; selecting only its
 		# highest vertices truncated the lights immediately after the fountain.
 		var crest_x := (waterfall.global_transform * waterfall.get_aabb()).position.x
+		# Fit the round end to the actual stone tip, even when the vertical
+		# shoulder no longer has an overhanging lip.
+		var cap_reach := 0.035
+		var route_end := minf(crest_x + 0.025, bounds.end.x - cap_reach - 0.001)
+		assert(route_end > crest_x, "The light must reach the waterfall crest")
 		var route := PackedVector3Array([Vector3(ring_x, rim_y, z)])
 		for step in range(1, 33):
-			var x := lerpf(ring_x, crest_x, float(step) / 32.0)
+			var x := lerpf(ring_x, route_end, float(step) / 32.0)
 			var top := _spillway_wall_top(wall, x, z)
-			route.append(Vector3(x, top + 0.008 if not is_inf(top) else rim_y, z))
+			var clearance := 0.014 if step == 32 else 0.008
+			route.append(Vector3(x, top + clearance if not is_inf(top) else rim_y, z))
 		var inlet_across := Vector3(0, 0, 0.05)
 		if rim != null:
 			# Match both borders of the existing ring, not just the centreline.
@@ -250,11 +256,32 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 		for route_index in range(route.size()):
 			var point := route[route_index]
 			var across := inlet_across if route_index == 0 else Vector3(0, 0, 0.05)
+			# Keep the original flat full-width strip above the rounded stone.
+			# Sampling its inner edge can hit the vertical wall below the top
+			# and bury most of the light inside the stone.
 			vertices.append_array(PackedVector3Array([point - across, point + across]))
 			normals.append_array(PackedVector3Array([Vector3.UP, Vector3.UP]))
 		for segment in range(route.size() - 1):
 			var start := segment * 2
 			indices.append_array(PackedInt32Array([start, start + 1, start + 3, start, start + 3, start + 2]))
+		# A short round nose follows the stone's rounded top instead of
+		# leaving a square cut before the lip or descending along the fall.
+		var cap_center := vertices.size()
+		vertices.append(route[-1])
+		normals.append(Vector3.UP)
+		var previous := (route.size() - 1) * 2
+		for step in range(1, 13):
+			var angle := -PI * 0.5 + PI * float(step) / 12.0
+			var point := route[-1] + Vector3(cos(angle) * cap_reach, 0, sin(angle) * 0.05)
+			var top := _spillway_wall_top(wall, point.x, route[-1].z)
+			assert(not is_inf(top), "The rounded light end must stay on the actual stone top")
+			point.y = top + 0.014
+			var current := (route.size() - 1) * 2 + 1 if step == 12 else vertices.size()
+			if step != 12:
+				vertices.append(point)
+				normals.append(Vector3.UP)
+			indices.append_array(PackedInt32Array([cap_center, current, previous]))
+			previous = current
 		var arrays := []
 		arrays.resize(Mesh.ARRAY_MAX)
 		arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -331,16 +358,16 @@ func _add_waterfall_splash(waterfall: MeshInstance3D, contact: Vector3) -> void:
 	var bounds := waterfall.global_transform * waterfall.get_aabb()
 	var splash := CPUParticles3D.new()
 	splash.name = "WaterfallLandingSplash"
-	splash.amount = 32
+	splash.amount = 72
 	splash.lifetime = 0.55
 	splash.preprocess = 0.55
 	splash.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	splash.emission_box_extents = Vector3(0.10, 0.01, bounds.size.z * 0.47)
 	splash.direction = Vector3.UP
-	splash.spread = 68.0
-	splash.gravity = Vector3(0, -1.4, 0)
-	splash.initial_velocity_min = 0.35
-	splash.initial_velocity_max = 0.75
+	splash.spread = 38.0
+	splash.gravity = Vector3(0, -1.35, 0)
+	splash.initial_velocity_min = 0.55
+	splash.initial_velocity_max = 0.85
 	var droplet := QuadMesh.new()
 	droplet.size = Vector2(0.07,0.11)
 	var gradient := Gradient.new()
@@ -352,7 +379,7 @@ func _add_waterfall_splash(waterfall: MeshInstance3D, contact: Vector3) -> void:
 	mist.fill_from = Vector2(0.5,0.5)
 	mist.fill_to = Vector2(1.0,0.5)
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.90,0.97,1.0,0.45)
+	material.albedo_color = Color(0.90,0.97,1.0,0.55)
 	material.albedo_texture = mist
 	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	material.billboard_keep_scale = true
@@ -361,7 +388,7 @@ func _add_waterfall_splash(waterfall: MeshInstance3D, contact: Vector3) -> void:
 	droplet.material = material
 	splash.mesh = droplet
 	add_child(splash)
-	splash.global_position = contact + Vector3.UP * 0.03
+	splash.global_position = contact + Vector3.UP * 0.075
 	_waterfall_splash = splash
 
 func sample(seconds: float, night: bool) -> void:

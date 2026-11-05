@@ -31,7 +31,8 @@ void fragment() {
 	}
 	float stone = 1.0 - smoothstep(0.34, 0.43, distance_to_stone);
 	float top = smoothstep(0.7, 0.95, abs(bed_normal.y));
-	vec3 pebble = mix(vec3(0.24, 0.22, 0.18), vec3(0.71, 0.66, 0.53), tone);
-	ALBEDO = mix(source_albedo.rgb, mix(source_albedo.rgb * 0.7, pebble, stone), top);
+	vec3 pebble = mix(vec3(0.62, 0.64, 0.62), vec3(0.88, 0.85, 0.77), tone);
+	vec3 sand = vec3(0.58, 0.59, 0.56);
+	ALBEDO = mix(source_albedo.rgb, mix(sand, pebble, stone), top);
 	ROUGHNESS = source_roughness;
 }

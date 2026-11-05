@@ -39,7 +39,13 @@ func run() -> void:
 	if not require(not is_inf(contact_x), "The waterfall must actually meet the lake surface"): return
 	var foam_bounds := landing.global_transform * landing.get_aabb()
 	if not require(absf(foam_bounds.get_center().x-contact_x) <= 0.12 and foam_bounds.position.x <= contact_x and foam_bounds.end.x > contact_x + 0.2, "Foam must straddle the real waterfall/lake contact, not float downstream"): return
-	if not require(absf(splash.global_position.x-contact_x) < 0.02 and absf(splash.global_position.y-lake_level-0.03) < 0.01, "Mist must originate at the real water impact"): return
+	if not require(absf(splash.global_position.x-contact_x) < 0.02, "Mist must originate at the real water impact"): return
+	var half_height: float = (splash.mesh as QuadMesh).size.y * 0.5 * splash.scale_amount_max
+	var minimum_height := splash.global_position.y - lake_level - splash.emission_box_extents.y - half_height
+	var minimum_upward_speed := splash.initial_velocity_min * cos(deg_to_rad(splash.spread))
+	var final_height := minimum_upward_speed * splash.lifetime + 0.5 * splash.gravity.y * splash.lifetime * splash.lifetime
+	if not require(minimum_height >= 0.004 and minimum_height + minf(final_height, 0.0) >= 0.004, "Mist sprites must stay above the lake through their upward splash"): return
+	if not require(splash.amount >= 48 and minimum_upward_speed >= 0.25, "Impact spray must visibly rise from the water"): return
 	display.sample(0.0,true)
 	var foam_night: Variant = foam.get_shader_parameter("night_visibility")
 	if not require(foam_night is float and float(foam_night) >= 0.8, "White impact foam must remain visible at night"): return
