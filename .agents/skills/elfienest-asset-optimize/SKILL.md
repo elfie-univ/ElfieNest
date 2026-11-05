@@ -1,9 +1,9 @@
 ---
 name: elfienest-asset-optimize
-description: 压缩 ElfieNest 建筑、房间、家具的 GLB 与关联贴图，优先保持渲染输入和功能边界；用于设计资产体积优化及经授权的局部减面。区分无损存储、贴图编码与几何近似，不用于资产删除、重新设计或 Godot 最终导出。
+description: 压缩 ElfieNest 建筑、房间、家具的 GLB 与关联贴图，优先保持渲染输入和功能边界；用于正式 Godot 资产体积优化及经授权的局部减面。区分无损存储、贴图编码与几何近似，不用于资产删除、重新设计或 Godot 最终导出。
 ---
 
-# 设计资产保真压缩
+# 正式 Godot 资产保真压缩
 
 目标：缩小资产及加载成本，同时保留用户要求的外观、独立部件和编辑能力。文件变小不自动等于帧率提高。
 
@@ -21,10 +21,10 @@ gzip/zip 适合备份，不会自动减少解压后的 GPU 网格或贴图占用
 
 ## 基线与范围
 
-- 先读仓库和资产工作台的适用 AGENTS 规则、当前加载器及对象登记。在批量处理前先选一个有代表性的对象验证收益；原任务只要求技能或盘点时，不处理模型。
-- 设计资产唯一长期根为 `devtools/asset_design/assets/`：建筑 `buildings/`、布置 `layouts/`、家具 `furniture/`、庭院 `landscape/`。源文件在对象的 `source/`，版本在 `versions/vNNN/`，截图归版本 `images/`，参考图归对象 `references/`。
-- `catalog.json` 和 `adoptions.json` 分别决定文件归属、确认状态。旧 build 导出不能替代当前源；核对文件哈希与确认摘要后选基线。历史方法详见 [床套装案例](references/bed-case.md)，仅在复用该方法时阅读。
-- 临时模型、测量和比较产物只写根 `build/asset_design/`；不覆盖已确认版本、不写 Godot、不删除历史、不改页面布局。
+- 先读仓库及 `godot_project/` 的适用 AGENTS 规则、当前加载器和正式场景引用。在批量处理前先选一个有代表性的对象验证收益；原任务只要求技能或盘点时，不处理模型。
+- 正式资产以 `godot_project/` 中现存 GLB、实例 sidecar、场景、材质和脚本为输入；不恢复旧设计工作区或建立第二套长期源文件。
+- 按当前正式文件的 SHA-256 选基线；旧 build 导出不能替代当前源。历史方法详见 [床套装案例](references/bed-case.md)，仅在复用该方法时阅读。
+- 临时候选、测量和比较产物只写根 `build/godot_assets/`。验证完成前不覆盖正式资源，不顺带改变布局、实例语义或生命周期。
 - 记录原文件 SHA-256、字节、三角面、顶点、功能部件、mesh/primitive 数、材质数、图片编码大小与尺寸；确认是否有骨骼、动画、morph、碰撞、扩展或自定义属性消费者。
 
 ## 执行要点
@@ -42,9 +42,9 @@ gzip/zip 适合备份，不会自动减少解压后的 GPU 网格或贴图占用
 
 - 存储候选逐项比较解码后的索引、几何与保留属性值，核对节点层级、变换、标签、材质、纹理、功能分组及扩展引用。图片默认比较编码字节；若重编码则另外比较解码像素及色彩语义。确认没有越界索引、退化面、非有限值、丢失动画/变形或外部依赖。
 - 近似候选还须检查轮廓/尺寸、双向表面距离、接触穿插、法线与 UV。确定性采样的 max/P99 不是严格 Hausdorff 上界，不能证明像素等价。
-- 在现有 `/assets/design` 用一致相机、分辨率、灯光、显示开关、动画时刻和加载状态比较全貌与关键近景。必要时检查剖视、独立部件和运动。浏览器复用现有服务/页面；Godot 只在明确要求最终消费者验证时按仓库 Godot 技能执行。
+- 在现有 Nest Lab（`/nest/experiment`）用一致相机、分辨率、灯光、显示开关、动画时刻和加载状态比较全貌与关键近景。必要时检查剖视、独立部件和运动。浏览器复用现有服务/页面；Godot 只在明确要求最终消费者验证时按仓库 Godot 技能执行。
 - 分开报告：磁盘字节、加载/解码耗时、CPU/GPU 内存、三角面与 draw call、实际帧耗时。只对测过的指标声称改善；压缩解码也可能增加启动开销。
-- 候选验收后才把编辑模型写入对应 `source/model.glb`，使用当前 `object_assets publish --object ... --image ...` 发布到对象版本目录并登记截图；`workspace scan` 核对登记与确认内容。不直接覆盖旧 `versions/`，不自动确认、不提交或推送。
+- 候选验收后，在用户已授权的任务范围内更新对应正式 Godot 资源，并按受影响行为同步必要的 sidecar、场景或脚本；核对共享网格和材质的全部消费者。不运行已退役的发布或登记流程，不自动提交或推送。
 - 交付注明原/新哈希、两阶段各自收益、等价或近似证据、未测条件与保留原件的位置。无收益或验证不通过就保留基线，不把失败候选发布为优化成果。
 
 规范参考：[glTF 2.0](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)、[Three.js GLTFLoader 解码配置](https://threejs.org/docs/pages/GLTFLoader.html)。以仓库固定版本的代码和类型定义确认实际能力。
@@ -55,9 +55,9 @@ gzip/zip 适合备份，不会自动减少解压后的 GPU 网格或贴图占用
 
 ```sh
 node .agents/skills/elfienest-asset-optimize/scripts/optimize.mjs \
-  devtools/asset_design/assets/layouts/pod_bedroom/source/model.glb \
-  build/asset_design/pod-storage.glb \
-  build/asset_design/pod-storage-report.json
+  godot_project/rooms/estate/ElfieNest-complete-final.glb \
+  build/godot_assets/estate-storage.glb \
+  build/godot_assets/estate-storage-report.json
 ```
 
-输出目录须预先创建且位于根 `build/`。报告包含输入/输出哈希、磁盘大小、完整角点属性等价校验、PNG 解压数据与元数据校验，以及物理尺寸和部件统计；它不代表 GPU 内存或帧率测量。预览核验后再按上述发布流程保存，不自动确认。
+输出目录须预先创建且位于根 `build/`。报告包含输入/输出哈希、磁盘大小、完整角点属性等价校验、PNG 解压数据与元数据校验，以及物理尺寸和部件统计；它不代表 GPU 内存或帧率测量。预览核验后再按上述正式资源流程保存，不自动确认。

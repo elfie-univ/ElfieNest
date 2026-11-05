@@ -1,6 +1,6 @@
 # ADR-0041: Isolate the asset design workbench and its saved assets
 
-**Status:** Accepted
+**Status:** Retired on 2026-11-05 by explicit user direction. The entire design workbench and asset workspace have been removed. Authoring uses formal resources in `godot_project/`; previews use Nest Lab. The decision below remains a historical record.
 **Date:** 2026-10-22
 **Scope:** Developer Tools asset design preview and asset workspace storage
 
