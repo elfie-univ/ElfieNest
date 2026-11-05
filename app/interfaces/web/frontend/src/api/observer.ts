@@ -109,7 +109,8 @@ export async function nextObserverFrame(
   const query = cursor === null
     ? ""
     : `?acknowledged_generation=${cursor.generation}&acknowledged_sequence=${cursor.sequence}`
-  const init: RequestInit = { headers: capabilityHeaders(capability) }
+  // A renewed capability must not reuse a cached frame or expired-session response.
+  const init: RequestInit = { cache: "no-store", headers: capabilityHeaders(capability) }
   if (signal !== undefined) init.signal = signal
   const payload = await requestJson(`/api/v1/observer/frames${query}`, init)
   return payload === null ? null : ObserverFrameSchema.parse(payload)

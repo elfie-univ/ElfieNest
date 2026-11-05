@@ -44,6 +44,17 @@ describe("openObserverSession", () => {
 })
 
 describe("nextObserverFrame", () => {
+  it("bypasses cached frames and expired responses when a capability is renewed", async () => {
+    vi.mocked(requestJson).mockResolvedValue(null)
+
+    await nextObserverFrame("renewed-capability", null)
+
+    expect(requestJson).toHaveBeenLastCalledWith(
+      "/api/v1/observer/frames",
+      expect.objectContaining({ cache: "no-store" }),
+    )
+  })
+
   it.each(["courtyard/activity", null])("preserves action anchor delta %s", async (target) => {
     vi.mocked(requestJson).mockResolvedValue({
       protocol: 3, kind: "delta", generation: 1, sequence: 2,
