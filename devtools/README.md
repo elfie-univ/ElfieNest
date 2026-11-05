@@ -16,31 +16,19 @@ tools:
 ./developer.sh --help
 ```
 
-The three experiment entry points launch the unified Developer Tools HTTP service.
-The independent asset design command serves only the approved asset workbench:
+The three experiment entry points launch the unified Developer Tools HTTP service:
 
 | Command | Initial page | Local default | Purpose |
 | --- | --- | --- | --- |
 | `./developer.sh elfie-lab` | `/elfie/experiment` | HTTP `127.0.0.1:9001` | Single-Elfie experiments |
 | `./developer.sh brain-eval` | `/elfie/evaluations` | same | Batch evaluation and reports |
 | `./developer.sh nest-lab` | `/nest/experiment` | same (internal Godot WS `9002`) | Nest and Godot Runtime experiments |
-| `./developer.sh asset-design` | `/assets/design` | HTTP `127.0.0.1:9001` | Independent room and furniture asset preview |
 
-Asset design preserves the approved asset library and complete right-hand 3D control
-panel. Its source is `devtools/asset_design/web/`; it reads registered models,
-measurements and images from `build/asset_previews/catalog.json`. New asset versions
-reuse this viewer instead of generating HTML pages. It does not start experiment
-state or Godot, and does not build their frontends. Open this independent page
-with `./developer.sh asset-design`; it is not mounted in the experiment service
-or its menus. Layout baselines and read-only boundary tests live in
-`test/devtools/asset_design/`. Missing local asset
-data leaves an empty workbench; Git preserves the tool, not the large design files.
-
-Preview content selects the model, separate components or saved images. Object and
-floor selection live only in the viewer; available floors come from model tags.
-Houses can be viewed together. Object, floor, section, display switches, lighting
-and camera preset are saved in the URL. Camera controls do not change those
-selections; the four M01-specific sample shortcuts have been removed.
+Asset previews use Nest Lab (`./developer.sh nest-lab`, `/nest/experiment`).
+The independent `/assets/design` page, design workspace and offline asset CLI have
+been removed. Future asset authoring uses the existing formal GLB resources,
+sidecar metadata, scenes and scripts in `godot_project/`; preview changes through
+Nest Lab using those same formal resources.
 
 `./developer.sh brain-trace` is a backend-only collector and never starts a web page. `list`
 shows Elfies and saved Foods in an isolated Lab data root. `collect` runs a message sequence through
