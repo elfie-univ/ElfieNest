@@ -26,8 +26,8 @@ describe("formal Nest asset menu", () => {
   it("keeps one bedroom layout and four complete bedroom suites", () => {
     const furniture = category("furniture");
     const layouts = folder(furniture.children, "furniture-layouts");
-    const bedroom = folder(layouts.children!, "bedroom");
-    expect(assetLeaves(bedroom.children!).map(item => item.id)).toEqual(["view:bedroom-layout"]);
+    expect(assetLeaves(layouts.children!).filter(item => item.id === "view:bedroom-layout"))
+      .toHaveLength(1);
     const sets = folder(furniture.children, "furniture-sets");
     expect(assetLeaves(folder(sets.children!, "bedroom").children!).map(item => item.id))
       .toEqual(["view:bedroom-set-a", "view:bedroom-set-b", "view:bedroom-set-c", "view:bedroom-set-d"]);
@@ -38,6 +38,34 @@ describe("formal Nest asset menu", () => {
     expect(category("buildings").children.map(item => item.id))
       .toEqual(["source:central-building", "source:pod-building", "view:building-layout"]);
     expect(category("buildings").children[0]!.label).toBe("主楼");
+  });
+
+  it("lifts only courtyard overview and single complete layouts", () => {
+    const furniture = category("furniture");
+    const layouts = folder(furniture.children, "furniture-layouts");
+    expect(layouts.children!.map(item => item.id)).toEqual([
+      "view:bedroom-layout", "terraces", "view:central-layout-1",
+      "view:central-layout-2", "view:central-layout-3",
+    ]);
+    expect(assetPath(furniture.children, "view:bedroom-layout"))
+      .toEqual(["furniture-layouts", "view:bedroom-layout"]);
+    expect(assetPath(furniture.children, "view:terrace-layout-01"))
+      .toEqual(["furniture-layouts", "terraces", "view:terrace-layout-01"]);
+    expect(assetPath(furniture.children, "view:central-living"))
+      .toEqual(["furniture-sets", "main-1", "view:central-living"]);
+    expect(assetPath(furniture.children, "source:central-living-local"))
+      .toEqual(["furniture-shared", "main-1", "source:central-living-local"]);
+
+    const court = category("courtyard");
+    expect(folder(court.children, "courtyard-overview").children!.map(item => item.id))
+      .toEqual(["view:courtyard-covered", "view:courtyard-layout"]);
+    expect(assetPath(court.children, "view:courtyard-covered"))
+      .toEqual(["courtyard-overview", "view:courtyard-covered"]);
+    expect(assetPath(court.children, "view:courtyard-ground"))
+      .toEqual(["courtyard-areas", "ground", "view:courtyard-ground"]);
+    expect(assetPath(court.children, "view:meadow-layout"))
+      .toEqual(["courtyard-areas", "meadow", "view:meadow-layout"]);
+    expect(category("total").children.map(item => item.id)).toEqual(["view:estate-layout"]);
   });
 
   it("offers covered and uncovered gardens with the cover under ground parts", () => {

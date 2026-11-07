@@ -192,8 +192,6 @@ func run() -> void:
 		if entry.kind != "source" and not verify_scene_links(path, entry, entries): return
 		if not add_resource(path): return
 		previews[id].merge({"path": path, "source": entry.kind == "source", "focus": entry.get("focus", [])}, true)
-	previews["reassembled"] = {"path": previews["view:estate-layout"].path, "base": "reassembled"}
-	if not pack_reference(): return
 	if not (add_generated("res://project.godot", SHELL)
 		and add_generated("res://review.tscn", REVIEW_SCENE)
 		and add_generated("res://.godot/global_script_class_cache.cfg", "list=[]\n")
@@ -216,8 +214,6 @@ func run() -> void:
 			for group: Array in groups:
 				expected += group.size()
 			if not require(geometry[id] == expected, "Prototype preview count differs for " + id): return
-	for id: String in ["reference", "reassembled"]:
-		if not require(viewer.show_scene(id) > 0, "Empty estate comparison: " + id): return
 	viewer.free()
 	var report := {
 		"assets": geometry,

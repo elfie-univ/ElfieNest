@@ -23,9 +23,13 @@ func bind_meshes() -> bool:
 		if imported.is_empty(): return false
 		cached_libraries[path] = {"modified": modified, "meshes": imported}
 	var meshes: Dictionary = cached_libraries[path].meshes
+	var context := get_parent()
+	while context != null and not context.has_meta("estate_module"):
+		context = context.get_parent()
+	var module := str(context.get_meta("estate_module")) if context != null else ""
 	for index: int in source_nodes.size():
 		var target := get_child(index)
-		var mesh: Mesh = meshes.get(source_nodes[index])
+		var mesh := select_mesh(meshes, source_nodes[index], str(target.get_meta("v044_path", "")), module)
 		if mesh == null:
 			push_error("Missing GLB node %s in %s" % [source_nodes[index], path])
 			return false
@@ -51,6 +55,10 @@ func bind_meshes() -> bool:
 			target.multimesh = batch
 		else:
 			return false
+		if context != null:
+			var ordinal := int(module.trim_prefix("M"))
+			if ordinal >= 1 and ordinal <= 8 and target.layers & (1 << 8):
+				target.layers = (target.layers & ~(1 << 8)) | (1 << (7 + ordinal))
 	return true
 
 func import_meshes(_path: String) -> Dictionary:
@@ -58,6 +66,42 @@ func import_meshes(_path: String) -> Dictionary:
 	var meshes := {}
 	for node: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		if node.mesh != null:
+			if not restore_materials(node):
+				model.free()
+				return {}
+			var extras: Dictionary = node.get_meta("extras", {})
+			if extras.has("nest_normal_variants"):
+				node.mesh.set_meta("nest_normal_variants", extras.nest_normal_variants)
 			meshes[str(node.name)] = node.mesh
 	model.free()
 	return meshes
+
+static func select_mesh(meshes: Dictionary, source: String, placement: String, module: String) -> Mesh:
+	var mesh: Mesh = meshes.get(source)
+	if mesh == null: return null
+	var variants: Dictionary = mesh.get_meta("nest_normal_variants", {})
+	var room: Dictionary = variants.get(module, {})
+	return meshes.get(str(room[placement])) if room.has(placement) else mesh
+
+static func restore_materials(node: MeshInstance3D) -> bool:
+	# glTF cannot express every native material setting. Keep the small set of
+	# native differences with its owning GLB, for placements and isolated review.
+	var extras: Dictionary = node.get_meta("extras", {})
+	var materials: Array = extras.get("nest_materials", [])
+	if materials.is_empty(): return true
+	if node.mesh == null or materials.size() != node.mesh.get_surface_count(): return false
+	for surface: int in materials.size():
+		var values: Dictionary = materials[surface]
+		if values.is_empty(): continue
+		var imported := node.mesh.surface_get_material(surface) as StandardMaterial3D
+		if imported == null: return false
+		var restored := imported.duplicate() as StandardMaterial3D
+		for property: String in values:
+			if property not in ["emission", "albedo_color", "texture_repeat", "emission_operator", "depth_draw_mode", "metallic_specular", "transparency"]: return false
+			var data: Variant = values[property]
+			if property in ["emission", "albedo_color"]:
+				if not data is Array or data.size() != 4: return false
+				data = Color(data[0],data[1],data[2],data[3])
+			restored.set(property, data)
+		node.mesh.surface_set_material(surface, restored)
+	return true

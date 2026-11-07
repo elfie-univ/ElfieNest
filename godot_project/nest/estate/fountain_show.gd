@@ -98,9 +98,11 @@ func bind(source: Node3D,pool: MeshInstance3D,materials: Array[ShaderMaterial],o
   if batch.get_meta("source_group","")=="__ELFIE_INST_GROUP_133": batch.visible=false
  prototype.visible=false
  var instances:=MultiMesh.new();instances.transform_format=MultiMesh.TRANSFORM_3D;instances.use_custom_data=true;instances.mesh=drop_mesh;instances.instance_count=2304;instances.custom_aabb=visibility_bounds
+ var drop_buffer:=PackedFloat32Array()
  for i in range(2304):
-  instances.set_instance_transform(i,Transform3D.IDENTITY)
-  instances.set_instance_custom_data(i,Color(0.0,fposmod(float(i)*0.618034,1.0),fposmod(float(i)*2.399963/TAU,1.0), float(i%7)/7.0))
+  drop_buffer.append_array(PackedFloat32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,fposmod(float(i)*0.618034,1.0),fposmod(float(i)*2.399963/TAU,1.0),float(i%7)/7.0]))
+ # Keep a CPU buffer so headless PackedScene export retains every instance.
+ instances.buffer=drop_buffer
  drops=MultiMeshInstance3D.new();drops.name="ReusedFountainDrops";drops.multimesh=instances;drops.layers=DAYLIGHT.WATER_LIGHT_LAYER;drops.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
  _drop_material=ShaderMaterial.new();_drop_material.shader=DROP_SHADER
  _drop_material.set_shader_parameter("impact_count",17)

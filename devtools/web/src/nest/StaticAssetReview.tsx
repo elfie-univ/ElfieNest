@@ -6,20 +6,10 @@ import { modeUrl } from "./preview-mode";
 
 const CHANNEL = "nest-v044-review";
 const REVIEW_URL = "/godot-web/nest-assets";
-const VIEWS = [
-  { id: "overview", label: "全景" },
-  { id: "bedroom", label: "卧室" },
-  { id: "bedroom-m02", label: "M02 卧室" },
-  { id: "bedroom-m08", label: "M08 卧室" },
-  { id: "entrance", label: "主楼入口" },
-  { id: "shore", label: "湖岸" },
-  { id: "waterfall", label: "瀑布" },
-];
 
 type Audit = {
   assets: Record<string, { geometry: number; sample_colors: number }>;
   failures: string[];
-  comparison: Record<string, { identical: boolean; v044: string; reassembled: string }>;
 };
 
 type Inspection = { file: string; part: string; paths: string[]; solo: boolean };
@@ -34,9 +24,6 @@ export function StaticAssetReview() {
   const [fileTrail, setFileTrail] = useState<string[]>([]);
   const [inspection, setInspection] = useState<Inspection>();
   const [showFiles, setShowFiles] = useState(true);
-  const [compare, setCompare] = useState(false);
-  const [version, setVersion] = useState<"reference" | "reassembled">("reassembled");
-  const [view, setView] = useState("overview");
   const [progress, setProgress] = useState<number | null>(null);
   const [result, setResult] = useState<Audit | null>(null);
   const [failedId, setFailedId] = useState<string | null>(null);
@@ -45,10 +32,10 @@ export function StaticAssetReview() {
   const defaultFile = selected && (fileGraph?.entries[selected.id] ? selected.id : fileGraph?.defaults?.[selected.id]);
   const fileId = fileTrail.at(-1) ?? defaultFile;
   const file = fileId ? fileGraph?.entries[fileId] : undefined;
-  const shownId = compare ? version : (file?.preview ?? selected?.id);
-  const selection = compare ? version : (fileId ?? selected?.id);
-  const focus = compare ? undefined : file?.focus;
-  const inspected = !compare && inspection?.file === fileId ? inspection : undefined;
+  const shownId = file?.preview ?? selected?.id;
+  const selection = fileId ?? selected?.id;
+  const focus = file?.focus;
+  const inspected = inspection?.file === fileId ? inspection : undefined;
   const toolbarAsset = menuAssets.find(asset => asset.id === fileId)
     ?? menuAssets.find(asset => file && fileGraph?.entries[asset.id]?.file === file.file)
     ?? menuAssets.find(asset => asset.id === file?.preview)
@@ -146,25 +133,17 @@ export function StaticAssetReview() {
     </section>
     <div className="nest-pilot-modes" role="group" aria-label="预览模式">
       <button type="button" aria-pressed={false} onClick={() => window.location.assign(modeUrl(window.location.href, false))}>整体场景</button>
-      <button type="button" aria-pressed={!compare} disabled={progress !== null} onClick={() => setCompare(false)}>单件资产</button>
-      <button type="button" aria-pressed={compare} disabled={progress !== null} onClick={() => setCompare(true)}>回拼对照</button>
+      <button type="button" aria-pressed={true}>单件资产</button>
     </div>
-    {compare ? <div className="nest-menu-dock"><div className="nest-primary-menu nest-asset-menu" role="toolbar" aria-label="回拼对照">
-      <button type="button" aria-pressed={version === "reference"} disabled={progress !== null} onClick={() => setVersion("reference")}>原版 V044</button>
-      <button type="button" aria-pressed={version === "reassembled"} disabled={progress !== null} onClick={() => setVersion("reassembled")}>回拼</button>
-      <select aria-label="对照机位" value={view} disabled={!ready || progress !== null} onChange={event => { setView(event.target.value); send("view", { view: event.target.value }); }}>
-        {VIEWS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-      </select>
-      <button type="button" disabled={!ready || progress !== null} onClick={() => send("reset")}>复位</button>
-    </div></div> : toolbarAsset && <AssetBrowserToolbar categories={categories} selected={toolbarAsset} select={selectAsset} reset={() => send("reset")} ready={ready} busy={progress !== null} />}
+    {toolbarAsset && <AssetBrowserToolbar categories={categories} selected={toolbarAsset} select={selectAsset} reset={() => send("reset")} ready={ready} busy={progress !== null} />}
     <div className="nest-asset-audit">
-      {!compare && file && <button type="button" aria-expanded={showFiles} onClick={() => setShowFiles(value => !value)}>文件与引用</button>}
+      {file && <button type="button" aria-expanded={showFiles} onClick={() => setShowFiles(value => !value)}>文件与引用</button>}
       {result && <output aria-label="校验结果" data-report={JSON.stringify(result)} title={result.failures.map(id => fileGraph?.entries[id]?.title ?? id).join("、")}>
-        {reviewCount.current - result.failures.length}/{reviewCount.current} · 像素一致 {Object.values(result.comparison).filter(item => item.identical).length}/{VIEWS.length}
+        {reviewCount.current - result.failures.length}/{reviewCount.current}
       </output>}
       <button type="button" disabled={!ready || progress !== null} onClick={audit}>{progress === null ? "校验" : `${progress}/${reviewCount.current}`}</button>
     </div>
-    {!compare && file && fileGraph && showFiles && <AssetFilePanel
+    {file && fileGraph && showFiles && <AssetFilePanel
       key={fileId}
       entry={file}
       entries={fileGraph.entries}

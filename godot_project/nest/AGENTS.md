@@ -16,7 +16,7 @@
   当前修改正式场景时，沿这条引用链定位现役资源。
 - `furniture/bedroom/` 和 `layouts/bedroom/bedroom.tscn` 是卧室组件试点，编辑规则见
   [卧室家具 AGENTS.md](furniture/bedroom/AGENTS.md)。整园入口当前仍加载完整园区。
-- Nest Lab 的「单件资产」和「回拼对照 → 回拼」从 `res://nest/` 加载拆分资源。
+- Nest Lab 的「单件资产」从 `res://nest/` 加载拆分资源。
   [asset-index.json](assembly/asset-index.json) 登记每个资产的菜单路径、文件和引用关系。
   模型、贴图、场景及渲染资源都在本目录。改文件路径或增减引用时同步更新索引。
 - `asset_catalog.json` 保存 V044 原始提取绑定和指纹。旧拆分候选是迁入记录。
@@ -51,9 +51,35 @@ nest/
 园区级脚本和资源按实际职责归属，专用行为随所属组件。贴图按引用归到资产类内的 `textures/`，
 真正跨类复用的贴图指定一个拥有者，各使用方引用该路径。
 
-Nest Lab 的「总组装」和「回拼对照 → 回拼」都读取 `assembly/estate.tscn`。
-「原版 V044」从保留的 `estate/estate.tscn` 评估得到同一时段的静态对照。
+Nest Lab 的「总组装 → 全场景总组合」读取 `assembly/estate.tscn`。
+页面只保留「整体场景」和「单件资产」，不再提供回拼对照和机位像素比较。
+V044 与回拼的比较使用下面的完整网格导出与比较命令；V044 从保留的 `estate/estate.tscn` 评估。
 并行验收期间，`nest.tscn` 的交互运行和发行导出使用合并版及其配套空间数据。
+
+## 回拼保真与比较
+
+- 拆分 GLB 的导入设置使用 `meshes/force_disable_compression=true`，避免把已从 V044
+  提取的坐标再次有损压缩。不要修改保留的合并版输入来消除对照差异。
+- GLB 的 `emissiveFactor` 保存线性颜色；导入后的发光颜色与 V044 的实际材质核对。
+  SCN 中持有的材质变体也要核对，不能只检查 GLB 的默认材质。
+- glTF 无法表达的原生材质差值保存在所属 GLB 节点的 `extras.nest_materials`，由
+  `glb_placement.gd.restore_materials()` 在装配绑定和单件预览中恢复。透明、深度、高光、
+  纹理重复和发光运算都按原生设置核对；贴图的透明边缘处理和 mipmap 沿用对应 `.import`。
+- 原版床品在各房间贴合后分别重算法线，极小坐标差也可能产生明显方向差。
+  `bed-shared.glb` 内部的法线／切线变体共享原有 POSITION、INDEX、UV 等访问器；
+  基节点 `extras.nest_normal_variants` 按房间 `estate_module` 和摆位 `v044_path` 选择变体节点。
+  选择必须包含摆位，同一房间同一形状也可能有不同法线。内部变体不增加菜单项，
+  `review_visible=false` 防止单件预览重复显示；仍只保留一份卧室布局与一份床品 GLB。
+- 共用卧室布局的房间光照层由 `assembly/glb_placement.gd` 按所在 `estate_module`
+  绑定，不能把 M01 的光照层直接复制到其余七间卧室。
+- 使用 `tools/export_nest_comparison.gd` 导出两版实际评估后的静态世界，再用
+  `tools/compare_nest_snapshots.py` 核对。命令、范围和结果见[迁入计划](ASSET_MIGRATION_PLAN.md)。
+  核对每次摆位、实例数量、有向三角面及顶点属性、有效材质、灯光和环境。
+  保留重复面的次数，不能用集合去重掩盖多余副本。
+- 候选匹配距离只用于寻找对应关系，不能当作通过容差。几何误差报告为完整表面的上界；
+  非零误差、未匹配表面、源文件已变化或材质差异都不能声明严格一致。
+  静态基面与渲染定义的比较不替代动态水景、粒子、LOD、碰撞、导航和交互验收。
+- 比较导出首先核对冻结 V044 GLB 与实例 BIN 的固定 SHA-256；原输入变化时直接停止。
 
 ### 家具
 
@@ -87,6 +113,8 @@ furniture/
   卧室套装 A–D，不再增加桌柜 A–D 的局部 SCN 或桌面 GLB。
 - Nest Lab 的「完整布置」和「家具套装」按用途导航。「家具与装饰」既能打开共享库，
   也能打开弧形书架等专用 GLB。每项指向所属目录中的同一个文件。
+- 「完整布置」直接列出卧室和主楼一至三楼的完整布置；露台保留 M01–M08 分组。
+  只省去这些总装的单项导航层，套装与具体部件的菜单分组保持原样。
 
 ### 建筑
 
@@ -124,9 +152,10 @@ courtyard/
 └── textures/                     庭院引用的外置贴图
 ```
 
-「庭院」是外层分类。右侧第一级固定为总览、功能区、详细部件，第二级为区域，第三级为文件。
-总览的「全庭院」只有「庭院总装（不带罩）」和「庭院总装（带罩）」，分别对应
+「庭院」是外层分类。右侧第一级固定为总览、功能区、详细部件。
+总览直接列出「庭院总装（不带罩）」和「庭院总装（带罩）」，分别对应
 `courtyard/overview/courtyard-all/courtyard-layout.scn` 与 `courtyard-covered.scn`。
+功能区和详细部件继续使用三级菜单：第二级为区域，第三级为文件。
 功能区使用地面、森林、水榭、草原四个分区；详细部件另加「共享」，避免跨区资源重复归档。
 下表路径相对于 `courtyard/`。
 

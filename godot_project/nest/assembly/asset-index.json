@@ -11,14 +11,8 @@
             "label": "完整布置",
             "children": [
               {
-                "id": "bedroom",
-                "label": "卧室",
-                "children": [
-                  {
-                    "id": "view:bedroom-layout",
-                    "label": "卧室完整布置"
-                  }
-                ]
+                "id": "view:bedroom-layout",
+                "label": "卧室完整布置"
               },
               {
                 "id": "terraces",
@@ -59,34 +53,16 @@
                 ]
               },
               {
-                "id": "main-1",
-                "label": "主楼一楼",
-                "children": [
-                  {
-                    "id": "view:central-layout-1",
-                    "label": "一楼完整布置"
-                  }
-                ]
+                "id": "view:central-layout-1",
+                "label": "一楼完整布置"
               },
               {
-                "id": "main-2",
-                "label": "主楼二楼",
-                "children": [
-                  {
-                    "id": "view:central-layout-2",
-                    "label": "二楼完整布置"
-                  }
-                ]
+                "id": "view:central-layout-2",
+                "label": "二楼完整布置"
               },
               {
-                "id": "main-3",
-                "label": "主楼三楼",
-                "children": [
-                  {
-                    "id": "view:central-layout-3",
-                    "label": "三楼完整布置"
-                  }
-                ]
+                "id": "view:central-layout-3",
+                "label": "三楼完整布置"
               }
             ]
           },
@@ -389,18 +365,12 @@
             "label": "总览",
             "children": [
               {
-                "id": "courtyard-all",
-                "label": "全庭院",
-                "children": [
-                  {
-                    "id": "view:courtyard-covered",
-                    "label": "庭院总装（带罩）"
-                  },
-                  {
-                    "id": "view:courtyard-layout",
-                    "label": "庭院总装（不带罩）"
-                  }
-                ]
+                "id": "view:courtyard-covered",
+                "label": "庭院总装（带罩）"
+              },
+              {
+                "id": "view:courtyard-layout",
+                "label": "庭院总装（不带罩）"
               }
             ]
           },

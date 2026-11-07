@@ -1,17 +1,8 @@
 extends Node3D
-## Static V044 review only. Scene changes never reach the live Nest authority.
+## Formal static asset review. Scene changes never reach live Nest authority.
 
 const BASE := "res://v044-review/"
 const DIRECTIONS := Vector3(1.0, 0.65, 1.2)
-const VIEWS := {
-	"overview": [Vector3(0, 2, 6), Vector3(0, 46, 17), 101.0],
-	"bedroom": [Vector3.ZERO, Vector3.ZERO, 100.0],
-	"bedroom-m02": [Vector3.ZERO, Vector3.ZERO, 100.0],
-	"bedroom-m08": [Vector3.ZERO, Vector3.ZERO, 100.0],
-	"entrance": [Vector3(0, 1.52, 8.59), Vector3(0, 1.7, 13.3), 48.0],
-	"shore": [Vector3(24.5, 0.1, 28.4), Vector3(30.3, 2.9, 32.2), 51.0],
-	"waterfall": [Vector3(25.4, -0.15, 28.87), Vector3(28.1, 1.35, 30.5), 52.0],
-}
 var ids: Array
 var previews: Dictionary = {}
 var current: Node3D
@@ -25,7 +16,6 @@ var pitch := 0.3
 var active := ""
 var active_focus: Array = []
 var estate_overview := false
-var view := "overview"
 var auditing := false
 var inspect_material := StandardMaterial3D.new()
 var inspect_furniture_material := StandardMaterial3D.new()
@@ -78,10 +68,10 @@ func show_scene(id: String, preserve_camera: bool = false, focus_paths: Array = 
 	if id == active and focus_paths == active_focus and overview == estate_overview and is_instance_valid(current): return visible_geometry()
 	var preview: Dictionary = previews.get(id, {})
 	var base_id := str(preview.get("base", id))
-	var world := base_id in ["reference", "reassembled"]
+	var world := base_id == "reassembled"
 	var full := world and focus_paths.is_empty()
-	if preview.is_empty() and not world and id not in ids: return -1
-	var path := str(preview.get("path", id + ".scn" if world else "models/" + id + ".scn"))
+	if preview.is_empty() and id not in ids: return -1
+	var path := str(preview.get("path", "models/" + id + ".scn"))
 	if not path.begins_with("res://"): path = BASE + path
 	var scene := ResourceLoader.load(path, "PackedScene") as PackedScene
 	if scene == null: return -1
@@ -96,7 +86,7 @@ func show_scene(id: String, preserve_camera: bool = false, focus_paths: Array = 
 	if not full and env.is_empty(): add_child(ambient)
 	light.visible = not full and base_id != "environment"
 	# Frame the garden itself in the isolated asset view. Keep the sky shell
-	# in the environment asset and both full-scene comparison views.
+	# in the environment asset and full-scene assembly preview.
 	if base_id in ["courtyard-layout", "meadow-layout"]:
 		for mesh: MeshInstance3D in current.find_children("*", "MeshInstance3D", true, false):
 			var data: Dictionary = mesh.get_meta("extras", {})
@@ -119,6 +109,7 @@ func show_scene(id: String, preserve_camera: bool = false, focus_paths: Array = 
 func prepare_library(preview: Dictionary) -> bool:
 	var parts := {}
 	for mesh: MeshInstance3D in current.find_children("*", "MeshInstance3D", true, false):
+		if not preload("res://nest/assembly/glb_placement.gd").restore_materials(mesh): return false
 		var extras: Dictionary = mesh.get_meta("extras", {})
 		var path := str(extras.get("v044_path", ""))
 		if not path.is_empty():
@@ -293,22 +284,7 @@ func visible_geometry() -> int:
 func reset() -> void:
 	if not is_instance_valid(current): return
 	if estate_overview:
-		var overview: Array = VIEWS["overview"]
-		set_camera(overview[0], overview[1], overview[2])
-		return
-	if active_focus.is_empty() and active in ["reference", "reassembled"]:
-		var preset: Array = VIEWS[view]
-		if view.begins_with("bedroom"):
-			var module := "M01" if view == "bedroom" else view.trim_prefix("bedroom-").to_upper()
-			for mesh: MeshInstance3D in current.find_children("*", "MeshInstance3D", true, false):
-				var source := str(mesh.get_meta("v044_path", mesh.name)).get_file()
-				if source.begins_with(module + " | ROOM • continuous lower floor"):
-					var y := mesh.get_aabb().end.y
-					set_camera(mesh.global_transform * Vector3(-0.12, y + 0.95, -0.3), mesh.global_transform * Vector3(0, y + 1.8, -2.65), 100.0)
-					return
-			push_error("Missing bedroom camera anchor for " + module)
-			preset = VIEWS["overview"]
-		set_camera(preset[0], preset[1], preset[2])
+		set_camera(Vector3(0, 2, 6), Vector3(0, 46, 17), 101.0)
 		return
 	var found := false
 	var bounds := AABB()
@@ -371,14 +347,10 @@ func _process(_delta: float) -> void:
 			var selection := str(msg.get("selection", next))
 			var focus_paths: Array = msg.get("focus", [])
 			var overview: bool = selection == "view:estate-layout"
-			var preserve: bool = not overview and not estate_overview and active_focus.is_empty() and focus_paths.is_empty() and active in ["reference", "reassembled"] and next in ["reference", "reassembled"]
-			var count := show_scene(next, preserve, focus_paths, overview)
+			var count := show_scene(next, false, focus_paths, overview)
 			if count > 0: inspect_parts(msg.get("inspect", []), msg.get("solo", false))
 			publish("shown" if count > 0 else "error", {"id": selection, "geometry": count})
 		elif msg.get("type") == "reset": reset()
-		elif msg.get("type") == "view" and VIEWS.has(msg.get("view")):
-			view = msg.view
-			reset()
 		elif msg.get("type") == "audit": audit()
 
 func rendered_image() -> Image:
@@ -386,25 +358,16 @@ func rendered_image() -> Image:
 	await RenderingServer.frame_post_draw
 	return get_viewport().get_texture().get_image()
 
-func frame_hash(image: Image) -> String:
-	var hash_context := HashingContext.new()
-	hash_context.start(HashingContext.HASH_SHA256)
-	hash_context.update(image.get_data())
-	return hash_context.finish().hex_encode()
-
 func audit() -> void:
 	auditing = true
 	var restore := active
 	var restore_focus := active_focus
 	var restore_overview := estate_overview
-	var restore_view := view
 	var restore_inspection := inspected_paths
 	var restore_solo := inspecting_solo
 	clear_inspection()
 	var assets := {}
 	var failures := []
-	var frames := {}
-	var comparison := {}
 	for id: String in ids:
 		var preview: Dictionary = previews.get(id, {})
 		var geometry := show_scene(id, false, preview.get("focus", []), id == "view:estate-layout")
@@ -418,37 +381,8 @@ func audit() -> void:
 		if geometry <= 0 or colors.size() <= 1: failures.append(id)
 		assets[id] = {"geometry": geometry, "sample_colors": colors.size()}
 		publish("progress", {"done": assets.size(), "total": ids.size()})
-	for version: String in ["reference", "reassembled"]:
-		var geometry := show_scene(version)
-		for angle: String in VIEWS:
-			view = angle
-			if version == "reference":
-				reset()
-			else:
-				camera.transform = frames[angle].camera_transform
-				camera.fov = frames[angle].fov
-			var image := await rendered_image()
-			var hash_value := frame_hash(image) if geometry > 0 and image != null and not image.is_empty() else ""
-			if version == "reference":
-				frames[angle] = {
-					"sha256": hash_value, "image": image,
-					"camera_transform": camera.transform, "fov": camera.fov,
-				}
-			else:
-				var baseline: Dictionary = frames[angle]
-				var original: Image = baseline.image
-				var stats := {}
-				if not hash_value.is_empty() and not str(baseline.sha256).is_empty() and image.get_size() == original.get_size():
-					stats = image.compute_image_metrics(original, false)
-					# JSON does not represent the infinite PSNR of identical frames.
-					stats.erase("peak_snr")
-				comparison[angle] = {
-					"identical": not hash_value.is_empty() and hash_value == baseline.sha256,
-					"v044": baseline.sha256, "reassembled": hash_value, "pixel_metrics": stats,
-				}
-	view = restore_view
 	show_scene(restore, false, restore_focus, restore_overview)
 	reset()
 	inspect_parts(restore_inspection, restore_solo)
 	auditing = false
-	publish("audit", {"assets": assets, "failures": failures, "comparison": comparison})
+	publish("audit", {"assets": assets, "failures": failures})
