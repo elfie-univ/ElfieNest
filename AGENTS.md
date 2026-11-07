@@ -266,6 +266,8 @@ Developer 文档。任何超出已批准目标的架构变化仍须先确认。
 
 ## 实现、测试、文档与安全
 
+- UI 相关内容：Avoid unnecessary secondary labels and descriptions. let the layout do the explaining.
+
 - Bug 修复和新增可观察行为先写能失败的测试，再做最小实现。纯机械重命名、删除死代码、
   等价内部重构和仅文档修改可复用现有测试。测试放在对应 `test/<module>/` 路径并使用
   绝对导入；根目录不得新增 `test_*.py`。
