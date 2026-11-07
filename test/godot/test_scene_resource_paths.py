@@ -7,8 +7,8 @@ GODOT_ROOT = PROJECT_ROOT / "godot_project"
 
 EXPECTED_SCENES = (
     "main.tscn",
-    "rooms/nest.tscn",
-    "rooms/estate/estate.tscn",
+    "nest/nest.tscn",
+    "nest/estate/estate.tscn",
     "characters/tovren/tovren.tscn",
     "characters/saevi/saevi.tscn",
     "characters/myelle/myelle.tscn",
@@ -18,13 +18,10 @@ LEGACY_RESOURCE_PREFIXES = (
     "res://modular_rooms/",
     "res://room/",
     "res://character/",
-    "res://rooms/assets/",
-    "res://rooms/common_area_layouts/",
-    "res://rooms/room_dimensions.gd",
-    "res://rooms/room_geometry.gd",
-    "res://rooms/dorm_room",
-    "res://rooms/activity_room",
-    "res://rooms/portal_room",
+    "res://rooms/",
+    "res://ui/",
+    "res://scripts/",
+    "res://lab_preview_controller.gd",
 )
 
 
@@ -43,13 +40,22 @@ def test_expected_scene_structure_exists() -> None:
     assert missing == [], f"缺少正式 Godot 场景: {missing}"
 
 
-def test_rooms_contain_only_current_complete_estate() -> None:
-    rooms = GODOT_ROOT / "rooms"
+def test_nest_contains_current_estate_and_formal_split_assets() -> None:
+    rooms = GODOT_ROOT / "nest"
     assert {path.name for path in rooms.iterdir()} <= {
         "nest.gd",
         "nest.gd.uid",
         "nest.tscn",
         "estate",
+        "ui",
+        "AGENTS.md",
+        "ASSET_MIGRATION_PLAN.md",
+        "asset_catalog.json",
+        "assembly",
+        "buildings",
+        "courtyard",
+        "furniture",
+        "layouts",
     }
     estate = rooms / "estate"
     for retired in (
@@ -84,7 +90,7 @@ def test_runtime_source_declares_protocol_v4_manifest_contract() -> None:
     websocket_client_text = (
         GODOT_ROOT / "runtime" / "endpoint" / "websocket_client.gd"
     ).read_text(encoding="utf-8")
-    nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
+    nest_text = (GODOT_ROOT / "nest" / "nest.gd").read_text(encoding="utf-8")
     world_controller_text = (
         GODOT_ROOT / "runtime" / "world" / "world_controller.gd"
     ).read_text(encoding="utf-8")
@@ -215,7 +221,7 @@ def test_world_owns_semantic_spatial_queries_not_actor_execution() -> None:
 
 
 def test_runtime_manifest_is_semantic_and_does_not_export_coordinates() -> None:
-    nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
+    nest_text = (GODOT_ROOT / "nest" / "nest.gd").read_text(encoding="utf-8")
     manifest_section = nest_text.split("func scene_manifest()", maxsplit=1)[1]
     manifest_section = manifest_section.split(
         "func bake_navigation",
@@ -249,3 +255,15 @@ def test_blender_authoring_sources_are_excluded_from_godot_imports() -> None:
 
     message = "Blender 制作源目录必须用 .gdignore 与 Godot 自动导入隔离"
     assert missing_markers == [], f"{message}: {missing_markers}"
+
+
+def test_project_top_level_matches_the_approved_layout() -> None:
+    directories = {
+        path.name
+        for path in GODOT_ROOT.iterdir()
+        if path.is_dir() and path.name != ".godot"
+    }
+    assert directories == {"characters", "nest", "runtime", "tools", "test"}
+    assert (GODOT_ROOT / "runtime/lab/lab_preview_controller.gd").is_file()
+    assert (GODOT_ROOT / "nest/ui/observation_hud.tscn").is_file()
+    assert not (GODOT_ROOT / "lab_preview_controller.gd").exists()

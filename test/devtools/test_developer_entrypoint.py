@@ -374,5 +374,5 @@ def test_retired_asset_design_package_is_removed() -> None:
     package = repository / "devtools/asset_design"
     assert not package.exists()
     assert (
-        repository / "godot_project/rooms/estate/ElfieNest-complete-final.glb"
+        repository / "godot_project/nest/estate/ElfieNest-complete-final.glb"
     ).is_file()

@@ -565,7 +565,7 @@ Godot 的五类能力可以收敛到三块核心运行代码，加场景资源�
 
 ```text
 godot_project/
-├── rooms/                         场景资源与少量环境对象脚本
+├── nest/                          场景资源与少量环境对象脚本
 ├── characters/                    虚拟身体资源和共享身体脚本
 ├── runtime/
 │   ├── actor_controller.gd        直接身体命令与已解析语义身体命令

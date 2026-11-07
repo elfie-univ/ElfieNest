@@ -1,7 +1,7 @@
 [gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
-[ext_resource type="PackedScene" path="res://rooms/nest.tscn" id="2_nest"]
+[ext_resource type="PackedScene" path="res://nest/nest.tscn" id="2_nest"]
 
 [sub_resource type="Environment" id="Environment_lab"]
 background_mode = 1

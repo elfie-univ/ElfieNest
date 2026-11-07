@@ -10,7 +10,7 @@ from test.godot.asset_geometry import read_glb, resource_bytes
 
 ROOT = Path(__file__).resolve().parents[3]
 SOURCES = [
-    "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+    "godot_project/nest/estate/ElfieNest-complete-final.glb",
 ]
 
 

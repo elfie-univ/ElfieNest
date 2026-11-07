@@ -503,7 +503,7 @@ Godot's five capability areas can converge on three core runtime code units, plu
 
 ~~~text
 godot_project/
-├── rooms/                         scene resources and a few environment-object scripts
+├── nest/                          scene resources and a few environment-object scripts
 ├── characters/                    virtual-body resources and shared body scripts
 ├── runtime/
 │   ├── actor_controller.gd        direct body commands and resolved semantic body commands

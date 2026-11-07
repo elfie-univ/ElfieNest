@@ -29,7 +29,7 @@ def _model(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_waterfall_has_no_exposed_footing_fins_or_soil(path):
@@ -107,7 +107,7 @@ def _opening_intersection(triangle):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_waterfall_shoulders_exclude_embedded_grass_and_soil(path):
@@ -174,7 +174,7 @@ def test_waterfall_shoulders_exclude_embedded_grass_and_soil(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_waterfall_opening_excludes_structural_earth_faces(path):
@@ -211,7 +211,7 @@ def test_waterfall_opening_excludes_structural_earth_faces(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_no_soil_remains_inside_the_full_stone_shoulder_width(path):

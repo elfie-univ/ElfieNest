@@ -55,7 +55,7 @@ class GodotSpeciesValidationRunner(Protocol):
 
 _CATALOG_MARKER = re.compile(r"^SPECIES_CATALOG_IDS:(.+)$", re.MULTILINE)
 _EXCLUDED_CHARACTER_DIRECTORIES = {"animation", "shared", "tools"}
-_SPECIES_VALIDATION_SCRIPT = "scripts/test/test_species_catalog.gd"
+_SPECIES_VALIDATION_SCRIPT = "test/test_species_catalog.gd"
 
 
 def run_godot_species_validation(

@@ -58,9 +58,9 @@ def test_authority_pack_preserves_payloads_and_input_hashes(tmp_path: Path) -> N
     scene = ".godot/imported/ElfieNest-complete-final.glb-test.scn"
     files = {
         scene: b"complete display model" * 30,
-        "rooms/estate/ElfieNest-complete-final.instances.bin": b"instances",
-        "rooms/estate/estate_outdoor_lighting.scn": b"lighting",
-        "rooms/estate/estate_spatial.res": b"all physical shapes and navigation",
+        "nest/estate/ElfieNest-complete-final.instances.bin": b"instances",
+        "nest/estate/estate_outdoor_lighting.scn": b"lighting",
+        "nest/estate/estate_spatial.res": b"all physical shapes and navigation",
         "characters/resident.scn": b"complete resident model",
         "project.binary": b"project settings",
     }
@@ -70,7 +70,7 @@ def test_authority_pack_preserves_payloads_and_input_hashes(tmp_path: Path) -> N
     before = original.read_bytes()
     build_authority_pack(original, output)
     packed = read_pack(output)
-    inputs = json.loads(packed.pop("rooms/estate/authority_inputs.json"))
+    inputs = json.loads(packed.pop("nest/estate/authority_inputs.json"))
     assert inputs == {
         "scene": hashlib.sha256(files[scene]).hexdigest(),
         "instances": hashlib.sha256(b"instances").hexdigest(),

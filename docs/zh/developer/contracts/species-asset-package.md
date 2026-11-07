@@ -103,5 +103,5 @@ uv run --no-sync pytest -q \
   test/elfie/profile/test_species_registry.py \
   test/app/features/adoption/test_facade.py
 godot --headless --path godot_project \
-  --script scripts/test/test_species_catalog.gd
+  --script test/test_species_catalog.gd
 ```

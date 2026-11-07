@@ -18,7 +18,7 @@ var _neighbors: Array[PackedInt32Array] = []
 func bind(value: MeshInstance3D) -> void:
 	cloth = value
 	authored_mesh = cloth.mesh
-	original = preload("res://rooms/estate/estate_surface.gd").duvet_rest(authored_mesh)
+	original = preload("res://nest/estate/estate_surface.gd").duvet_rest(authored_mesh)
 	_arrays = original.surface_get_arrays(0).duplicate(true)
 	_rest = _arrays[Mesh.ARRAY_VERTEX]
 	cloth.mesh = original

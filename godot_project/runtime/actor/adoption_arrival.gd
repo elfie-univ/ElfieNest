@@ -1,6 +1,6 @@
 extends RefCounted
 ## Physical, non-looping arrival trajectory sampled from the actual platform colliders.
-const TIMING := preload("res://rooms/estate/estate_platform_cycle.gd")
+const TIMING := preload("res://nest/estate/estate_platform_cycle.gd")
 var origin := Vector3.ZERO
 var steps := Vector3.ZERO
 var platform_bounds := AABB()

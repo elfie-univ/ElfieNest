@@ -1,8 +1,8 @@
 extends Node3D
 ## Read-only presentation of committed admission and hosted-bed facts.
-const EFFECTS := preload("res://rooms/estate/estate_event_effects.gd")
-const CYCLE := preload("res://rooms/estate/estate_platform_cycle.gd")
-const LIGHTING := preload("res://rooms/estate/estate_arrival_lighting.gd")
+const EFFECTS := preload("res://nest/estate/estate_event_effects.gd")
+const CYCLE := preload("res://nest/estate/estate_platform_cycle.gd")
+const LIGHTING := preload("res://nest/estate/estate_arrival_lighting.gd")
 var _nest: ModularNest
 var _body: ElfieActor
 var _facts: Dictionary = {}

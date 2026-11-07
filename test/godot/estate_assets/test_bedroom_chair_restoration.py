@@ -182,7 +182,7 @@ EXPECTED = {
 
 def test_chair_petals_and_seams_match_original():
     actual = _Model(
-        str(ROOT / "godot_project/rooms/estate/ElfieNest-complete-final.glb")
+        str(ROOT / "godot_project/nest/estate/ElfieNest-complete-final.glb")
     )
     seen = Counter()
     for node in actual.doc["nodes"]:

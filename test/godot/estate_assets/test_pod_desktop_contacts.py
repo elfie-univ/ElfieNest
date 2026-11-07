@@ -10,7 +10,7 @@ import pytest
 from test.godot.asset_geometry import _inverse, _Model, _multiply
 
 ROOT = Path(__file__).resolve().parents[3]
-RUNTIME = ROOT / "godot_project/rooms/estate/ElfieNest-complete-final.glb"
+RUNTIME = ROOT / "godot_project/nest/estate/ElfieNest-complete-final.glb"
 
 
 def _values(model, accessor):

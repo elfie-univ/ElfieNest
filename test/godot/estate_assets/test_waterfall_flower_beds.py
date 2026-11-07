@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 def _runtime_groups():
     raw = (
-        ROOT / "godot_project/rooms/estate/ElfieNest-complete-final.instances.bin"
+        ROOT / "godot_project/nest/estate/ElfieNest-complete-final.instances.bin"
     ).read_bytes()
     magic, version, count, expected = struct.unpack_from("<8sIII", raw)
     assert magic == b"ENINST01" and version == 2

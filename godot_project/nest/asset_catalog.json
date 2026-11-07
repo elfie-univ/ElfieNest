@@ -1,0 +1,490 @@
+{
+  "version": 1,
+  "baseline": "V044",
+  "source_glb": "godot_project/nest/estate/ElfieNest-complete-final.glb",
+  "source_sha256": "222810a8a4b0117855702f59acad18ebd3527b57c1b48322c7d25ad419f0903e",
+  "instance_sidecar": "godot_project/nest/estate/ElfieNest-complete-final.instances.bin",
+  "instance_sidecar_sha256": "18cd7a3718f1e1afb3edd239866bce8402bfe03be3ecc95f94be6b32026460de",
+  "snapshot": "build/godot-asset-migration/evaluated-v044/v044-evaluated-static.scn",
+  "snapshot_sha256": "ef8cc9423d61f77a4c657bef6259bd2cdc2499e665e91bcdf6f5e2115806e2ab",
+  "categories": [
+    {
+      "id": "furniture",
+      "label": "家具",
+      "color": "#287a50",
+      "children": [
+        {
+          "id": "bedroom",
+          "label": "卧室家具",
+          "children": [
+            {
+              "id": "bed",
+              "label": "整床",
+              "preview": "bed",
+              "source": {
+                "module": "M01",
+                "resident": "A",
+                "assemblies": [
+                  "bed",
+                  "bedding",
+                  "pillows"
+                ]
+              },
+              "artifact": "nest/furniture/bedroom/bed/bed.scn"
+            },
+            {
+              "id": "chair",
+              "label": "花瓣转椅",
+              "source": {
+                "module": "M01",
+                "resident": "A",
+                "assemblies": [
+                  "chair"
+                ]
+              },
+              "artifact": "nest/furniture/bedroom/chair/chair.scn"
+            },
+            {
+              "id": "desk-a",
+              "label": "桌柜A",
+              "source": {
+                "module": "M01",
+                "resident": "A",
+                "assemblies": [
+                  "desk"
+                ]
+              },
+              "artifact": "nest/furniture/bedroom/desks/a/desk_a.scn"
+            },
+            {
+              "id": "desk-b",
+              "label": "桌柜B",
+              "source": {
+                "module": "M01",
+                "resident": "B",
+                "assemblies": [
+                  "desk"
+                ]
+              },
+              "artifact": "nest/furniture/bedroom/desks/b/desk_b.scn"
+            },
+            {
+              "id": "desk-c",
+              "label": "桌柜C",
+              "source": {
+                "module": "M01",
+                "resident": "C",
+                "assemblies": [
+                  "desk"
+                ]
+              },
+              "artifact": "nest/furniture/bedroom/desks/c/desk_c.scn"
+            },
+            {
+              "id": "desk-d",
+              "label": "桌柜D",
+              "source": {
+                "module": "M01",
+                "resident": "D",
+                "assemblies": [
+                  "desk"
+                ]
+              },
+              "artifact": "nest/furniture/bedroom/desks/d/desk_d.scn"
+            }
+          ]
+        },
+        {
+          "id": "common",
+          "label": "公共家具库",
+          "children": [
+            {
+              "id": "common-chairs",
+              "label": "座椅"
+            },
+            {
+              "id": "common-tables",
+              "label": "桌几"
+            },
+            {
+              "id": "common-plants",
+              "label": "盆栽"
+            },
+            {
+              "id": "common-frames",
+              "label": "画框"
+            },
+            {
+              "id": "common-rugs",
+              "label": "地毯与地垫"
+            },
+            {
+              "id": "common-lamps",
+              "label": "台灯"
+            },
+            {
+              "id": "common-speakers",
+              "label": "音箱"
+            }
+          ]
+        },
+        {
+          "id": "central",
+          "label": "主楼专用整组",
+          "children": [
+            {
+              "id": "central-living",
+              "label": "一楼客厅"
+            },
+            {
+              "id": "central-games-central",
+              "label": "二楼中央桌游区"
+            },
+            {
+              "id": "central-games-chess",
+              "label": "二楼棋桌区"
+            },
+            {
+              "id": "central-games-console",
+              "label": "二楼游戏机区"
+            },
+            {
+              "id": "central-games-toys",
+              "label": "二楼积木玩具区"
+            },
+            {
+              "id": "central-games-display",
+              "label": "二楼书架陈列区"
+            },
+            {
+              "id": "central-quiet-central",
+              "label": "三楼中央阅读区"
+            },
+            {
+              "id": "central-quiet-sofa",
+              "label": "三楼交谈区"
+            },
+            {
+              "id": "central-quiet-daybed",
+              "label": "三楼躺榻区"
+            },
+            {
+              "id": "central-quiet-rear",
+              "label": "三楼后部阅读区"
+            },
+            {
+              "id": "central-quiet-desk",
+              "label": "三楼书写区"
+            }
+          ]
+        },
+        {
+          "id": "terraces",
+          "label": "露台专用整组",
+          "children": [
+            {
+              "id": "terrace-furniture-01",
+              "label": "M01观影"
+            },
+            {
+              "id": "terrace-furniture-02",
+              "label": "M02电玩"
+            },
+            {
+              "id": "terrace-furniture-03",
+              "label": "M03阅读"
+            },
+            {
+              "id": "terrace-furniture-04",
+              "label": "M04桌游"
+            },
+            {
+              "id": "terrace-furniture-05",
+              "label": "M05音乐"
+            },
+            {
+              "id": "terrace-furniture-06",
+              "label": "M06绘画手作"
+            },
+            {
+              "id": "terrace-furniture-07",
+              "label": "M07茶点聊天"
+            },
+            {
+              "id": "terrace-furniture-08",
+              "label": "M08收藏休闲"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "layouts",
+      "label": "家具组合",
+      "color": "#426bb0",
+      "children": [
+        {
+          "id": "bedroom-set-a",
+          "label": "床桌椅套餐A"
+        },
+        {
+          "id": "bedroom-set-b",
+          "label": "床桌椅套餐B"
+        },
+        {
+          "id": "bedroom-set-c",
+          "label": "床桌椅套餐C"
+        },
+        {
+          "id": "bedroom-set-d",
+          "label": "床桌椅套餐D"
+        },
+        {
+          "id": "bedroom-layout",
+          "label": "完整卧室布置"
+        },
+        {
+          "id": "central-layout-1",
+          "label": "主楼一楼完整布置",
+          "source": {
+            "exportLayer": "layout:central:1"
+          }
+        },
+        {
+          "id": "central-layout-2",
+          "label": "主楼二楼完整布置",
+          "source": {
+            "exportLayer": "layout:central:2"
+          }
+        },
+        {
+          "id": "central-layout-3",
+          "label": "主楼三楼完整布置",
+          "source": {
+            "exportLayer": "layout:central:3"
+          }
+        },
+        {
+          "id": "terrace-layout-01",
+          "label": "M01观影露台布置",
+          "source": {
+            "exportLayer": "layout:terrace:M01"
+          }
+        },
+        {
+          "id": "terrace-layout-02",
+          "label": "M02电玩露台布置",
+          "source": {
+            "exportLayer": "layout:terrace:M02"
+          }
+        },
+        {
+          "id": "terrace-layout-03",
+          "label": "M03阅读露台布置",
+          "source": {
+            "exportLayer": "layout:terrace:M03"
+          }
+        },
+        {
+          "id": "terrace-layout-04",
+          "label": "M04桌游露台布置",
+          "source": {
+            "exportLayer": "layout:terrace:M04"
+          }
+        },
+        {
+          "id": "terrace-layout-05",
+          "label": "M05音乐露台布置",
+          "source": {
+            "exportLayer": "layout:terrace:M05"
+          }
+        },
+        {
+          "id": "terrace-layout-06",
+          "label": "M06绘画手作露台布置",
+          "source": {
+            "exportLayer": "layout:terrace:M06"
+          }
+        },
+        {
+          "id": "terrace-layout-07",
+          "label": "M07茶点聊天露台布置",
+          "source": {
+            "exportLayer": "layout:terrace:M07"
+          }
+        },
+        {
+          "id": "terrace-layout-08",
+          "label": "M08收藏休闲露台布置",
+          "source": {
+            "exportLayer": "layout:terrace:M08"
+          }
+        }
+      ]
+    },
+    {
+      "id": "buildings",
+      "label": "建筑物",
+      "color": "#a37336",
+      "children": [
+        {
+          "id": "central-building",
+          "label": "主楼",
+          "source": {
+            "exportLayer": "building:central"
+          }
+        },
+        {
+          "id": "pod-building",
+          "label": "共享小屋",
+          "source": {
+            "exportLayer": "building:pod"
+          }
+        },
+        {
+          "id": "building-layout",
+          "label": "建筑总装配"
+        }
+      ]
+    },
+    {
+      "id": "courtyard",
+      "label": "庭院",
+      "color": "#16818a",
+      "children": [
+        {
+          "id": "forest",
+          "label": "森林区",
+          "children": [
+            {
+              "id": "forest-ground",
+              "label": "森林地面",
+              "region": "woodland"
+            },
+            {
+              "id": "forest-path",
+              "label": "森林小路",
+              "region": "forest_path"
+            },
+            {
+              "id": "forest-planting",
+              "label": "林木与林下植物布置"
+            },
+            {
+              "id": "tree-one",
+              "label": "大树一"
+            },
+            {
+              "id": "tree-two",
+              "label": "大树二"
+            },
+            {
+              "id": "forest-layout",
+              "label": "森林区总装配"
+            }
+          ]
+        },
+        {
+          "id": "meadow",
+          "label": "草地区",
+          "children": [
+            {
+              "id": "meadow-ground",
+              "label": "门前草坪",
+              "region": "lawn"
+            },
+            {
+              "id": "meadow-plaza",
+              "label": "门前广场",
+              "region": "plaza"
+            },
+            {
+              "id": "meadow-planting",
+              "label": "花坛与花草布置"
+            },
+            {
+              "id": "picnic",
+              "label": "野餐桌椅"
+            },
+            {
+              "id": "meadow-layout",
+              "label": "草地区总装配"
+            }
+          ]
+        },
+        {
+          "id": "waterside",
+          "label": "水榭区",
+          "children": [
+            {
+              "id": "shore",
+              "label": "湖岸与岩石"
+            },
+            {
+              "id": "waterside-path",
+              "label": "湖畔步道与平台",
+              "region": "lakeside_paving"
+            },
+            {
+              "id": "bench",
+              "label": "湖边长椅"
+            },
+            {
+              "id": "fountain",
+              "label": "喷泉与连接水道",
+              "region": "fountain"
+            },
+            {
+              "id": "waterfall",
+              "label": "瀑布"
+            },
+            {
+              "id": "lake",
+              "label": "湖面",
+              "region": "water"
+            },
+            {
+              "id": "shore-planting",
+              "label": "岸边植物布置"
+            },
+            {
+              "id": "waterside-layout",
+              "label": "水榭区总装配"
+            }
+          ]
+        },
+        {
+          "id": "shared",
+          "label": "公共资源",
+          "children": [
+            {
+              "id": "shared-ground",
+              "label": "连续地面与跨区道路",
+              "region": "ring"
+            },
+            {
+              "id": "plant-library",
+              "label": "花草原型库"
+            },
+            {
+              "id": "forest-library",
+              "label": "林木原型库"
+            },
+            {
+              "id": "outdoor-lights",
+              "label": "庭院灯具"
+            },
+            {
+              "id": "environment",
+              "label": "昼夜环境"
+            }
+          ]
+        },
+        {
+          "id": "courtyard-layout",
+          "label": "庭院总装配"
+        }
+      ]
+    }
+  ]
+}

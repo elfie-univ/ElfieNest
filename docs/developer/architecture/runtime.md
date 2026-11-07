@@ -184,7 +184,7 @@ presentation without changing the authoritative world.
 
 ## Complete-estate physics and furniture actions
 
-`godot_project/rooms/nest.tscn` remains the single world entry. The complete
+`godot_project/nest/nest.tscn` remains the single world entry. The complete
 estate's authored module, floor and furniture metadata bind its physical
 colliders and stable interaction anchors; the retired procedural-room coordinates
 are not reused. Mirrored render nodes are converted into positive-handed physics
@@ -211,7 +211,7 @@ For animation inspection, `use_anchor` additionally accepts an optional named
 Godot-owned authored sequence rather than accepting a transform or arbitrary pose.
 Normal Body `furniture.use` calls still pass only `anchor_id`. The sequence runner,
 root motion, contact sampling, chair swivel, sleep poses and duvet deformation live
-under `runtime/actor/`; estate contacts and collision shapes remain under `rooms/estate/`.
+under `runtime/actor/`; estate contacts and collision shapes remain under `nest/estate/`.
 Nest Lab selects and observes the same implementation. Completion, cancellation and
 failure use the original command identity and one terminal event.
 

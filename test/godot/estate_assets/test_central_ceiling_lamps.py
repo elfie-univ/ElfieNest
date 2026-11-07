@@ -11,7 +11,7 @@ from test.godot.asset_geometry import read_glb, resource_bytes
 @pytest.mark.parametrize(
     "model",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_central_lamps_have_matching_solid_diffusers(model):

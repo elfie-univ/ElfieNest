@@ -9,9 +9,15 @@ import { ObservationToolbar } from "./ObservationToolbar";
 import { RunRecords } from "./RunRecords";
 import { useNestLab } from "./use-nest-lab";
 import { usePreview } from "./use-preview";
+import { isAssetMode, modeUrl } from "./preview-mode";
+import { StaticAssetReview } from "./StaticAssetReview";
 import "./nest-lab.css";
 
 export function NestLabApp(): React.JSX.Element {
+  return isAssetMode(window.location.search) ? <StaticAssetReview /> : <LiveNestLab />;
+}
+
+function LiveNestLab(): React.JSX.Element {
   const { state, error, run } = useNestLab();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const { catalog, send } = usePreview(frameRef, state.previewUrl, state.environment);
@@ -61,6 +67,10 @@ export function NestLabApp(): React.JSX.Element {
     </section>
     {error !== null || notice ? <Alert className="nest-monitor-notice" message={error ?? notice} role="status" showIcon closable onClose={() => setNotice("")} type={error !== null || actionError ? "error" : "info"} /> : null}
     {startupFailure ? <Alert className="nest-startup-error" type="error" showIcon message="庄园加载失败，请查看运行记录。" /> : null}
+    <div className="nest-pilot-modes" role="group" aria-label="预览模式">
+      <button type="button" aria-pressed={true}>整体场景</button>
+      <button type="button" aria-pressed={false} onClick={() => window.location.assign(modeUrl(window.location.href, true))}>单件资产</button>
+    </div>
     {menu.records ? <RunRecords events={state.events} close={() => dispatch({ type: "records" })} /> : null}
     <ActorManager open={manageOpen} close={() => setManageOpen(false)} actors={state.actors} species={state.species} selectActor={selectActor} mutate={async (path, method, json) => { setBusy(true); try { return await run(path, method, json); } finally { setBusy(false); } }} />
     <MenuDock environment={<EnvironmentToolbar catalog={catalog} send={send} />} state={menu} dispatch={dispatch} playing={playing} ready={ready} busy={busy} togglePlayback={() => { void action("playback", playing ? "随机游走已暂停。" : "随机游走已播放。"); }} panels={{

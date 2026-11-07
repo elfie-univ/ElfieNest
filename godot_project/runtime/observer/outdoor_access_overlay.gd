@@ -2,7 +2,7 @@ extends Node3D
 
 ## Read-only graphics from the loaded world's actual physics and navigation.
 const LAYERS := preload("res://runtime/world/collision_layers.gd")
-const LEGEND_FONT := preload("res://ui/fonts/NotoSansSC-OutdoorAccess.ttf")
+const LEGEND_FONT := preload("res://nest/ui/fonts/NotoSansSC-OutdoorAccess.ttf")
 const VIEW_IDS := ["access-estate", "access-forest"]
 var _nest: ModularNest
 var _graphics: Node3D

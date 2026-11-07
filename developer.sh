@@ -76,6 +76,7 @@ fi
 case "${1:-}" in
   elfie-lab|nest-lab)
     "$PYTHON_BIN" scripts/internal/build/build_godot_web.py --ensure
+    "$PYTHON_BIN" -B godot_project/tools/publish_static_asset_review.py --ensure-nest-assets
     "$PYTHON_BIN" scripts/internal/build/build_devtools_web.py --ensure
     ;;
   brain-eval)

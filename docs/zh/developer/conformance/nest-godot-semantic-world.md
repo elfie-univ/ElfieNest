@@ -57,10 +57,10 @@ Godot 目录表达源码类别，不对应 Nest 的业务模块。下列归置�
 | Godot 路径类别 | 归置 |
 | --- | --- |
 | `main.gd`、`main.tscn` | 只负责装配和模式分派；无引用 Helper 经证据确认后删除。 |
-| `rooms/`、`characters/` | 保留物理场景、几何、角色资源和运行资产；它们是内容，不是多出的业务模块。 |
+| `nest/`、`characters/` | 保留物理场景、几何、角色资源和运行资产；它们是内容，不是多出的业务模块。 |
 | `runtime/actor/`、`runtime/world/`、`runtime/endpoint/` | 保留少量 ElfieNest 自有 authority 胶水；物理可见性和可听性归 `world`，不归 Actor Controller。 |
-| `runtime/observer/`、`runtime/lab/`、`ui/`、`lab_preview_controller.gd` | 只保留有引用的 Observer/Lab 展示行为；不拥有物理或家庭 authority，不为追求形式对称强制改名。 |
-| `scripts/test/`、`scripts/tools/`、`characters/tools/`、角色 `source/` 树 | 作为测试、创作或开发输入；正确区分 audit/render 脚本，并从所有发布导出中排除。 |
+| `runtime/observer/`、`runtime/lab/`、`nest/ui/`、`runtime/lab/lab_preview_controller.gd` | 只保留有引用的 Observer/Lab 展示行为；不拥有物理或家庭 authority，不为追求形式对称强制改名。 |
+| `test/`、`tools/`、`characters/tools/`、角色 `source/` 树 | 作为测试、创作或开发输入；正确区分 audit/render 脚本，并从所有发布导出中排除。 |
 | 无引用 Helper、参考场景、被忽略 source 下的 `.import` 边车 | 逐项审查；只有 Scene、preload、CLI、文档及导出引用都不存在时才删除。 |
 
 ## 已关闭的一致性条目
@@ -72,7 +72,7 @@ Godot 目录表达源码类别，不对应 Nest 的业务模块。下列归置�
 | NGW-R03 | P0 | closed | 结构化听觉、视觉和语义行动 Payload 在投递中保留情绪、因果、目标及 intent 身份。 | 生产消费者向所属 Elfie 各投递一次 Envelope，也支持类型化 `NestFactNotice`。 | target=结构化语义感知条款；inventory=events.py、hub.py、body contracts、world_perception.py；references=类型化投递和协议身份测试；verification=正向、非目标、重试和去重场景通过；residuals=none |
 | NGW-R04 | P0 | closed | 居民、环境和交互待处理状态统一带 Runtime/generation/revision 来源，并走一条 authority 换代失效路径。 | 陈旧帧被拒绝；Snapshot 恢复是替换而非合并；只重新同步当前期望环境。 | target=generation 与恢复条款；inventory=runtime_sync、runtime_events、Nest restore 和 interaction invalidation；references=陈旧/恢复/restore workflow 测试；verification=最新 origin/main 上全仓 Python 2350 个测试通过、3 个跳过；residuals=none |
 | NGW-R05 | P1 | closed | 巢内生活规则统一拥有成员、Home、共享/访问、占用、受众过滤和环境覆盖决策，不引入企业角色。 | 语义行动和事件受众都调用同一 Nest 规则。 | target=巢内生活规则所有者；inventory=living_rules 与 Nest Facade；references=Home、受众和覆盖调用方；verification=Nest/workflow 测试通过；residuals=none |
-| NGW-R06 | P0 | closed | Godot World 拥有有界视觉空间查询，只返回候选，不把媒体或坐标带入 Nest。 | Anchor 和 facility marker 共用距离/FOV/遮挡路径；没有每个精灵的 Camera3D 或 screenshot/VLM 路径。 | target=Godot 空间查询条款；inventory=rooms/nest.gd、runtime/world 和空间查询测试；references=Actor 无世界查询所有权路径及退役 sensor 扫描；verification=Godot scene、environment、interaction、navigation headless 契约通过；residuals=none |
+| NGW-R06 | P0 | closed | Godot World 拥有有界视觉空间查询，只返回候选，不把媒体或坐标带入 Nest。 | Anchor 和 facility marker 共用距离/FOV/遮挡路径；没有每个精灵的 Camera3D 或 screenshot/VLM 路径。 | target=Godot 空间查询条款；inventory=nest/nest.gd、runtime/world 和空间查询测试；references=Actor 无世界查询所有权路径及退役 sensor 扫描；verification=Godot scene、environment、interaction、navigation headless 契约通过；residuals=none |
 | NGW-R07 | P0 | closed | Godot World 计算说话可达候选，Nest 保留内容、情绪和最终居民受众规则。 | 说话走类型化 Nest Bridge；只向 Godot 候选中经 Living Rules 过滤后的听者投递，不走 Elfie TTS/STT。 | target=SpeechBridge 条款；inventory=runtime/world、gateway、interaction hub 和 body contracts；references=协议身份和说话 workflow 测试；verification=Godot Runtime interaction 契约及定向/重试投递测试通过；residuals=none |
 | NGW-R08 | P1 | closed | 环境实际状态现在是由空间与设施拥有、带 Runtime 来源的稳定 `nest/environment` 对象投影。 | 期望状态仍由时间与环境拥有，恢复只重发该期望状态。 | target=EnvironmentChannel 条款；inventory=space_facilities 模型/目录、Adapter 和 Godot environment controller；references=对象 ID 校验；verification=29 个环境/持久化测试及 Godot Runtime 验证通过；residuals=none |
 | NGW-R09 | P1 | closed | Actor 代码只执行身体动作；World 和 `spatial_queries.gd` 拥有视觉/声音查询，Gateway 仍由 Bootstrap 唯一创建。 | 没有新增 Python 物理镜像或第二 Gateway。 | target=Godot authority 条款；inventory=godot_project/runtime 与 infrastructure/godot；references=World 所有权静态扫描；verification=Runtime Observer 和场景路径测试通过；residuals=none |

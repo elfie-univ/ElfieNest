@@ -11,7 +11,7 @@ from test.godot.estate_assets.test_pod_desktop_contacts import ROOT, _values
 @pytest.mark.parametrize(
     "relative",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_stair_corridor_caps_have_upward_normals(relative):

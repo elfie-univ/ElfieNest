@@ -157,7 +157,7 @@ def test_structural_cleanup_scope_rejects_unclassified_directories(
 ) -> None:
     (tmp_path / "nest" / "forgotten").mkdir(parents=True)
     (tmp_path / "godot_project" / "runtime" / "unowned").mkdir(parents=True)
-    (tmp_path / "godot_project" / "scripts").mkdir(parents=True)
+    (tmp_path / "godot_project" / "test").mkdir(parents=True)
 
     assert collect_structural_scope_violations(tmp_path) == [
         "nest/forgotten: unclassified structural path",

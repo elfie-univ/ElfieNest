@@ -55,7 +55,7 @@ gzip/zip 适合备份，不会自动减少解压后的 GPU 网格或贴图占用
 
 ```sh
 node .agents/skills/elfienest-asset-optimize/scripts/optimize.mjs \
-  godot_project/rooms/estate/ElfieNest-complete-final.glb \
+  godot_project/nest/estate/ElfieNest-complete-final.glb \
   build/godot_assets/estate-storage.glb \
   build/godot_assets/estate-storage-report.json
 ```

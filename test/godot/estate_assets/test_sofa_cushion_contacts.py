@@ -85,7 +85,7 @@ def _contact(points, triangles):
 @pytest.mark.parametrize(
     "relative",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_six_loose_cushions_contact_the_sofa_back(relative):

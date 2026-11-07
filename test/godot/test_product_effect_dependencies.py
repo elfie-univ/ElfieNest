@@ -8,7 +8,7 @@ GODOT_ROOT = Path(__file__).resolve().parents[2] / "godot_project"
 
 def test_product_scene_dependency_graph_excludes_lab() -> None:
     pending = [
-        "rooms/nest.tscn",
+        "nest/nest.tscn",
         "runtime/actor/actor_controller.gd",
         "runtime/observer/observer_presentation.gd",
     ]

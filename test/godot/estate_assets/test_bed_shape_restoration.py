@@ -6,7 +6,7 @@ from pathlib import Path
 from test.godot.asset_geometry import _Model
 
 ROOT = Path(__file__).resolve().parents[3]
-ESTATE = ROOT / "godot_project/rooms/estate/ElfieNest-complete-final.glb"
+ESTATE = ROOT / "godot_project/nest/estate/ElfieNest-complete-final.glb"
 
 
 def _geometry(model, mesh_index):

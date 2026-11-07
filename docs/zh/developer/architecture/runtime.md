@@ -124,7 +124,7 @@ Monitor 地址参数 `fountain=fixed` 可切回固定节目，`fountain=random&f
 
 ## 完整精灵巢的物理与家具动作
 
-`godot_project/rooms/nest.tscn` 仍是唯一世界入口。完整资产中已有的模块、楼层与家具
+`godot_project/nest/nest.tscn` 仍是唯一世界入口。完整资产中已有的模块、楼层与家具
 元数据绑定物理碰撞和稳定交互锚点，不再使用退役程序化房间的坐标。镜像渲染节点会转换为
 正手性的物理变换，视觉几何不移动。庭院复用已创作的碰撞代理，不把树叶全部用于导航烘焙。
 
@@ -141,7 +141,7 @@ Godot 拥有，不增加 Python 几何模型、第二个 Gateway 或 Observer �
 动画检查时，`use_anchor` 还支持可选的命名 `furniture_cycle`：`seat`、`sleep-back`、
 `sleep-left`、`sleep-right`。它选择 Godot 自有的已创作流程，不接受变换矩阵或任意姿态。
 普通 Body `furniture.use` 仍只传 `anchor_id`。流程执行、根运动、接触采样、转椅旋转、
-睡姿和被子变形位于 `runtime/actor/`；家具接触点和碰撞仍属于 `rooms/estate/`。
+睡姿和被子变形位于 `runtime/actor/`；家具接触点和碰撞仍属于 `nest/estate/`。
 Nest Lab 选择并观察同一个实现；完成、取消和失败沿用原命令身份与唯一终态。
 
 ## Runtime 产物契约

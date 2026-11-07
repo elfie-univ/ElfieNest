@@ -16,7 +16,7 @@ IDENTITY = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 @pytest.mark.parametrize("height", [0.8, 1.5, 2.3])
@@ -50,7 +50,7 @@ def test_glass_edge_reaches_garden_entrance_frame(path, height):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_curved_glass_edge_has_no_sudden_depth_step(path):

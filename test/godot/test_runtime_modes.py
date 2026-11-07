@@ -54,9 +54,7 @@ def test_authority_semantic_replay_uses_the_shared_godot_event_path() -> None:
     assert (
         GODOT_ROOT / "runtime" / "endpoint" / "authority_semantic_events.gd"
     ).is_file()
-    assert (
-        GODOT_ROOT / "scripts" / "test" / "test_authority_semantic_replay.gd"
-    ).is_file()
+    assert (GODOT_ROOT / "test" / "test_authority_semantic_replay.gd").is_file()
     assert "AUTHORITY_SEMANTIC_EVENTS" in main_source
     assert "_semantic_events.project(" in main_source
     assert not (PROJECT_ROOT / "godot_runtime" / "semantic_replay.py").exists()

@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PROJECT_DIR="$PROJECT_ROOT/godot_project"
 PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
-SCRIPT_TO_RUN="${1:-res://scripts/test/test_scene_resource_contract.gd}"
+SCRIPT_TO_RUN="${1:-res://test/test_scene_resource_contract.gd}"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
     echo "❌ Repository Python toolchain not found: $PYTHON_BIN" >&2

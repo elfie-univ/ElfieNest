@@ -1,6 +1,6 @@
 extends Node
 
-const LAB_PREVIEW_CONTROLLER := preload("res://lab_preview_controller.gd")
+const LAB_PREVIEW_CONTROLLER := preload("res://runtime/lab/lab_preview_controller.gd")
 
 var _nest: ModularNest
 var _characters: Node3D

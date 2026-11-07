@@ -59,7 +59,7 @@ git status --short
 
 ```bash
 bash scripts/quality/checks/godot_host.sh \
-  res://scripts/test/test_scene_resource_contract.gd
+  res://test/test_scene_resource_contract.gd
 ```
 
 该入口先检查主机进程表，再调用一次 `validate`；沙箱中检查失败时不会启动 Godot。

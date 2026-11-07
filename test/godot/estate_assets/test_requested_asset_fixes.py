@@ -21,7 +21,7 @@ def _primitives(model, index):
 @pytest.mark.parametrize(
     "relative",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_bedroom_strip_touches_the_actual_ceiling(relative):
@@ -50,7 +50,7 @@ def test_bedroom_strip_touches_the_actual_ceiling(relative):
 @pytest.mark.parametrize(
     "relative",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_botanical_painting_has_its_stem_at_the_bottom(relative):

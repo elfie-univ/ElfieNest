@@ -71,7 +71,7 @@ def test_concrete_runner_delegates_to_the_shared_godot_boundary(
     assert observed == {
         "godot_binary": Path("/godot"),
         "godot_project": Path("/project"),
-        "args": ("--script", "scripts/test/test_species_catalog.gd"),
+        "args": ("--script", "test/test_species_catalog.gd"),
         "timeout_seconds": 42.0,
         "godot_version": "4.6",
         "purpose": "species-package-validation",

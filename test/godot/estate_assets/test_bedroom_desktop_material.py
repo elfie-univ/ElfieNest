@@ -44,7 +44,7 @@ def _check_desktops(model, expected_count):
 @pytest.mark.parametrize(
     "relative,count",
     [
-        ("godot_project/rooms/estate/ElfieNest-complete-final.glb", 32),
+        ("godot_project/nest/estate/ElfieNest-complete-final.glb", 32),
     ],
 )
 def test_bedroom_desktop_has_valid_texture_coordinates(relative, count):

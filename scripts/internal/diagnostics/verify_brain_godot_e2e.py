@@ -559,7 +559,7 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 "--path",
                 str(PROJECT_ROOT / "godot_project"),
                 "--script",
-                "res://scripts/test/test_live_embodied_e2e.gd",
+                "res://test/test_live_embodied_e2e.gd",
             ],
             cwd=str(PROJECT_ROOT / "godot_project"),
             env=godot_env,

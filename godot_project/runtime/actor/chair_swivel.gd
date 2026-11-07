@@ -13,7 +13,7 @@ func install(geometry: Node3D, physics: Node3D, contact: Transform3D, module: St
 	for mesh: MeshInstance3D in geometry.find_children("*", "MeshInstance3D", true, false):
 		var e := mesh.get_meta("extras", {}) as Dictionary
 		if e.get("module") != module or e.get("resident") != resident or e.get("assembly") != "desk" or e.get("piece") != "worktop": continue
-		var replacement := preload("res://rooms/estate/estate_desktop_collision.gd").create(mesh)
+		var replacement := preload("res://nest/estate/estate_desktop_collision.gd").create(mesh)
 		if replacement == null:
 			last_obstacle = "desktop_silhouette_unavailable"
 			return

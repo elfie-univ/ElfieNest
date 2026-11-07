@@ -30,7 +30,7 @@ def mesh_points(m, index, material=None):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_reading_chair_legs_meet_the_seat(path):
@@ -50,7 +50,7 @@ def test_reading_chair_legs_meet_the_seat(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_desk_lens_is_vertical_on_the_rear_board(path):
@@ -69,7 +69,7 @@ def test_desk_lens_is_vertical_on_the_rear_board(path):
 
 @pytest.mark.parametrize("module", [f"M{i:02d}" for i in range(1, 9)])
 def test_every_bedroom_has_larger_lamps_and_enclosing_chair_backs(module):
-    m = model("godot_project/rooms/estate/ElfieNest-complete-final.glb")
+    m = model("godot_project/nest/estate/ElfieNest-complete-final.glb")
     for resident in "ABCD":
         nodes = [
             (i, n)
@@ -95,7 +95,7 @@ def test_every_bedroom_has_larger_lamps_and_enclosing_chair_backs(module):
 
 
 def test_room_crown_has_no_collapsed_clipping_faces():
-    m = model("godot_project/rooms/estate/ElfieNest-complete-final.glb")
+    m = model("godot_project/nest/estate/ElfieNest-complete-final.glb")
     node = next(
         i
         for i, n in enumerate(m.doc["nodes"])
@@ -122,7 +122,7 @@ def test_room_crown_has_no_collapsed_clipping_faces():
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/rooms/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/estate/ElfieNest-complete-final.glb",
     ],
 )
 def test_second_floor_bookcase_diffuser_is_below_its_shelf(path):
@@ -139,7 +139,7 @@ def test_second_floor_bookcase_diffuser_is_below_its_shelf(path):
 
 
 def test_m01_throw_uses_the_gap_between_the_right_hand_pillows():
-    m = model("godot_project/rooms/estate/ElfieNest-complete-final.glb")
+    m = model("godot_project/nest/estate/ElfieNest-complete-final.glb")
     sofa = next(
         i
         for i, n in enumerate(m.doc["nodes"])

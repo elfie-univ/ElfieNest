@@ -333,8 +333,7 @@ def test_startup_allows_cold_import_and_scene_load():
 
 def test_gateway_estate_harness_leaves_commands_and_acceptance_to_real_owners():
     source = (
-        Path(acceptance.PROJECT_ROOT)
-        / "godot_project/scripts/test/test_gateway_estate_e2e.gd"
+        Path(acceptance.PROJECT_ROOT) / "godot_project/test/test_gateway_estate_e2e.gd"
     ).read_text()
     assert source.startswith("extends SceneTree")
     assert 'load("res://main.tscn")' in source

@@ -8,10 +8,10 @@ import struct
 from pathlib import Path
 
 _INPUTS = {
-    "instances": "rooms/estate/ElfieNest-complete-final.instances.bin",
-    "lighting": "rooms/estate/estate_outdoor_lighting.scn",
+    "instances": "nest/estate/ElfieNest-complete-final.instances.bin",
+    "lighting": "nest/estate/estate_outdoor_lighting.scn",
 }
-INPUT_MANIFEST = "rooms/estate/authority_inputs.json"
+INPUT_MANIFEST = "nest/estate/authority_inputs.json"
 
 
 def build_authority_pack(source: Path, destination: Path) -> None:

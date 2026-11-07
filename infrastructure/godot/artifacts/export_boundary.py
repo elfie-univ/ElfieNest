@@ -5,10 +5,19 @@ from __future__ import annotations
 from typing import Final, Tuple
 
 GODOT_EXPORT_EXCLUDED_PATHS: Final[Tuple[str, ...]] = (
-    "scripts/*",
+    "test/*",
+    "tools/*",
     "characters/tools/*",
     "characters/tovren/source/*",
     "characters/saevi/source/*",
+    # The split estate is consumed by Nest Lab during parallel verification.
+    "nest/assembly/*",
+    "nest/buildings/*",
+    "nest/courtyard/*",
+    "nest/furniture/layouts/*",
+    "nest/furniture/sets/*",
+    "nest/furniture/shared/*",
+    "nest/furniture/textures/*",
 )
 
 GODOT_EXPORT_EXCLUDE_FILTER: Final[str] = ",".join(GODOT_EXPORT_EXCLUDED_PATHS)

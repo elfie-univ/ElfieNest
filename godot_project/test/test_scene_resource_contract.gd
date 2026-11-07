@@ -1,0 +1,80 @@
+extends SceneTree
+
+const PROJECT_READINESS := preload("res://test/project_readiness.gd")
+
+const REQUIRED_RESOURCES := [
+	"res://main.tscn",
+	"res://nest/nest.tscn",
+	"res://nest/estate/estate.tscn",
+	"res://nest/estate/estate_complete_final.gd",
+	"res://nest/ui/observation_hud.tscn",
+	"res://characters/tovren/tovren.tscn",
+	"res://characters/saevi/saevi.tscn",
+	"res://characters/shared/elfie_actor.gd",
+	"res://runtime/lab/lab_preview_controller.gd",
+	"res://runtime/actor/actor_controller.gd",
+	"res://runtime/world/world_controller.gd",
+	"res://runtime/endpoint/runtime_mode.gd",
+	"res://runtime/endpoint/authority_semantic_events.gd",
+	"res://runtime/lab/lab_runtime.gd",
+	"res://test/test_runtime_mode_contract.gd",
+	"res://test/test_authority_semantic_replay.gd",
+	"res://test/test_runtime_actor_catalog.gd",
+	"res://test/test_runtime_navigation.gd",
+	"res://test/test_runtime_interaction.gd",
+	"res://test/test_runtime_scene_manifest.gd",
+]
+
+
+func _init() -> void:
+	call_deferred("_run_after_project_readiness")
+
+
+func _run_after_project_readiness() -> void:
+	if not await PROJECT_READINESS.wait_until_ready(self):
+		push_error("Godot project import/class scan did not become ready")
+		quit(1)
+		return
+	_validate_resources()
+
+
+func _validate_resources() -> void:
+	var missing: Array[String] = []
+	for resource_path: String in REQUIRED_RESOURCES:
+		if not ResourceLoader.exists(resource_path):
+			missing.append(resource_path)
+
+	if not missing.is_empty():
+		push_error("Missing required resources: %s" % [missing])
+		quit(1)
+		return
+
+	var main_scene := load("res://main.tscn") as PackedScene
+	if main_scene == null:
+		push_error("Main scene could not be loaded")
+		quit(1)
+		return
+
+	var main_instance := main_scene.instantiate()
+	if main_instance.get_script() == null:
+		main_instance.free()
+		push_error("Main scene root script could not be loaded")
+		quit(1)
+		return
+	var nest := main_instance.get_node_or_null("Nest")
+	var characters := main_instance.get_node_or_null("Characters")
+	if (
+		nest == null
+		or characters == null
+		or characters.get_child_count() != 0
+	):
+		main_instance.free()
+		push_error(
+		"Main scene must contain Nest and an empty Characters container"
+		)
+		quit(1)
+		return
+	main_instance.free()
+
+	print("Scene resource contract passed")
+	quit()

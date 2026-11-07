@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://nest/buildings/building-layout.scn" id="1_oa6ve"]
+[ext_resource type="PackedScene" path="res://nest/courtyard/overview/courtyard-all/courtyard-covered.scn" id="2_8etdw"]
+
+[node name="全场景总组合" type="Node3D" unique_id=1246967365]
+
+[node name="Part_0" type="Node3D" parent="." unique_id=532540648 instance=ExtResource("1_oa6ve")]
+
+[node name="Part_1" type="Node3D" parent="." unique_id=2128333980 instance=ExtResource("2_8etdw")]

@@ -22,15 +22,16 @@ ElfieNest 3D 世界的唯一源码来源，负责房屋、几何、坐标、移�
 godot_project/
 ├── main.tscn、main.gd     # 项目入口
 ├── runtime/               # 世界配置、角色同步与语义动作生命周期
-├── rooms/                 # Nest 观察控制与完整最终精灵巢资产
+├── nest/                  # Nest 观察控制与完整最终精灵巢资产
+│   └── ui/                # 观察界面
 ├── characters/            # Elfie 角色、模型、动画与外观制作资料
-├── ui/                    # 观察界面
-└── scripts/               # Godot 内部测试与资源制作工具
+├── test/                  # Godot 内部测试（Python 测试仍在 test/godot/）
+└── tools/                 # 资源制作工具
 ```
 
 角色制作资料从 [`characters/README.md`](characters/README.md) 进入；房间资源
-约定从 [`rooms/estate/README.md`](rooms/estate/README.md) 进入。旧程序化方形房间、独立家具及
-主楼/小屋基线已退役；`rooms/nest.tscn` 是唯一精灵巢入口，只实例化一次完整新版资产。
+约定从 [`nest/estate/README.md`](nest/estate/README.md) 进入。旧程序化方形房间、独立家具及
+主楼/小屋基线已退役；`nest/nest.tscn` 是唯一精灵巢入口，只实例化一次完整新版资产。
 当前根据最终模型绑定碰撞、32 个床位、32 把书桌椅、庭院座椅、房门与导航；世界就绪要求
 导航同步及锚点可达。`furniture.use` 沿原有 Body/Gateway 链路先走到家具，再进入可退出的
 睡眠或坐姿；仅打开相机预览不代表这些动作已验收。
@@ -38,7 +39,7 @@ godot_project/
 当前工程包含林间环路与回接支路、平滑草地和种植区、10 扇实际门及离线碰撞／导航资源。
 建筑、家具和基础材质保留基线，仅按已确认功能合入地形、灯具与动作。
 坐下／起身、沙发连贯动作、原被子睡眠、床上具身化、领养到达及水景共用此工程的实际模型；
-详细回放入口见 [完整园区](rooms/estate/README_zh.md)。这些回放不等同自主生活验收。
+详细回放入口见 [完整园区](nest/estate/README_zh.md)。这些回放不等同自主生活验收。
 
 正式监控接收 Nest 的本地民用时间环境：06–18 白天关闭人工灯，18–24 上半夜启用灯光，
 00–06 下半夜收束普通室内照明并保留引导。时间与视角可独立选择；“本地实时”恢复最新环境，
@@ -87,7 +88,7 @@ Runtime 产物契约可以引用同一份产物；不要在 `godot_project/`、
 `app/interfaces/desktop/` 或普通用户 Web 源码中维护副本。
 
 Web 导出的环境准备、目录和验收细节只在
-[`WEB_EXPORT.md`](WEB_EXPORT.md) 维护，避免出现多份互相漂移的流程。
+[Godot Web 导出说明](../docs/zh/developer/engineering/godot.md#web-export) 维护，避免出现多份互相漂移的流程。
 
 ## Linux Dedicated Runtime
 

@@ -19,7 +19,7 @@ motion, collision, characters and rendering.
 Before opening, running or screenshotting, first check the Godot version in
 `project.godot` and any existing processes, then follow the flow in the
 [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md)
-and `godot_project/WEB_EXPORT.md`.
+and [Web export guide](godot.md#web-export).
 
 ## Resident lifecycle integration
 
@@ -35,5 +35,104 @@ the one-way fourth-floor arrival presentation; reconnecting does not restart its
 clock. There is no departure teleport or audio presentation.
 
 Focused scene verification: `bash scripts/quality/checks/godot_host.sh
-res://scripts/test/test_resident_lifecycle.gd`. Real-device hosting and final visual
+res://test/test_resident_lifecycle.gd`. Real-device hosting and final visual
 acceptance remain separate checks.
+
+## Web export {#web-export}
+
+The product consumes the exported Godot Web Runtime rather than the
+`godot_project/` source project. Developers changing Godot resources and CI build
+machines need Godot and official Export Templates; end users do not.
+
+### Paths and artifacts
+
+| Content | Path |
+| --- | --- |
+| Godot source project | `godot_project/` |
+| Web export preset | `godot_project/export_presets.cfg` |
+| Official Web Runtime | `build/components/godot-web/` |
+| Web entry | `build/components/godot-web/elfienest.html` |
+| Build manifest | `build/components/godot-web/build-manifest.json` |
+
+The output must include:
+
+```text
+elfienest.html
+elfienest.js
+elfienest.wasm
+elfienest.pck
+build-manifest.json
+```
+
+Ship any additional generated JavaScript files, including AudioWorklet files.
+
+### Engine and templates
+
+The first `config/features` entry in `godot_project/project.godot` is the sole
+engine compatibility declaration. Use Godot from that major/minor version line
+and matching official Export Templates. Do not publish a build with mismatched
+versions; the builder rejects them by default.
+
+In the editor, open `Editor > Manage Export Templates`, download or select the
+matching official `export_templates.tpz`, install it, then close the dialog.
+
+### Standard build
+
+Run from the repository root:
+
+```bash
+GODOT_BIN=/path/to/godot ./developer.sh build-godot-web
+```
+
+Alternatively, select the binary explicitly:
+
+```bash
+./developer.sh build-godot-web --godot /path/to/godot
+```
+
+The builder checks the project and engine versions, exports the release `Web`
+preset to a sibling temporary directory, checks the HTML/JS/WASM/PCK files, and
+records each file's SHA-256 in the manifest. On success it atomically replaces the
+official output; on failure the previous runnable output remains available.
+
+Check existing artifacts without rebuilding:
+
+```bash
+./developer.sh build-godot-web --check
+```
+
+### Manual editor export
+
+The command-line build is the team standard. To diagnose export issues in the
+editor, open `godot_project/project.godot` with the matching Godot version, choose
+`Project > Export`, select the existing `Web` preset, click `Export Project`, and
+write the entry to `build/components/godot-web/elfienest.html`.
+
+Manual export does not generate ElfieNest's `build-manifest.json`; run the
+standard build again after diagnosis.
+
+### Development and release
+
+Do not re-export when Godot resources have not changed. After changing them:
+
+```text
+Edit godot_project/ source resources
+  -> run Godot scene tests
+  -> ./developer.sh build-godot-web
+  -> ./developer.sh build-godot-web --check
+  -> ./elfienest.sh start
+  -> accept the 3D room in the browser
+  -> commit Godot source resources and build scripts; CI rebuilds the Web Runtime
+```
+
+Release pipelines use the same build command and assemble
+`build/components/godot-web/` into
+`build/staging/<platform-arch>/resources/godot-web/`. Windows, Linux and macOS
+share these WebAssembly assets; three native Godot exports are unnecessary.
+`build/` contains reproducible intermediates and is not committed to Git.
+
+`build/components/godot-web/` is the sole canonical export location. Development
+Python Core mounts the Web Runtime from there; release assembly copies the same
+artifacts to platform staging for Electron to consume. Do not maintain persistent
+copies in Desktop or Web source directories. Runtime authority startup and
+shutdown follow the [service lifecycle contract](../contracts/service-lifecycle.md).
