@@ -22,6 +22,35 @@ been removed. Future asset authoring uses the existing formal GLB resources,
 sidecar metadata, scenes and scripts in `godot_project/`; preview changes through
 Nest Lab using those same formal resources.
 
+The **Terrain and paving** source contains the continuous ground and paving, while
+the **Shared stone library** owns landscape-stone and shore-stone prototypes.
+Assemblies restore their placements; the ground-only source preview omits the
+scattered stones.
+
+Under **Courtyard → Functional areas**, ground and facilities, central building
+greenery, waterside and meadow open their assemblies directly. Forest retains a
+group for its full assembly and landmark tree. Central greenery reuses the plant
+library in place. The waterside assembly holds fountain instances, particles,
+timers and animated materials, referencing one fountain GLB.
+
+In the single-asset preview, drag with the left mouse button to orbit, drag with
+the right button to pan, and use the wheel to zoom. Reset restores the asset's
+center and initial framing.
+
+Whole-scene cameras and reset become available when the renderer publishes its
+view catalog; resident actions still require the configured Runtime.
+
+Production, whole-scene previews and exports all use `nest/assembly/estate.tscn`.
+`activity_regions.tres` owns activity permissions; `runtime-bindings.json` holds
+per-placement semantics and lighting controls. Run `tools/bake_estate_spatial.gd`
+through the controlled Godot host entry to generate collisions, navigation,
+access masks, interactions and door state under `build/estate_spatial/`.
+After validation, publish its `estate_spatial.res` and `runtime-inputs.json` to
+their formal resource paths. Both Web and Linux Dedicated exports verify the same
+input hashes and reject stale spatial data. The authority pack removes display
+resources from that same export. `tools/export_split_activity.gd` exports activity
+inputs alone and does not replace the complete bake.
+
 They can reuse the underlying libraries and the same Godot Web Runtime, but they
 must not depend on end-user auth, `ElfieNestEngine` or production data to start.
 When launching an experiment page, the Runtime is auto-checked; it is

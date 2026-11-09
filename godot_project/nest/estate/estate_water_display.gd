@@ -49,6 +49,7 @@ func component_paused(component: String) -> bool:
 	return _component_holds.has(component)
 
 func bind(geometry: Node3D, environment: Environment, manage_environment: bool = true) -> void:
+	_retire_preview_derivatives(geometry)
 	_manage_environment = manage_environment
 	set_process(not manage_environment)
 	_environment = environment
@@ -85,7 +86,7 @@ func bind(geometry: Node3D, environment: Environment, manage_environment: bool =
 		material.set_shader_parameter("channel_end_radius", channel_bounds.end.x-pool_bounds.get_center().x)
 		_wave_materials.append(material)
 	for mesh: MeshInstance3D in geometry.find_children("*", "MeshInstance3D", true, false):
-		if mesh.mesh == null:
+		if mesh.mesh == null or mesh.get_meta("estate_water_preview_derivative", false):
 			continue
 		var center := (mesh.global_transform * mesh.get_aabb()).get_center()
 		var outside_pool := center.x < pool_bounds.position.x or center.x > pool_bounds.end.x or center.z < pool_bounds.position.z or center.z > pool_bounds.end.z
@@ -139,6 +140,18 @@ func bind(geometry: Node3D, environment: Environment, manage_environment: bool =
 	sample(0.0, false)
 	refresh_visibility()
 
+func _retire_preview_derivatives(geometry: Node3D) -> void:
+	# Split authoring retains evaluated preview geometry. The live owner creates
+	# these effects itself; keep the source prototypes, not frozen second actors.
+	for node: Node in geometry.find_children("*", "", true, false):
+		var path := str(node.get_meta("v044_path", ""))
+		if not path.begins_with("Generated/ObserverFountainLighting/"): continue
+		node.set_meta("estate_water_preview_derivative", true)
+		node.process_mode = Node.PROCESS_MODE_DISABLED
+		if node is Node3D: node.hide()
+		if node is CPUParticles3D: node.emitting = false
+
+
 func _add_submerged_inlet(geometry: Node3D, channel: MeshInstance3D, water_height: float) -> void:
 	# The channel's highest row is the actual curved pool/channel join.
 	var points: Array[Vector3] = []
@@ -191,11 +204,6 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 	_bind_landing_foam(geometry, waterfall, contact)
 	_add_waterfall_splash(waterfall, contact)
 	var rim := geometry.find_child("FountainConcealedRim", true, false) as MeshInstance3D
-	var rim_arrays: Array = []
-	var rim_points := PackedVector3Array()
-	if rim != null:
-		rim_arrays = rim.mesh.surface_get_arrays(0).duplicate(true)
-		rim_points = rim_arrays[Mesh.ARRAY_VERTEX]
 	for side: String in ["north", "south"]:
 		var wall := geometry.find_child("CY R001 spillway %s continuous side wall" % side, true, false) as MeshInstance3D
 		assert(wall != null, "The spillway edge light requires its authored stone wall")
@@ -233,23 +241,12 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 			route.append(Vector3(x, top + clearance if not is_inf(top) else rim_y, z))
 		var inlet_across := Vector3(0, 0, 0.05)
 		if rim != null:
-			# Match both borders of the existing ring, not just the centreline.
-			var first := side == "south"
-			var joint := route[0]
-			var near := rim.global_transform * ((rim_points[2] + rim_points[3]) * 0.5 if first else (rim_points[-4] + rim_points[-3]) * 0.5)
-			var incoming := Vector3.LEFT if first else (joint - near).normalized()
-			var outgoing := (near - joint).normalized() if first else Vector3.RIGHT
-			var n0 := Vector3(-incoming.z, 0, incoming.x)
-			var n1 := Vector3(-outgoing.z, 0, outgoing.x)
-			var miter := (n0 + n1).normalized()
-			miter *= 0.05 / miter.dot(n0)
-			inlet_across = -miter if first else miter
-			if first:
-				rim_points[0] = rim.to_local(joint - miter)
-				rim_points[1] = rim.to_local(joint + miter)
-			else:
-				rim_points[-2] = rim.to_local(joint + miter)
-				rim_points[-1] = rim.to_local(joint - miter)
+			# Imported GLBs may weld/reorder vertices. Reuse the actual terminal
+			# boundary instead of changing assumed first/last vertex slots.
+			var inlet := _rim_inlet(rim, route[0])
+			route[0] = (inlet[0] + inlet[1]) * 0.5
+			inlet_across = (inlet[1] - inlet[0]) * 0.5
+			if inlet_across.z < 0.0: inlet_across = -inlet_across
 		var vertices := PackedVector3Array()
 		var normals := PackedVector3Array()
 		var indices := PackedInt32Array()
@@ -299,12 +296,38 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 		edge.global_transform = Transform3D.IDENTITY
 		edge.set_meta("light_route", route)
 		_spillway_edges.append(material)
-	if rim != null:
-		rim_arrays[Mesh.ARRAY_VERTEX] = rim_points
-		var joined := ArrayMesh.new()
-		joined.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, rim_arrays)
-		joined.surface_set_material(0, rim.get_active_material(0))
-		rim.mesh = joined
+
+
+func _rim_inlet(rim: MeshInstance3D, joint: Vector3) -> PackedVector3Array:
+	var faces := rim.mesh.get_faces()
+	var vertices := PackedVector3Array()
+	var indices := {}
+	var boundary := {}
+	for start: int in range(0, faces.size(), 3):
+		var triangle := PackedInt32Array()
+		for offset: int in 3:
+			var point := faces[start + offset]
+			if not indices.has(point):
+				indices[point] = vertices.size()
+				vertices.append(point)
+			triangle.append(indices[point])
+		for offset: int in 3:
+			var a := triangle[offset]
+			var b := triangle[(offset + 1) % 3]
+			var key := Vector2i(mini(a, b), maxi(a, b))
+			boundary[key] = int(boundary.get(key, 0)) + 1
+	var result := PackedVector3Array()
+	var distance := INF
+	for key: Vector2i in boundary:
+		if boundary[key] != 1: continue
+		var a := rim.global_transform * vertices[key.x]
+		var b := rim.global_transform * vertices[key.y]
+		var candidate := ((a+b)*0.5).distance_to(joint)
+		if candidate < distance:
+			distance = candidate
+			result = PackedVector3Array([a, b])
+	assert(result.size() == 2 and distance < 0.01, "Fountain inlet requires its real terminal boundary edge")
+	return result
 
 
 func _spillway_wall_top(wall: MeshInstance3D, x: float, z: float) -> float:
@@ -493,7 +516,19 @@ func _waterfall_visible_from(camera: Camera3D) -> bool:
 	for plane: Plane in camera.get_frustum():
 		var nearest := Vector3(_waterfall_bounds.position.x if plane.normal.x >= 0 else _waterfall_bounds.end.x, _waterfall_bounds.position.y if plane.normal.y >= 0 else _waterfall_bounds.end.y, _waterfall_bounds.position.z if plane.normal.z >= 0 else _waterfall_bounds.end.z)
 		if plane.distance_to(nearest) > 0: return false
-	return true
+	# Frustum overlap alone does not make a waterfall visible through a wall.
+	# Sample the actual curtain, not its enlarged culling bounds, so exposed
+	# water can keep running even when the separate fountain is occluded.
+	var surface := _waterfall_bounds.grow(-0.6)
+	var center := surface.get_center()
+	var samples := PackedVector3Array([center])
+	for corner: int in 8: samples.append(center.lerp(surface.get_endpoint(corner), 0.8))
+	var space := get_world_3d().direct_space_state
+	for point: Vector3 in samples:
+		var query := PhysicsRayQueryParameters3D.create(camera.global_position, point, 1)
+		var hit := space.intersect_ray(query)
+		if hit.is_empty() or (hit.position as Vector3).distance_to(point) < 0.05: return true
+	return false
 
 
 func _process(_delta: float) -> void:

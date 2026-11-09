@@ -71,18 +71,40 @@ static func _add_terminal_posts(estate: Node3D) -> void:
 		var radius := 3.18 if side==0 else 4.65
 		var post := MeshInstance3D.new()
 		post.name=node_name
-		var cylinder := CylinderMesh.new()
-		cylinder.top_radius=0.026
-		cylinder.bottom_radius=cylinder.top_radius
-		cylinder.height=5.2-4.299
-		cylinder.radial_segments=12
-		cylinder.material=template.mesh.surface_get_material(0)
-		post.mesh=cylinder
+		post.mesh=template.mesh
+		post.material_override=template.material_override
+		for surface: int in template.mesh.get_surface_count():
+			post.set_surface_override_material(surface,template.get_surface_override_material(surface))
 		post.layers=template.layers
 		# Presentation joinery only: the approved original collision remains
 		# owned by the imported stair/wall bodies, not by these two supports.
 		estate.add_child(post)
-		post.position=Vector3(radius*cos(deg_to_rad(-153.0)),(5.2+4.299)*0.5,radius*sin(deg_to_rad(-153.0)))
+		var bounds := template.mesh.get_aabb()
+		var base := Vector3(bounds.get_center().x,bounds.position.y,bounds.get_center().z)
+		var landing := Vector3(radius*cos(deg_to_rad(-153.0)),LANDING_END_Y,radius*sin(deg_to_rad(-153.0)))
+		post.position=landing-base
+		var rail: MeshInstance3D
+		for candidate: MeshInstance3D in estate.find_children("Public stair L1 handrail*","MeshInstance3D",true,false):
+			if ("3_18" in str(candidate.name))==(side==0): rail=candidate
+		assert(rail!=null,"The landing post lost its authored handrail")
+		var faces := rail.mesh.get_faces()
+		var top := -INF
+		for surface: int in template.mesh.get_surface_count():
+			for point: Vector3 in template.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]:
+				var origin := rail.to_local(post.to_global(Vector3(point.x,bounds.position.y,point.z)))
+				var direction := rail.global_basis.inverse()*estate.global_basis*Vector3.UP
+				var contact := INF
+				for face: int in range(0,faces.size(),3):
+					var hit = Geometry3D.ray_intersects_triangle(origin,direction,faces[face],faces[face+1],faces[face+2])
+					if hit!=null: contact=minf(contact,estate.to_local(rail.to_global(hit)).y)
+				if is_finite(contact): top=maxf(top,contact)
+		assert(is_finite(top),"The landing post must meet the authored handrail")
+		# Fit placement height while sharing every vertex, normal, UV and material
+		# with the existing post; do not generate another cylinder or trim its mesh.
+		var scale_y := (top+0.001-LANDING_END_Y)/bounds.size.y
+		post.basis=Basis.from_scale(Vector3(1,scale_y,1))
+		post.position=landing-post.basis*base
+		post.set_meta("estate_post_fitted",true)
 
 static func _seat_post(source: Mesh, base_y: float) -> ArrayMesh:
 	var result := ArrayMesh.new()

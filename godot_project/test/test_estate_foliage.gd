@@ -3,7 +3,7 @@ const DAYLIGHT := preload("res://nest/estate/estate_daylight.gd")
 const OPTICS := preload("res://nest/estate/estate_lighting_sample.gd")
 func _initialize() -> void: call_deferred("run")
 func run() -> void:
-	var source: Node3D=load("res://nest/estate/ElfieNest-complete-final.glb").instantiate()
+	var source: Node3D=load("res://nest/assembly/estate.tscn").instantiate()
 	root.add_child(source)
 	var estate := Node3D.new()
 	root.add_child(estate)

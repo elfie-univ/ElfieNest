@@ -13,7 +13,7 @@ func require(ok: bool, message: String) -> bool:
 func run() -> void:
 	var fixture := Node3D.new()
 	root.add_child(fixture)
-	var source: Node3D = load("res://nest/estate/ElfieNest-complete-final.glb").instantiate()
+	var source: Node3D = load("res://nest/assembly/estate.tscn").instantiate()
 	root.add_child(source)
 	var originals: Dictionary = {}
 	for mesh: MeshInstance3D in source.find_children("*", "MeshInstance3D", true, false):
@@ -48,7 +48,9 @@ func run() -> void:
 	if not require(glass_count==6,"Missing final glass panel pair on a landing"): return
 	var posts := fixture.find_children("LandingTerminalPost*","MeshInstance3D",true,false)
 	if not require(posts.size()==2,"Second-floor terminal posts are missing"): return
+	var post_prototype := fixture.find_child("Public stair rail post", true, false) as MeshInstance3D
 	for post: MeshInstance3D in posts:
+		if not require(post.mesh == post_prototype.mesh, "Landing posts must instance the original rail-post mesh instead of a new cylinder"): return
 		var bounds := post.transform*post.get_aabb()
 		if not require(bounds.position.y<=4.3 and bounds.end.y>=5.10 and bounds.end.y<=5.18,"Terminal post does not connect floor to rail"): return
 	var joins: Array[MeshInstance3D]=[]

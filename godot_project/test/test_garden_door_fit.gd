@@ -4,7 +4,7 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	var estate := (load("res://nest/estate/ElfieNest-complete-final.glb") as PackedScene).instantiate() as Node3D
+	var estate := (load("res://nest/assembly/estate.tscn") as PackedScene).instantiate() as Node3D
 	root.add_child(estate)
 	var frame := estate.find_child("Central L1 rounded garden entrance", true, false) as MeshInstance3D
 	var glass := estate.find_child("Central L1 curved front glass", true, false) as MeshInstance3D

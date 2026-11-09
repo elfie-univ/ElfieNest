@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bbhv1l6ikbdkx"
-path="res://.godot/imported/waterfall.glb-4aefb1c797a159939dd6a2ad8b2529e6.scn"
+uid="uid://6n25k2aqmt4m"
+path="res://.godot/imported/forest-foliage.glb-cfa5787acaf1103090822df1ad6f3a8e.scn"
 
 [deps]
 
-source_file="res://nest/courtyard/parts/waterside/waterfall.glb"
-dest_files=["res://.godot/imported/waterfall.glb-4aefb1c797a159939dd6a2ad8b2529e6.scn"]
+source_file="res://nest/courtyard/parts/forest/forest-foliage.glb"
+dest_files=["res://.godot/imported/forest-foliage.glb-cfa5787acaf1103090822df1ad6f3a8e.scn"]
 
 [params]
 

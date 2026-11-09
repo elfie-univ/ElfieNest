@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cdm7mb13no55k"
-path="res://.godot/imported/waterside-path.glb-8d042473ecec2d32ee7bce67360225d3.scn"
+uid="uid://c7dtuycx0kksb"
+path="res://.godot/imported/forest-wood.glb-1f45e7c3cebafb52ec49c666cfd7ddfa.scn"
 
 [deps]
 
-source_file="res://nest/courtyard/areas/waterside/waterside-layout/waterside-path.glb"
-dest_files=["res://.godot/imported/waterside-path.glb-8d042473ecec2d32ee7bce67360225d3.scn"]
+source_file="res://nest/courtyard/parts/forest/forest-wood.glb"
+dest_files=["res://.godot/imported/forest-wood.glb-1f45e7c3cebafb52ec49c666cfd7ddfa.scn"]
 
 [params]
 

@@ -29,19 +29,21 @@ var _complete_estate := false
 func build(estate: Node3D, authoring: bool = false) -> void:
 	_source_estate=estate
 	_authoring=authoring
-	_complete_estate=estate.find_child("COMPLETE Building garden island",true,false)!=null
+	_complete_estate=estate.has_meta("activity_regions")
 	if not authoring and _complete_estate:
 		if ResourceLoader.exists(SPATIAL.PATH):_spatial_data=load(SPATIAL.PATH)
 		if _spatial_data==null or not _spatial_data.matches_inputs(SPATIAL.current_inputs()):
 			push_error("Estate spatial resources are missing or stale. Run tools/bake_estate_spatial.gd before starting the world.")
 			return
 		loaded_precompiled=true
+	if _complete_estate:
+		preload("res://nest/assembly/physical_sources.gd").build(estate, _spatial_data, self)
 	_rebuild_garden_hardscape(estate)
 	_static = Node3D.new()
 	_static.name = "StaticGeometry"
 	add_child(_static)
 	_static.add_to_group(SOURCE_GROUP)
-	if estate.find_child("COMPLETE Building garden island", true, false) != null:
+	if _complete_estate:
 		outdoor_access = OUTDOOR_ACCESS.new()
 		outdoor_access.name = "OutdoorAccess"
 		add_child(outdoor_access)
@@ -58,7 +60,7 @@ func build(estate: Node3D, authoring: bool = false) -> void:
 	var garden_frame: MeshInstance3D
 	var garden_glass: MeshInstance3D
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
-		if mesh.mesh == null or is_instancing_template(mesh):
+		if mesh.mesh == null or mesh.has_meta("source_geometry_path") or is_instancing_template(mesh):
 			continue
 		var e := mesh.get_meta("extras", {}) as Dictionary
 		var module := str(e.get("module", ""))
@@ -115,11 +117,29 @@ func _retain_accessible_obstacle(source: StaticBody3D) -> void:
 			var collision := CollisionShape3D.new();collision.shape=cached;body.add_child(collision)
 		return
 	var retained := PackedVector3Array()
+	var prototype_faces := {}
+	var height_orders := {}
 	for collision: CollisionShape3D in source.find_children("*", "CollisionShape3D", true, false):
 		var shape := collision.shape as ConcavePolygonShape3D
 		if shape == null: continue
-		var faces := shape.get_faces()
-		for i in range(0,faces.size(),3):
+		var frame := collision.global_transform
+		if collision.has_meta("source_bounds"):
+			var bounds: AABB = frame * collision.get_meta("source_bounds")
+			if bounds.position.y > OUTDOOR_ACCESS.TOP or bounds.end.y < OUTDOOR_ACCESS.BOTTOM: continue
+		var identity := shape.get_instance_id()
+		if not prototype_faces.has(identity):
+			var prototype := shape.get_faces()
+			var order: Array[Vector2] = []
+			for i: int in range(0, prototype.size(), 3): order.append(Vector2(minf(prototype[i].y, minf(prototype[i+1].y, prototype[i+2].y)), i))
+			order.sort()
+			prototype_faces[identity] = prototype
+			height_orders[identity] = order
+		var faces: PackedVector3Array = prototype_faces[identity]
+		var upright := absf(frame.basis.x.y) + absf(frame.basis.z.y) < 0.000001 and frame.basis.y.y > 0.0
+		var local_top := (OUTDOOR_ACCESS.TOP - frame.origin.y) / frame.basis.y.y if upright else INF
+		for candidate: Vector2 in height_orders[identity]:
+			if upright and candidate.x > local_top: break
+			var i := int(candidate.y)
 			var triangle := PackedVector3Array()
 			for j in range(3):
 				var point := collision.global_transform*faces[i+j]
@@ -150,6 +170,7 @@ func _retain_accessible_obstacle(source: StaticBody3D) -> void:
 
 
 func _rebuild_garden_hardscape(estate: Node3D) -> void:
+	if estate.has_meta("activity_regions"): return
 	# The merged authored proxy contains triangles spanning unrelated
 	# paving and lake-bank pieces. Rebuild this one proxy from intact source meshes;
 	# retain the real coping/rail geometry rather than treating it as walkable land.

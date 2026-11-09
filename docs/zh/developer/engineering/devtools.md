@@ -21,6 +21,26 @@
 `godot_project/` 中现有的正式 GLB 资源、sidecar 元数据、场景和脚本；
 通过 Nest Lab 预览这些正式资源的变化。
 
+「地形与铺装」源文件保存连续地形和铺装；「石头共享库」保存景观石与岸石原型。
+石头的位置由总装恢复，因此单独查看地形源文件时不再显示散落石头。
+
+「庭院 → 功能区」直接打开地面与设施、建筑区绿化、水榭和草原总装；森林保留分组，
+内含森林区总装与标志大树。中央绿化原位引用共享花草库。水榭总装保存喷泉实例、
+粒子、计时器和动态材质，引用唯一的喷泉 GLB。
+
+单件资产预览中，按住鼠标左键拖动旋转，按住右键拖动平移，滚轮缩放。
+「复位」会恢复资产中心和初始视角。
+
+整体场景的机位与复位在渲染器发布视角目录后即可使用；人物动作仍要求 Runtime 配置就绪。
+
+正式运行、整体预览和导出统一读取 `nest/assembly/estate.tscn`。
+`activity_regions.tres` 保存活动权限，`runtime-bindings.json` 保存逐摆位语义与灯光控制。
+通过受控 Godot 主机入口运行 `tools/bake_estate_spatial.gd`，完整碰撞、导航、活动掩码、
+交互和门控快照会输出到 `build/estate_spatial/`。验证后同步其中的 `estate_spatial.res`
+与 `runtime-inputs.json` 到正式资源路径。Web 与 Linux Dedicated 导出都核对同一份输入哈希，
+拒绝使用陈旧空间数据；authority 包从同一导出中移除显示资源。
+`tools/export_split_activity.gd` 仅单独导出活动输入，不替代完整烘焙。
+
 它们可以复用底层库和同一份 Godot Web Runtime，但不能依赖普通用户鉴权、
 `ElfieNestEngine` 或生产数据才能启动。启动实验页面时会自动检查该
 Runtime；只有缺失或 Godot 源码发生变化时才重新导出。

@@ -84,7 +84,7 @@ func run() -> void:
 func _test_original_tv() -> bool:
 	var world := Node3D.new()
 	root.add_child(world)
-	var source := (load("res://nest/estate/ElfieNest-complete-final.glb") as PackedScene).instantiate() as Node3D
+	var source := (load("res://nest/assembly/estate.tscn") as PackedScene).instantiate() as Node3D
 	world.add_child(source)
 	var geometry := Node3D.new()
 	world.add_child(geometry)

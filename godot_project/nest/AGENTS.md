@@ -11,14 +11,18 @@
 
 ## 当前正式入口
 
-- `res://nest/nest.tscn` 是唯一 Nest 入口。`nest.gd` 加载 `estate/estate.tscn`，其运行输入包括
-  `estate/ElfieNest-complete-final.glb`、同名 `.instances.bin`、灯光场景、空间烘焙资源、脚本和 shader。
-  当前修改正式场景时，沿这条引用链定位现役资源。
+- `res://nest/nest.tscn` 是唯一 Nest 入口，`nest.gd` 只加载 `assembly/estate.tscn`。
+  正式运行、Nest Lab 整体场景与发行导出使用同一份拆分总装。
+  `estate/` 保留物理、导航、交互、灯光、水景脚本、shader 与 `estate_spatial.res`，
+  不是第二套模型来源。
 - `furniture/bedroom/` 和 `layouts/bedroom/bedroom.tscn` 是卧室组件试点，编辑规则见
-  [卧室家具 AGENTS.md](furniture/bedroom/AGENTS.md)。整园入口当前仍加载完整园区。
+  [卧室家具 AGENTS.md](furniture/bedroom/AGENTS.md)。整园入口引用正式拆分总装。
 - Nest Lab 的「单件资产」从 `res://nest/` 加载拆分资源。
   [asset-index.json](assembly/asset-index.json) 登记每个资产的菜单路径、文件和引用关系。
   模型、贴图、场景及渲染资源都在本目录。改文件路径或增减引用时同步更新索引。
+- 拆分总装通过 `assembly/activity_regions.tres` 持有活动权限，活动面绑定当前 GLB 摆位；
+  室外允许/禁止区域不是渲染几何的副本。`tools/export_split_activity.gd` 仅将导航输入和
+  活动掩码导出到 `build/`，仅用于单独检查活动输入；正式运行使用 `tools/bake_estate_spatial.gd` 生成的完整空间快照。
 - `asset_catalog.json` 保存 V044 原始提取绑定和指纹。旧拆分候选是迁入记录。
   浏览器预览从正式文件重新打包，`build/` 存放生成的网页包、对照快照和校验记录。
 
@@ -34,10 +38,10 @@ nest/
 ├── nest.tscn                     唯一 Nest 入口
 ├── nest.gd                       加载所选整园并绑定 Nest 行为
 ├── asset_catalog.json            V044 提取绑定
-├── estate/                       过渡期保留的合并版及其配套资源
+├── estate/                       共享运行脚本、shader 和空间快照
 ├── furniture/                    家具、套装及室内和露台摆位
 ├── buildings/                    建筑原型和建筑总装
-├── courtyard/                    庭院总装、四个功能区及其部件
+├── courtyard/                    庭院总装、区域装配及其部件
 ├── assembly/
 │   ├── estate.tscn               拆分版整园总装
 │   ├── asset-index.json          Nest Lab 的菜单、文件及引用索引
@@ -53,13 +57,16 @@ nest/
 
 Nest Lab 的「总组装 → 全场景总组合」读取 `assembly/estate.tscn`。
 页面只保留「整体场景」和「单件资产」，不再提供回拼对照和机位像素比较。
-V044 与回拼的比较使用下面的完整网格导出与比较命令；V044 从保留的 `estate/estate.tscn` 评估。
-并行验收期间，`nest.tscn` 的交互运行和发行导出使用合并版及其配套空间数据。
+整园的交互与导出均使用这份总装，不保留第二个合并版入口。
+`runtime-bindings.json` 按完整摆位路径保存语义与灯光控制；
+`runtime-inputs.json` 记录空间快照对应的正式输入哈希。改动正式资源后先重新烘焙到根 `build/`，
+检查并同步 `estate_spatial.res` 与输入回执，再执行正式 Web 或 Linux Dedicated 导出。
+导出器拒绝陈旧输入，物理 authority 包保留同一份快照与回执，剔除显示资源。
 
 ## 回拼保真与比较
 
 - 拆分 GLB 的导入设置使用 `meshes/force_disable_compression=true`，避免把已从 V044
-  提取的坐标再次有损压缩。不要修改保留的合并版输入来消除对照差异。
+  提取的坐标再次有损压缩。不要通过再次压缩共享几何消除比较差异。
 - GLB 的 `emissiveFactor` 保存线性颜色；导入后的发光颜色与 V044 的实际材质核对。
   SCN 中持有的材质变体也要核对，不能只检查 GLB 的默认材质。
 - glTF 无法表达的原生材质差值保存在所属 GLB 节点的 `extras.nest_materials`，由
@@ -72,14 +79,9 @@ V044 与回拼的比较使用下面的完整网格导出与比较命令；V044 �
   `review_visible=false` 防止单件预览重复显示；仍只保留一份卧室布局与一份床品 GLB。
 - 共用卧室布局的房间光照层由 `assembly/glb_placement.gd` 按所在 `estate_module`
   绑定，不能把 M01 的光照层直接复制到其余七间卧室。
-- 使用 `tools/export_nest_comparison.gd` 导出两版实际评估后的静态世界，再用
-  `tools/compare_nest_snapshots.py` 核对。命令、范围和结果见[迁入计划](ASSET_MIGRATION_PLAN.md)。
-  核对每次摆位、实例数量、有向三角面及顶点属性、有效材质、灯光和环境。
-  保留重复面的次数，不能用集合去重掩盖多余副本。
-- 候选匹配距离只用于寻找对应关系，不能当作通过容差。几何误差报告为完整表面的上界；
-  非零误差、未匹配表面、源文件已变化或材质差异都不能声明严格一致。
-  静态基面与渲染定义的比较不替代动态水景、粒子、LOD、碰撞、导航和交互验收。
-- 比较导出首先核对冻结 V044 GLB 与实例 BIN 的固定 SHA-256；原输入变化时直接停止。
+- `tools/export_nest_comparison.gd` 只导出当前拆分版的评估快照至 `build/nest-comparison/`；
+  `tools/compare_nest_snapshots.py` 可比较已保存的快照。历史 V044 比较不是运行入口。
+- 静态画面不能替代动态水景、粒子、碰撞、导航、门和交互验收。
 
 ### 家具
 
@@ -140,6 +142,7 @@ courtyard/
 ├── overview/courtyard-all/       不带罩与带罩的两个庭院总装 SCN
 ├── areas/
 │   ├── ground/
+│   ├── building/               中央建筑区绿化装配
 │   ├── forest/
 │   ├── waterside/
 │   └── meadow/
@@ -148,43 +151,82 @@ courtyard/
 │   ├── forest/
 │   ├── waterside/
 │   ├── meadow/
-│   └── shared/                  跨功能区复用的唯一原型
+│   └── shared/                  花草与石头原型
 └── textures/                     庭院引用的外置贴图
 ```
 
 「庭院」是外层分类。右侧第一级固定为总览、功能区、详细部件。
 总览直接列出「庭院总装（不带罩）」和「庭院总装（带罩）」，分别对应
 `courtyard/overview/courtyard-all/courtyard-layout.scn` 与 `courtyard-covered.scn`。
-功能区和详细部件继续使用三级菜单：第二级为区域，第三级为文件。
-功能区使用地面、森林、水榭、草原四个分区；详细部件另加「共享」，避免跨区资源重复归档。
+功能区直接列出地面与设施、建筑区绿化、水榭和草原总装；森林保留分组，内含森林区总装与标志大树。
+详细部件继续使用三级菜单：第二级为区域，第三级为文件，另加「共享」，只存放花草和石头原型。
+树干、树枝、树叶与树冠由森林持有，其他区域引用同一份森林原型，不复制几何。
 下表路径相对于 `courtyard/`。
 
 | 分区 | 功能区总装 | 详细部件 |
 | --- | --- | --- |
-| 地面 `ground` | `areas/ground/courtyard-ground.scn` | `parts/ground/` 下的 `shared-ground.glb`（地形、草坪、贴地道路及广场铺装）、`outdoor-lights.glb`（路灯原型）和 `courtyard-cover.glb`（庭院罩） |
-| 森林 `forest` | `areas/forest/forest-layout.scn` | `parts/forest/tree-one.glb`（标志大树独有木结构） |
-| 水榭 `waterside` | `areas/waterside/waterside-layout.scn` | `parts/waterside/` 下的 `lake.glb`、`fountain.glb`、`waterfall.glb` 和 `bench.glb` |
+| 地面 `ground` | `areas/ground/courtyard-ground.scn` | `parts/ground/` 下的 `shared-ground.glb`（地形、草坪、道路、广场铺装、湖畔平台及湖岸外圈）、`outdoor-lights.glb`（路灯原型）和 `courtyard-cover.glb`（庭院罩） |
+| 建筑区绿化 `building` | `areas/building/building-greenery.scn` | 原位引用共享花草库，不复制原型或公共地形 |
+| 森林 `forest` | `areas/forest/forest-layout.scn` | `parts/forest/` 下的 `tree-one.glb`（标志大树独有木结构）、`forest-wood.glb`（树干与树枝）和 `forest-foliage.glb`（树叶与树冠） |
+| 水榭 `waterside` | `areas/waterside/waterside-layout.scn` | `parts/waterside/` 下的 `lake.glb`（湖面与睡莲）、`fountain.glb`（喷泉、水道与瀑布）和 `bench.glb` |
 | 草原 `meadow` | `areas/meadow/meadow-layout.scn` | `parts/meadow/` 下的 `picnic.glb` 和 `swing.glb` |
-| 共享 `shared` | 无独立功能区 | `parts/shared/` 下的 `plant-library.glb`、`forest-wood.glb`、`forest-foliage.glb` 和 `shore-stones.glb` |
+| 共享 `shared` | 无独立功能区 | `parts/shared/` 下的 `plant-library.glb`（花草）和 `shore-stones.glb`（石头） |
 
 对象子装配及专用依赖放在所属主场景的同名子目录，在对应分区的菜单中也有独立入口。
 子装配归「功能区」，专用及共享 GLB 归「详细部件」。
 
-- 不带罩总装持有四个功能区及其灯光环境；带罩总装引用它和 `parts/ground/courtyard-cover.glb`。
+- 不带罩总装持有地面与设施、建筑区绿化、森林、水榭和草原装配及其灯光环境；带罩总装引用它和 `parts/ground/courtyard-cover.glb`。
   整园回拼引用带罩总装，两种庭院总装的地面、植物、设施和灯光保持相同。
+- 森林、水榭、草原总装按地理范围引用 `shared-ground.glb` 内各自的地表片段及所属铺装、
+  花草、石头与路灯摆位。中央范围、共用环路、外圈、连续土体的外壳和底面留在地面总装；
+  这些片段合回一个连续土体，不增加分区内隔墙。功能区总装入口的 `focus` 保持为空，
+  避免把完整总装误限制为某次新增的局部组件。
+- 中央花草由建筑区绿化总装持有，公共地形与铺装仍归地面总装。低矮灌木按根部位置归区，
+  同株茎叶一起迁移；复用相同原型的高处树冠组件保留在所属树木中。
 - 森林总装引用 `areas/forest/forest-layout/landmark-tree.scn`。打开后可分别查看标志大树木结构、
-  树干与树枝、树叶与树冠三个 GLB 的引用。林间护栏端柱随森林总装，保存在同目录的
-  `forest-trail-fixtures.glb`。
-- 水榭总装拥有 `areas/waterside/waterside-layout/` 下的 `waterside-path.glb` 和 `water-lilies.glb`，
-  岸石引用 `parts/shared/shore-stones.glb`。
-  同目录内的 `fountain.scn` 和 `waterfall.scn` 各自引用对应的详细部件 GLB。
+  树干与树枝、树叶与树冠三个 GLB 的引用。主楼楼梯平台的两根扶手端柱归
+  `buildings/main/central-building.glb`，复用原有栏杆立柱网格与材质；不设独立资产或森林菜单项。
+- 水榭总装的湖水与睡莲引用同一份 `parts/waterside/lake.glb`，岸石引用
+  `parts/shared/shore-stones.glb`。湖畔平台的基础和装饰铺面原型保留在地面 GLB，
+  由水榭总装引用和摆位，不另设平台文件或菜单项。
+  水榭总装直接保存喷泉、水道、瀑布的实例、粒子、计时器和动态材质，形状引用唯一的
+  `parts/waterside/fountain.glb`；不再保留独立喷泉 SCN、睡莲 GLB、瀑布 GLB 或瀑布装配文件。
+
+湖面 GLB 保存主湖水与两种睡莲原型，睡莲摆位仍由水榭装配持有。湖岸外圈及其下方的实体岸土归地面；
+喷泉凸起的池沿及垫层、水道内的水、跌水与承接水面统一归喷泉 GLB，内部保留独立节点、材质和复用；
+普通连接道路仍归地面，各组件按真实边界相接。
+
+`shared-ground.glb` 内的地基、地表、草坪、缓坡和湖盆合为连续实体。
+`COMPLETE Building garden island` 保存土石表面，`WholeLakeRibbon` 保存这个实体的岸灯外表面；
+两者沿同一组边相接，共同构成一个封闭外壳。灯带表面不能再叠在一份同形岸体上，
+也不恢复旧岸坡、草坪裙边、`GROUNDED soil contact collar` 或地下支撑板。
+喷泉放在地面上，不在地面下另挖支撑坑。地下保留实体地基和湖盆必要的侧壁、底面。
+石块必须封口；道路略高于实际地形，不能让草面穿入路面。修型后检查边的两侧方向、
+连通性、重复面、道路净距、岸边和水道接触，再检查单件及装配效果。
 
 连续贴地道路、喷泉旁的连接石板和收边统一归地面铺装，路灯摆位归地面总装。
+散落景观石与岸石的原型统一归 `parts/shared/shore-stones.glb`；景观石的位置、旋转、
+材质变体由地面总装持有。地形与铺装 GLB 不再包含散落石头，石头只在引用它们的总装中出现。
 花草库按原型展示。同株的茎、叶、花瓣和花心从同一 GLB 成组预览，摆位与材质变体归使用方。
 树干和树叶库各按类型展示一个代表，林区装配可引用库内对应的剪枝和树冠变体。
 同一几何旋转后复用时，把旋转和颜色变体留在装配的摆位和材质数据里。
 
 ## 唯一拥有者与修改入口
+
+- **正式形状与渲染分块分开。** 地面的有效形状只存于所属 GLB，不能同时保存完整源网格和
+  `GroundPatch_*` 派生副本。`shared-ground.glb` 拥有地形、草坪、道路、铺装、完整平台和湖岸外圈。
+  已验收的地形修正、材质、法线和 UV 合回各自唯一来源；收口修正直接编辑该来源，不叠加覆盖副本。
+- 需要分块的源节点通过 `extras.nest_render_partition` 声明格子尺寸和各表面的受光层。
+  `assembly/glb_placement.gd` 根据三角面中心的 X/Z 位置生成 `RenderChunks`，保留原有三角面
+  和原生顶点属性，不创建贴地覆盖平面。源网格改变时重建，源 GLB 重新导入后由加载或预览打包
+  重新生成。分块节点没有场景 owner，不保存进 SCN，也不增加正式资产或菜单项。
+- 单件 GLB 预览显示唯一形状源；装配中只绘制生成分块，源实例的渲染层为 0，生成节点记录其
+  `source_geometry_path` 以支持文件引用和高亮。分块不是光源，不放进灯光控制层。
+  原型实例批次、床品法线变体和喷泉动画模板分别保留各自必要数据，不能按隐藏状态一概删除。
+  被替代的旧湖岸灯带已移除；休眠喷射模板不参与静态单件预览，真实喷嘴和灯片保留。
+- 实例批次在上传前按变换格式、颜色和自定义参数开关核对数据步长与数量，保留原始实例缓冲。
+  Compatibility 渲染会降低颜色和自定义参数的存储精度，不能用 GPU 读回值的逐字节一致性
+  判断源数据是否完整，也不能因此中断后续组件绑定。
 
 - 详细部件只登记共享原型、可独立摆放或编辑的对象，以及需要单独验收的重要部件。
   单次使用的碎件留在所属组件。单 GLB 能完整表达对象时直接引用 GLB。

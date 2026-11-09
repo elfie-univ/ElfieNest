@@ -6,11 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from test.godot.asset_geometry import read_glb, resource_bytes
+from test.godot.asset_geometry import resource_bytes
+from test.godot.formal_asset_geometry import read_glb
 
 ROOT = Path(__file__).resolve().parents[3]
 SOURCES = [
-    "godot_project/nest/estate/ElfieNest-complete-final.glb",
+    "godot_project/nest/furniture/sets/main-floor-2/central-games-central-local.glb",
 ]
 
 

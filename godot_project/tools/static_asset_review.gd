@@ -200,7 +200,7 @@ func inspect_parts(paths: Array, solo: bool) -> int:
 	var geometry := current.find_children("*", "GeometryInstance3D", true, false)
 	var matched := {}
 	for mesh: GeometryInstance3D in geometry:
-		if selected.has(mesh) or wanted.has(mesh.get_meta("v044_path", "")):
+		if selected.has(mesh) or wanted.has(mesh.get_meta("v044_path", "")) or wanted.has(mesh.get_meta("source_geometry_path", "")):
 			if mesh.is_visible_in_tree() and mesh.layers != 0:
 				if mesh is MeshInstance3D and mesh.mesh == null: continue
 				if mesh is MultiMeshInstance3D and mesh.multimesh == null: continue
@@ -275,7 +275,7 @@ func visible_geometry() -> int:
 	var count := 0
 	for item: GeometryInstance3D in current.find_children("*", "GeometryInstance3D", true, false):
 		if not item.is_visible_in_tree(): continue
-		if not active_focus.is_empty() and item.layers == 0: continue
+		if item.layers == 0: continue
 		if item is MeshInstance3D and item.mesh == null: continue
 		if item is MultiMeshInstance3D and item.multimesh == null: continue
 		count += 1
@@ -290,7 +290,7 @@ func reset() -> void:
 	var bounds := AABB()
 	for item: GeometryInstance3D in current.find_children("*", "GeometryInstance3D", true, false):
 		if not item.is_visible_in_tree(): continue
-		if not active_focus.is_empty() and item.layers == 0: continue
+		if item.layers == 0: continue
 		if item is MeshInstance3D and item.mesh == null: continue
 		var box := item.get_aabb()
 		if item is MeshInstance3D and item.mesh is ArrayMesh and item.mesh.custom_aabb.has_volume():
@@ -319,13 +319,23 @@ func set_camera(focus: Vector3, position: Vector3, fov: float) -> void:
 	update_camera()
 
 func update_camera() -> void:
+	# Match depth precision to the orbit scale, from a small prop to the whole garden.
+	camera.near = clampf(distance * 0.01, 0.005, 10.0)
+	camera.far = maxf(distance * 4.0, 10.0)
 	camera.position = target + Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * distance
 	camera.look_at(target, Vector3.UP)
 	camera.make_current()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if auditing or current == null: return
-	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+		var viewport_height := maxf(get_viewport().get_visible_rect().size.y, 1.0)
+		var pan_scale := 2.0 * distance * tan(deg_to_rad(camera.fov * 0.5)) / viewport_height
+		var basis := camera.global_transform.basis
+		target += (-basis.x * event.relative.x + basis.y * event.relative.y) * pan_scale
+		update_camera()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
 		yaw -= event.relative.x * 0.006
 		pitch = clampf(pitch + event.relative.y * 0.006, -1.4, 1.4)
 		update_camera()

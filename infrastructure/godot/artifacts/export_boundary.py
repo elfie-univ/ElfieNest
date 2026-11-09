@@ -10,14 +10,11 @@ GODOT_EXPORT_EXCLUDED_PATHS: Final[Tuple[str, ...]] = (
     "characters/tools/*",
     "characters/tovren/source/*",
     "characters/saevi/source/*",
-    # The split estate is consumed by Nest Lab during parallel verification.
-    "nest/assembly/*",
-    "nest/buildings/*",
-    "nest/courtyard/*",
-    "nest/furniture/layouts/*",
-    "nest/furniture/sets/*",
-    "nest/furniture/shared/*",
-    "nest/furniture/textures/*",
+    # Split assemblies are runtime inputs; the retired merged entry is excluded.
+    "nest/estate/ElfieNest-complete-final*",
+    "nest/estate/estate.tscn",
+    "nest/estate/estate_complete_final.gd",
+    "nest/estate/estate_outdoor_lighting.scn",
 )
 
 GODOT_EXPORT_EXCLUDE_FILTER: Final[str] = ",".join(GODOT_EXPORT_EXCLUDED_PATHS)

@@ -12,7 +12,7 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	var geometry := load("res://nest/estate/ElfieNest-complete-final.glb").instantiate() as Node3D
+	var geometry := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(geometry)
 	DAYLIGHT.apply(geometry)
 	var roof_meshes: Array[MeshInstance3D] = []

@@ -1,7 +1,7 @@
 extends SceneTree
 ## Exercise production motion for eight authored entries and two garden leaves.
 
-const ESTATE := preload("res://nest/estate/estate.tscn")
+const ESTATE := preload("res://nest/assembly/estate.tscn")
 const PHYSICS := preload("res://nest/estate/estate_physics.gd")
 const TOVREN := preload("res://characters/tovren/tovren.tscn")
 

@@ -5,8 +5,8 @@ const PROJECT_READINESS := preload("res://test/project_readiness.gd")
 const REQUIRED_RESOURCES := [
 	"res://main.tscn",
 	"res://nest/nest.tscn",
-	"res://nest/estate/estate.tscn",
-	"res://nest/estate/estate_complete_final.gd",
+	"res://nest/assembly/estate.tscn",
+	"res://nest/assembly/estate_runtime.gd",
 	"res://nest/ui/observation_hud.tscn",
 	"res://characters/tovren/tovren.tscn",
 	"res://characters/saevi/saevi.tscn",

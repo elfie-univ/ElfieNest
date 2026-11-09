@@ -14,7 +14,7 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	var estate := nest.get_node("Generated/CompleteEstate")
-	if not String(estate.get("restore_error")).is_empty():
+	if not bool(estate.get_meta("split_runtime_ready", false)):
 		push_error("Complete estate restoration failed")
 		quit(1)
 		return

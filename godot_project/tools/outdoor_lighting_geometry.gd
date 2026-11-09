@@ -3,45 +3,13 @@ extends RefCounted
 
 static func partition(source: MeshInstance3D, parent: Node3D, cell_size: float = 8.0) -> Array[String]:
 	var names: Array[String] = []
-	for surface in range(source.mesh.get_surface_count()):
-		var arrays := source.mesh.surface_get_arrays(surface)
-		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
-		var cells: Dictionary = {}
-		var count := vertices.size() if indices.is_empty() else indices.size()
-		for i in range(0, count, 3):
-			var triangle := PackedInt32Array()
-			var center := Vector3.ZERO
-			for j in range(3):
-				var index := i+j if indices.is_empty() else indices[i+j]
-				triangle.append(index)
-				center += source.global_transform * vertices[index] / 3.0
-			var cell := Vector2i(floori(center.x/cell_size), floori(center.z/cell_size))
-			if not cells.has(cell): cells[cell] = PackedInt32Array()
-			var bucket: PackedInt32Array = cells[cell]
-			bucket.append_array(triangle)
-			cells[cell] = bucket
-		for cell: Vector2i in cells:
-			var selected := PackedInt32Array()
-			var mapping: Dictionary = {}
-			var remapped := PackedInt32Array()
-			for old: int in cells[cell]:
-				if not mapping.has(old):
-					mapping[old] = selected.size()
-					selected.append(old)
-				remapped.append(mapping[old])
-			var mesh := _packed_subset(source.mesh, surface, selected, remapped, vertices)
-			mesh.surface_set_material(0, source.get_active_material(surface))
-			var node := MeshInstance3D.new()
-			node.name = "GroundPatch_%d" % parent.get_child_count()
-			node.mesh = mesh
-			node.set_meta("extras", {"lighting_ground_patch": true})
-			node.set_meta("source_ground", str(source.name))
-			node.set_meta("source_surface", surface)
-			node.set_meta("source_indices", cells[cell])
-			parent.add_child(node)
-			node.global_transform = source.global_transform
-			names.append(str(node.name))
+	for node: MeshInstance3D in preload("res://nest/assembly/glb_placement.gd").partition_mesh(source, cell_size):
+		node.name = "GroundPatch_%d" % parent.get_child_count()
+		node.set_meta("extras", {"lighting_ground_patch": true})
+		node.set_meta("source_ground", str(source.name))
+		parent.add_child(node)
+		node.global_transform = source.global_transform
+		names.append(str(node.name))
 	return names
 
 static func fountain_rim(source: Node3D, pool: MeshInstance3D, coping: MeshInstance3D) -> PackedVector3Array:
@@ -190,44 +158,6 @@ static func sample_path(raw: Array, spacing: float) -> Array[Dictionary]:
 	return result
 
 
-static func _packed_subset(original: ArrayMesh, surface: int, selected: PackedInt32Array, indices: PackedInt32Array, vertices: PackedVector3Array) -> ArrayMesh:
-	# Copy native packed records. Re-encoding normals or compressed positions
-	# changes their values; retain the original quantization AABB/UV scale too.
-	var source: Dictionary = (original.get("_surfaces") as Array)[surface]
-	assert((source.get("skin_data",PackedByteArray()) as PackedByteArray).is_empty())
-	var output := source.duplicate()
-	var format: int = source.format
-	var count: int = source.vertex_count
-	var position_stride := RenderingServer.mesh_surface_get_format_vertex_stride(format,count)
-	var normal_stride := RenderingServer.mesh_surface_get_format_normal_tangent_stride(format,count)
-	var normal_offset := RenderingServer.mesh_surface_get_format_offset(format,count,Mesh.ARRAY_NORMAL)
-	var data: PackedByteArray = source.vertex_data
-	var packed := PackedByteArray()
-	for index in selected: packed.append_array(data.slice(index*position_stride,(index+1)*position_stride))
-	for index in selected: packed.append_array(data.slice(normal_offset+index*normal_stride,normal_offset+(index+1)*normal_stride))
-	output.vertex_data = packed
-	var attributes: PackedByteArray = source.get("attribute_data",PackedByteArray())
-	var attribute_stride := RenderingServer.mesh_surface_get_format_attribute_stride(format,count)
-	var packed_attributes := PackedByteArray()
-	for index in selected: packed_attributes.append_array(attributes.slice(index*attribute_stride,(index+1)*attribute_stride))
-	output.attribute_data = packed_attributes
-	var index_bytes := PackedByteArray()
-	var index_stride := 2 if selected.size() <= 65536 else 4
-	index_bytes.resize(indices.size()*index_stride)
-	for i in range(indices.size()):
-		if index_stride == 2: index_bytes.encode_u16(i*2,indices[i])
-		else: index_bytes.encode_u32(i*4,indices[i])
-	output.index_data = index_bytes
-	output.index_count = indices.size()
-	output.vertex_count = selected.size()
-	output.format = format | Mesh.ARRAY_FORMAT_INDEX
-	output.lods = []
-	var result := ArrayMesh.new()
-	result.set("_surfaces",[output])
-	var bounds := AABB(vertices[selected[0]],Vector3.ZERO)
-	for index in selected: bounds=bounds.expand(vertices[index])
-	result.custom_aabb = bounds
-	return result
 
 
 static func inside_planting(boundaries: Array, point: Vector2) -> bool:

@@ -53,6 +53,7 @@ PLANT_PROTOTYPES = (
     (57, 58, 59, 60),
     (61, 62, 63),
     (64, 65, 66, 67),
+    (30,),
 )
 DISPLAY_AREAS = {
     "central-games-bookshelf": ("games_left_curved_bookshelf", "弧形书架区"),
@@ -485,7 +486,7 @@ def courtyard_component_paths(views, mesh_at, owners, ground_paths):
     }
     # These families are also defined by the frozen V044 source in estate_outdoor_access.gd.
     parts["plant-library"] = {
-        prototypes[i] for i in (*range(32, 43), *range(52, 82), *range(88, 133))
+        prototypes[i] for i in (30, *range(32, 43), *range(52, 82), *range(88, 133))
     }
     parts["shore-stones"] = {prototypes[i] for i in range(82, 88)}
     parts["tree-one"] = {
@@ -501,7 +502,7 @@ def courtyard_component_paths(views, mesh_at, owners, ground_paths):
     }
     parts["forest-foliage"] = {
         prototypes[i]
-        for i in (*range(6), *range(7, 16), 20, 21, 22, 30, 31, *range(44, 52))
+        for i in (*range(6), *range(7, 16), 20, 21, 22, 31, *range(44, 52))
     }
     waterfall = views["waterfall"] | {
         path

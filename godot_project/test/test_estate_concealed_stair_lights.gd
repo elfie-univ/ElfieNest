@@ -11,7 +11,7 @@ func require(ok: bool, message: String) -> bool:
 	return ok
 
 func run() -> void:
-	var estate: Node3D=load("res://nest/estate/ElfieNest-complete-final.glb").instantiate()
+	var estate: Node3D=load("res://nest/assembly/estate.tscn").instantiate()
 	root.add_child(estate)
 	DAYLIGHT.apply(estate)
 	var emitters := 0

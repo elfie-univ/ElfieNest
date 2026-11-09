@@ -3,9 +3,9 @@ extends SceneTree
 func _initialize() -> void: call_deferred("run")
 
 func run() -> void:
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
-	var shore = estate.get("_shore")
+	var shore = preload("res://test/split_estate_test_support.gd").shore_geometry(estate)
 	var expanded: Array[PackedVector2Array] = Geometry2D.offset_polygon(shore.water, 0.10, Geometry2D.JOIN_ROUND)
 	if expanded.size() != 1:
 		push_error("Lake border must form one continuous contour")

@@ -5,7 +5,7 @@ extends Node3D
 signal observer_camera_catalog_changed(catalog: Dictionary)
 
 const ESTATE_LIGHTING := preload("res://nest/estate/estate_lighting.gd")
-const COMPLETE_SCENE_PATH := "res://nest/estate/estate.tscn"
+const COMPLETE_SCENE_PATH := "res://nest/assembly/estate.tscn"
 const ESTATE_PHYSICS := preload("res://nest/estate/estate_physics.gd")
 const ESTATE_SEMANTICS := preload("res://nest/estate/estate_semantics.gd")
 const AUTHORITY_SCENE := preload("res://nest/estate/estate_authority_scene.gd")

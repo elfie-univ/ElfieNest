@@ -8,7 +8,7 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
 	var control := preload("res://nest/estate/estate_lighting_sample.gd").new()
 	control.bind_m01(estate)

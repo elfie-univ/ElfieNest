@@ -104,7 +104,7 @@ func build(source: Node3D) -> Node3D:
 	result.set_meta("shoreline",shore)
 	result.set_meta("fountain_rim",pool_rim)
 	result.set_meta("ground_patches",patches)
-	result.set_meta("source_model_sha256",FileAccess.get_sha256("res://nest/estate/ElfieNest-complete-final.glb"))
+	result.set_meta("source_tree",preload("res://nest/estate/estate_spatial_data.gd").current_inputs().get("source_tree", ""))
 	return result
 
 func _lakeside_lamp_position(source: Node3D, desired: Vector3) -> Vector3:

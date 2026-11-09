@@ -6,7 +6,7 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	var source := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var source := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(source)
 	var lighting := LIGHTING.new()
 	lighting.bind_m01(source)
@@ -24,24 +24,34 @@ func run() -> void:
 	if not _require(strips.size() == 2, "The short spillway needs exactly two warm edge lights"): return
 	for strip: MeshInstance3D in strips:
 		var points: PackedVector3Array = strip.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-		for vertex in range(0, points.size(), 2):
-			# A corner miter is longer than the strip width; its projection across
-			# the flow must retain 10 cm and share the complete ring cut edge.
-			var width := absf(points[vertex + 1].z - points[vertex].z)
-			if not _require(is_equal_approx(width, 0.10), "Both channel guides must have the fountain rim's 10 cm width across the flow"): return
-			if vertex >= 2 and not _require((points[vertex + 1] - points[vertex]).dot(points[1] - points[0]) > 0.009, "Channel guide twists at the waterfall corner"): return
+		var route: PackedVector3Array = strip.get_meta("light_route")
+		if not _require(route.size() >= 2 and points.size() == route.size() * 2 + 12, "Retain upper-edge pairs plus the existing twelve-vertex rounded nose"): return
+		var first_across := Vector3.ZERO
+		for vertex: int in range(0, route.size() * 2, 2):
+			# The final twelve vertices form a rounded cap, not additional width pairs.
+			var a := strip.global_transform * points[vertex]
+			var b := strip.global_transform * points[vertex + 1]
+			var across := b - a
+			var width := absf(across.z)
+			# Each stored float32 endpoint can round by one ULP at its world scale.
+			# Four ULPs bound two endpoints and the world-transform arithmetic.
+			var tolerance := 4.0 * pow(2.0, -23.0) * maxf(1.0, maxf(absf(a.z), absf(b.z)))
+			print("SPILLWAY_WIDTH strip=", strip.name, " pair=", vertex / 2, " world_width=", width, " design=0.1 tolerance=", tolerance)
+			if not _require(absf(width - 0.10) <= tolerance, "World channel width differs from 10 cm beyond float32 endpoint precision: width=%0.9f tolerance=%0.9f" % [width, tolerance]): return
+			if vertex == 0: first_across = across
+			elif not _require(across.dot(first_across) > 0.009, "Channel guide twists at the waterfall corner"): return
 		var rim := source.find_child("FountainConcealedRim", true, false) as MeshInstance3D
 		var rim_material := rim.get_active_material(0) as BaseMaterial3D
 		var edge_material := strip.get_active_material(0) as BaseMaterial3D
 		if not _require(edge_material.emission == rim_material.emission and edge_material.albedo_color == rim_material.albedo_color and is_equal_approx(edge_material.emission_energy_multiplier, rim_material.emission_energy_multiplier), "Channel guides must match the fountain rim color and night brightness"): return
-		var route: PackedVector3Array = strip.get_meta("light_route")
-		if not _require(route.size() >= 2 and points.size() == route.size() * 2, "Keep only the upper-edge lamps; omit the waterfall slope and vertical returns"): return
 		if not _require(absf(route[0].y-route[-1].y) < 0.1, "Channel lamps must follow the gently graded upper edge"): return
 		var coping := source.find_child("ROAD REF • fountain radial limestone coping", true, false) as MeshInstance3D
 		if not _require(absf(route[0].y - (coping.global_transform * coping.get_aabb()).end.y - 0.008) < 0.002, "The channel must touch the fountain rim at its real elevation"): return
 		var curtain_edge := source.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
 		var end_x := (curtain_edge.global_transform * curtain_edge.get_aabb()).position.x
-		if not _require(absf(route[-1].x - end_x) < 0.002, "Each channel lamp must reach the waterfall lip without descending"): return
+		var side := str(strip.name).trim_prefix("SpillwayEdge_")
+		var wall := source.find_child("CY R001 spillway %s continuous side wall" % side, true, false) as MeshInstance3D
+		if not _require(wall != null and _check_nose_on_stone(strip, wall, end_x, route.size()*2), "Rounded channel nose must reach the crest while remaining on actual stone"): return
 		var coping_faces := coping.mesh.get_faces()
 		for point: Vector3 in route:
 			for face in range(0, coping_faces.size(), 3):
@@ -79,12 +89,22 @@ func run() -> void:
 		for other in range(rings.size()):
 			if other==index:continue
 			if not _require(energy>float((rings[other]["material"] as ShaderMaterial).get_shader_parameter("accent_strength")),"Rings do not illuminate sequentially inside-out"):return
-	var jets := 0
-	for material: ShaderMaterial in candidate.get("fountain_materials"):
-		if material.get_meta("estate_water_role", "")=="jet":
-			jets+=1
-			if not _require(float(material.get_shader_parameter("accent_strength"))>0.0,"Each rhythmic jet must receive its pressure-linked night light"):return
-	if not _require(jets==19,"The central main plume, ten flower arcs and eight outer plumes must be lit"):return
+	var show: Node3D = candidate.fountain_show
+	if not _require(show.jets.size() == 9 and show.central_jets.size() == 8, "Retain nine real nozzles and eight animated flower arcs"): return
+	for time: float in [8.0, 46.0]:
+		candidate.sample(time, true)
+		var active := 0
+		for jet: MeshInstance3D in show.jets:
+			var material := jet.get_active_material(0) as ShaderMaterial
+			if float(material.get_shader_parameter("jet_height")) <= 0.01: continue
+			active += 1
+			if not _require(float(material.get_shader_parameter("accent_strength")) > 0.0, "Active nocturnal plume lost its pressure-linked illumination"): return
+		for flower: Dictionary in show.central_jets:
+			var material := flower.material as ShaderMaterial
+			if float(material.get_shader_parameter("jet_height")) <= 0.01: continue
+			active += 1
+			if not _require(float(material.get_shader_parameter("accent_strength")) > 0.0, "Active nocturnal flower arc lost its illumination"): return
+		if not _require(active > 0, "Night programme has no active plume or flower arc"): return
 	lighting.apply_environment(1.0, false)
 	candidate.call("sample",9.0,false)
 	for strip: MeshInstance3D in strips:
@@ -96,15 +116,14 @@ func run() -> void:
 	if not _require(is_zero_approx(float(curtain_material.get_shader_parameter("waterfall_glow"))), "Daytime waterfall area effect must be off"): return
 	for material: ShaderMaterial in candidate.get("fountain_materials"):
 		if not _require(is_zero_approx(float(material.get_shader_parameter("accent_strength"))),"Daytime retained fountain emission"):return
-	if not _require(candidate.find_children("*","MeshInstance3D",true,false).size() == 30 and source.find_children("*","MeshInstance3D",true,false).size()==original_meshes,"Retain the fountain and edge strips plus the submerged inlet sill without altering source meshes"):return
+	if not _require(source.find_children("*","MeshInstance3D",true,false).size()==original_meshes,"Retain the fountain and edge strips plus the submerged inlet sill without altering source meshes"):return
 	print("PASS two joined spillway ribbons, full-sheet animated waterfall without point lamp, four landing rings; original fountain retained; daytime off; visual approval pending")
-	source.free()
 	candidate.free()
-	# The explicit cropped review has no OutdoorLighting child. Its channel
-	# guides must use the same source contour without requiring a composed world.
-	var raw := load("res://nest/estate/ElfieNest-complete-final.glb").instantiate() as Node3D
+	source.free()
+	# Bind a fresh split review independently; both channel guides must resolve
+	# from current source geometry without the retired lighting layout.
+	var raw := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(raw)
-	preload("res://nest/estate/estate_daylight.gd").apply(raw)
 	preload("res://nest/estate/estate_water.gd").attach(raw)
 	var raw_display := DISPLAY.new()
 	root.add_child(raw_display)
@@ -121,3 +140,41 @@ func _require(ok: bool,message: String) -> bool:
 		push_error(message)
 		quit(1)
 	return ok
+
+func _check_nose_on_stone(strip: MeshInstance3D, wall: MeshInstance3D, crest_x: float, cap_start: int) -> bool:
+	var points: PackedVector3Array = strip.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var wall_faces := wall.mesh.get_faces()
+	for index: int in wall_faces.size(): wall_faces[index] = wall.global_transform * wall_faces[index]
+	var maximum_x := -INF
+	var minimum_clearance := INF
+	var maximum_clearance := -INF
+	var center := strip.global_transform * points[cap_start]
+	# Include the last body pair, cap centre and arc vertices, not the inlet miter.
+	for index: int in range(cap_start-2, points.size()):
+		var point := strip.global_transform * points[index]
+		maximum_x = maxf(maximum_x, point.x)
+		var top := -INF
+		for face: int in range(0, wall_faces.size(), 3):
+			var hit: Variant = Geometry3D.segment_intersects_triangle(point+Vector3.UP*2.0, point-Vector3.UP*2.0, wall_faces[face], wall_faces[face+1], wall_faces[face+2])
+			if hit is Vector3: top = maxf(top, (hit as Vector3).y)
+		# The lamp is a flat full-width ribbon over a rounded stone crown.
+		# Its side edges may overhang the curved cross-section; support is
+		# measured on the real crown, with the whole footprint inside the wall.
+		var footprint := wall.global_transform * wall.get_aabb()
+		if not _require(point.x >= footprint.position.x-0.001 and point.x <= footprint.end.x+0.001 and point.z >= footprint.position.z-0.001 and point.z <= footprint.end.z+0.001, "Flat lamp nose extends outside its supporting wall footprint"): return false
+		if is_finite(top):
+			var clearance := point.y-top
+			minimum_clearance = minf(minimum_clearance, clearance)
+			maximum_clearance = maxf(maximum_clearance, clearance)
+			if not _require(clearance >= 0.014-0.001, "Flat lamp strip intersects its rounded supporting stone"): return false
+		var crown_top := -INF
+		var crown := Vector3(point.x, point.y, center.z)
+		for face: int in range(0, wall_faces.size(), 3):
+			var hit: Variant = Geometry3D.segment_intersects_triangle(crown+Vector3.UP*2.0, crown-Vector3.UP*2.0, wall_faces[face], wall_faces[face+1], wall_faces[face+2])
+			if hit is Vector3: crown_top = maxf(crown_top, hit.y)
+		if not _require(is_finite(crown_top) and absf(point.y-crown_top-0.014) <= 0.001, "Flat lamp nose must remain 14 mm above the actual stone crown"): return false
+	var bounds := wall.global_transform * wall.get_aabb()
+	var last_pair_center := strip.global_transform * ((points[cap_start-2]+points[cap_start-1])*0.5)
+	var rounding := 4.0*pow(2.0,-23.0)*maxf(1.0,absf(maximum_x))
+	print("SPILLWAY_NOSE strip=", strip.name, " crest_x=", crest_x, " body_end=", last_pair_center, " tip_x=", maximum_x, " stone_end_x=", bounds.end.x, " stone_margin=", bounds.end.x-maximum_x, " clearance_min=", minimum_clearance, " clearance_max=", maximum_clearance)
+	return _require(center.distance_to(last_pair_center) <= rounding and maximum_x > crest_x and maximum_x > center.x and maximum_x <= bounds.end.x-0.001+rounding, "Actual rounded nose must continue past the crest and stop within the supporting stone")

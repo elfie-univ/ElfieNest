@@ -5,7 +5,7 @@ const CATALOG := preload("res://nest/estate/estate_seat_catalog.gd")
 func _initialize() -> void: call_deferred("run")
 
 func run() -> void:
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	var world := Node3D.new()
 	root.add_child(world)
 	world.add_child(estate)

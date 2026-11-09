@@ -1,10 +1,13 @@
 """Seed the formal split estate from the audited V044 extraction once."""
 
+import copy
+import hashlib
 import json
 import mmap
 import os
 import shutil
 import struct
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -141,6 +144,231 @@ def add_assembly(entries, scenes, key, paths, children, bindings):
         for asset, placements in bindings.items()
     ] + [{"id": child, "count": 1, "unit": "文件"} for child in children]
     entries[key].pop("members", None)
+
+
+def consolidate_ground_sources(mapping_path):
+    """Fold the evaluated, corrected ground into its existing source GLBs once.
+
+    The mapping is extracted from native scenes, not inferred from matching heights.
+    Runtime chunks subsequently derive exclusively from these corrected sources.
+    """
+    rows = read(Path(mapping_path))
+    index = read(INDEX)
+    entries = index["fileGraph"]["entries"]
+    ground = NEST / entries["source:shared-ground"]["file"]
+    ground_binary = bytearray(ground.read_bytes())
+    document, start = read_document(ground_binary)
+    payload = bytearray(ground_binary[start:])
+    patch_nodes = {
+        node["extras"]["v044_path"]: node
+        for node in document["nodes"]
+        if "mesh" in node
+    }
+    groups = defaultdict(list)
+    for row in rows:
+        groups[row["source"]].append(row)
+    owners = {}
+    inputs = {}
+    for key, entry in entries.items():
+        if entry["kind"] != "source":
+            continue
+        path = NEST / entry["file"]
+        binary = path.read_bytes()
+        doc, offset = read_document(binary)
+        for node in doc["nodes"]:
+            if "mesh" in node and node["extras"].get("source_name") in groups:
+                name = node["extras"]["source_name"]
+                assert name not in owners, name
+                owners[name] = (key, node)
+                inputs[key] = (path, doc, binary, offset)
+    assert owners.keys() == groups.keys(), groups.keys() - owners.keys()
+
+    def data_at(accessor):
+        a = document["accessors"][accessor]
+        view = document["bufferViews"][a["bufferView"]]
+        width = {5121: 1, 5123: 2, 5125: 4, 5126: 4}[a["componentType"]] * {
+            "SCALAR": 1,
+            "VEC2": 2,
+            "VEC3": 3,
+            "VEC4": 4,
+        }[a["type"]]
+        begin = view.get("byteOffset", 0) + a.get("byteOffset", 0)
+        stride = view.get("byteStride", width)
+        return b"".join(
+            payload[begin + i * stride : begin + i * stride + width]
+            for i in range(a["count"])
+        )
+
+    def append_accessor(example, data, count, bounds=None):
+        payload.extend(b"\0" * (-len(payload) % 4))
+        view = len(document["bufferViews"])
+        document["bufferViews"].append(
+            {"buffer": 0, "byteOffset": len(payload), "byteLength": len(data)}
+        )
+        payload.extend(data)
+        record = {
+            k: v
+            for k, v in example.items()
+            if k not in {"bufferView", "byteOffset", "min", "max"}
+        }
+        record.update(bufferView=view, count=count)
+        if bounds is not None:
+            record.update(min=bounds[0], max=bounds[1])
+        document["accessors"].append(record)
+        return len(document["accessors"]) - 1
+
+    plan = {"sources": [], "removed": [row["path"] for row in rows]}
+    replacements = {}
+    for name, patches in groups.items():
+        key, original = owners[name]
+        surfaces = defaultdict(list)
+        for row in patches:
+            surfaces[row["surface"]].append(row)
+        primitives, materials, layers, provenance = [], [], [], []
+        for _, parts in sorted(surfaces.items()):
+            source_primitives = [
+                document["meshes"][patch_nodes[row["path"]]["mesh"]]["primitives"][0]
+                for row in parts
+            ]
+            first = source_primitives[0]
+            assert all(
+                pr["attributes"].keys() == first["attributes"].keys()
+                and pr["material"] == first["material"]
+                for pr in source_primitives
+            )
+            assert len({row["layers"] for row in parts}) == 1
+            attributes = {}
+            for attribute in first["attributes"]:
+                records = [
+                    document["accessors"][pr["attributes"][attribute]]
+                    for pr in source_primitives
+                ]
+                assert (
+                    len(
+                        {
+                            (a["type"], a["componentType"], a.get("normalized", False))
+                            for a in records
+                        }
+                    )
+                    == 1
+                )
+                raw = b"".join(
+                    data_at(pr["attributes"][attribute]) for pr in source_primitives
+                )
+                bounds = (
+                    (
+                        [min(a["min"][j] for a in records) for j in range(3)],
+                        [max(a["max"][j] for a in records) for j in range(3)],
+                    )
+                    if attribute == "POSITION"
+                    else None
+                )
+                attributes[attribute] = append_accessor(
+                    records[0], raw, sum(a["count"] for a in records), bounds
+                )
+            indices, vertex_offset = [], 0
+            for pr in source_primitives:
+                a = document["accessors"][pr["indices"]]
+                fmt = {5121: "B", 5123: "H", 5125: "I"}[a["componentType"]]
+                indices.extend(
+                    v[0] + vertex_offset
+                    for v in struct.iter_unpack("<" + fmt, data_at(pr["indices"]))
+                )
+                vertex_offset += document["accessors"][pr["attributes"]["POSITION"]][
+                    "count"
+                ]
+            idx = append_accessor(
+                {"componentType": 5125, "type": "SCALAR"},
+                struct.pack("<" + "I" * len(indices), *indices),
+                len(indices),
+            )
+            primitives.append(
+                {
+                    "attributes": attributes,
+                    "indices": idx,
+                    "material": first["material"],
+                }
+            )
+            extras = patch_nodes[parts[0]["path"]]["extras"]
+            materials.append(extras.get("nest_materials", [{}])[0])
+            layers.append(parts[0]["layers"])
+            provenance.append(parts[0]["path"])
+        node = copy.deepcopy(original)
+        node["mesh"] = len(document["meshes"])
+        document["meshes"].append({"primitives": primitives})
+        node["extras"]["nest_render_partition"] = {
+            "cell_size": 8.0,
+            "surface_layers": layers,
+        }
+        node["extras"]["geometry_id"] = hashlib.sha256(
+            json.dumps(primitives, sort_keys=True).encode()
+        ).hexdigest()
+        node["extras"].pop("review_visible", None)
+        node["extras"].pop("nest_materials", None)
+        if any(materials):
+            node["extras"]["nest_materials"] = materials
+        replacements[name] = node
+        plan["sources"].append(
+            {
+                "asset": key,
+                "file": entries[key]["file"],
+                "node": node["name"],
+                "path": node["extras"]["v044_path"],
+                "materials_from": provenance,
+                "layers": layers,
+            }
+        )
+
+    class FormalLibrary(Library):
+        def select(self, source, binary, offset, directory):
+            self.source, self.binary, self.binary_start = source, binary, offset
+            self.directory = directory
+            self.index = self.indices.setdefault(str(directory), {})
+
+        def image(self, number):
+            def relocate(record):
+                assert "uri" in record
+                image = (self.directory / record["uri"]).resolve()
+                assert image.is_file()
+                record["uri"] = Path(os.path.relpath(image, self.textures)).as_posix()
+                return record
+
+            return self.copy_index("images", number, relocate)
+
+    for key, (path, doc, binary, offset) in inputs.items():
+        library = FormalLibrary(doc, binary, offset, path.parent)
+        library.indices = {}
+        nodes = []
+        for original in doc["nodes"]:
+            if "mesh" not in original or original["extras"].get(
+                "source_name", ""
+            ).startswith("GroundPatch_"):
+                continue
+            name = original["extras"].get("source_name")
+            node = copy.deepcopy(replacements.get(name, original))
+            if name in replacements:
+                library.select(document, payload, 0, ground.parent)
+            else:
+                library.select(doc, binary, offset, path.parent)
+            node["mesh"] = library.mesh(node["mesh"], node["extras"]["geometry_id"])
+            nodes.append(node)
+        library.save(path, nodes)
+        entries[key]["focus"] = [node["extras"]["v044_path"] for node in nodes]
+    # Generated placements are no longer formal file-internal components.
+    removed = set(plan["removed"])
+    for entry in entries.values():
+        for part in entry.get("parts", []):
+            for field in ("paths", "targetPaths"):
+                if field in part:
+                    part[field] = [path for path in part[field] if path not in removed]
+    for entry in entries.values():
+        entry.pop("usedBy", None)
+    add_reverse_placements(entries)
+    write_json(INDEX, index)
+    write_json(Path(mapping_path).with_name("consolidation-plan.json"), plan)
+    print(
+        f"Ground sources consolidated: {len(groups)}; removed stored chunks: {len(rows)}"
+    )
 
 
 def main():
@@ -313,4 +541,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 3 and sys.argv[1] == "--consolidate-ground":
+        consolidate_ground_sources(sys.argv[2])
+    else:
+        main()

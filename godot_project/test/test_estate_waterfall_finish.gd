@@ -9,8 +9,9 @@ func require(ok: bool, message: String) -> bool:
 	return ok
 
 func run() -> void:
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
+	if not check_split_ground_clearance(estate): return
 	var display := preload("res://nest/estate/estate_water_display.gd").new()
 	root.add_child(display)
 	display.bind(estate,Environment.new(),false)
@@ -81,3 +82,46 @@ func run() -> void:
 	display.free()
 	estate.free()
 	quit(0)
+
+func check_split_ground_clearance(estate: Node3D) -> bool:
+	var grounds: Array[MeshInstance3D] = []
+	var sources := {}
+	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
+		if mesh.mesh == null or mesh.has_meta("source_geometry_path"): continue
+		var extras: Dictionary = mesh.get_meta("extras", {})
+		var source := str(extras.get("source_name", ""))
+		if not source.begins_with("COMPLETE Building garden island"): continue
+		grounds.append(mesh)
+		sources[source] = true
+	if not require(sources.size() == 4, "Retain the four approved split ground islands"): return false
+	var shore := preload("res://test/split_estate_test_support.gd").shore_geometry(estate)
+	var center: Vector2 = shore.water_bounds.get_center()
+	if not require(Geometry2D.is_point_in_polygon(center, shore.water), "Lake measurement point must lie inside actual water geometry"): return false
+	var center_occlusion := 0
+	var bank_contacts := 0
+	var measured_faces := 0
+	for ground: MeshInstance3D in grounds:
+		var faces := ground.mesh.get_faces()
+		for start: int in range(0, faces.size(), 3):
+			var a := ground.global_transform * faces[start]
+			var b := ground.global_transform * faces[start + 1]
+			var c := ground.global_transform * faces[start + 2]
+			if not require(a.is_finite() and b.is_finite() and c.is_finite(), "Split ground contains nonfinite geometry"): return false
+			measured_faces += 1
+			var height := _ground_height_at(center, a, b, c)
+			if is_finite(height) and height > shore.water_height + 0.015: center_occlusion += 1
+			for index: int in range(0, shore.water.size(), maxi(1, shore.water.size() / 16)):
+				var edge: Vector2 = shore.water[index]
+				var outward := edge + (edge - center).normalized() * 0.5
+				var bank_height := _ground_height_at(outward, a, b, c)
+				if is_finite(bank_height) and bank_height > shore.water_height: bank_contacts += 1
+	print("SPLIT_GROUND_CLEARANCE sources=", sources.size(), " world_faces=", measured_faces, " lake_center_occlusion=", center_occlusion, " bank_contacts=", bank_contacts)
+	return require(center_occlusion == 0 and bank_contacts > 0, "Placed ground must surround the real lake without covering its interior")
+
+func _ground_height_at(point: Vector2, a: Vector3, b: Vector3, c: Vector3) -> float:
+	var denominator := (b.z-c.z)*(a.x-c.x)+(c.x-b.x)*(a.z-c.z)
+	if absf(denominator) < 0.0000000001: return NAN
+	var u := ((b.z-c.z)*(point.x-c.x)+(c.x-b.x)*(point.y-c.z))/denominator
+	var v := ((c.z-a.z)*(point.x-c.x)+(a.x-c.x)*(point.y-c.z))/denominator
+	if minf(u, minf(v, 1.0-u-v)) < -0.000001: return NAN
+	return u*a.y+v*b.y+(1.0-u-v)*c.y

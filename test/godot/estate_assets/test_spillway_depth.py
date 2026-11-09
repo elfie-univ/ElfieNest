@@ -3,12 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from test.godot.asset_geometry import _Model
 from test.godot.estate_assets.test_pod_desktop_contacts import (
     _point,
     _triangles,
     _values,
 )
+from test.godot.formal_asset_geometry import NamedModel as _Model
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -45,7 +45,7 @@ def _intersection_area(first, second):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/courtyard/parts/waterside/fountain.glb",
     ],
 )
 def test_inlet_coping_has_no_coplanar_bedding_overlap(path):
@@ -76,7 +76,7 @@ def test_inlet_coping_has_no_coplanar_bedding_overlap(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/courtyard/parts/waterside/fountain.glb",
     ],
 )
 def test_channel_stays_shallow_and_above_its_bed(path):
@@ -107,7 +107,7 @@ def test_channel_stays_shallow_and_above_its_bed(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/courtyard/parts/waterside/fountain.glb",
     ],
 )
 def test_waterfall_meets_both_channel_walls(path):
@@ -137,7 +137,7 @@ def test_waterfall_meets_both_channel_walls(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/courtyard/parts/waterside/fountain.glb",
     ],
 )
 def test_channel_walls_clear_coping_and_descend_beside_waterfall(path):
@@ -188,7 +188,7 @@ def _front_at(triangles, y, z):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/courtyard/parts/waterside/fountain.glb",
     ],
 )
 def test_waterfall_backing_is_vertical_and_clears_the_landing(path):
@@ -238,7 +238,7 @@ def test_waterfall_backing_is_vertical_and_clears_the_landing(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/courtyard/parts/waterside/fountain.glb",
     ],
 )
 def test_waterfall_backing_and_wall_fronts_do_not_overlap(path):
@@ -269,7 +269,7 @@ def test_waterfall_backing_and_wall_fronts_do_not_overlap(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/courtyard/parts/waterside/fountain.glb",
     ],
 )
 def test_waterfall_wall_tips_have_no_downward_facing_lip(path):

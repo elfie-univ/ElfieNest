@@ -30,7 +30,7 @@ func _height(point: Vector2) -> float:
 	return result
 
 func run() -> void:
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
 	var cleanup := preload("res://nest/estate/estate_bank_cleanup.gd")
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):

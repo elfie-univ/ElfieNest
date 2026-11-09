@@ -1,8 +1,7 @@
 extends "res://tools/pack_nest_assets.gd"
-## Export evaluated worlds for camera-independent comparison. Never write assets.
+## Export the evaluated split world for camera-independent snapshots. Never write assets.
 
 const COMPARISON := "res://../build/nest-comparison/"
-const FROZEN := {"estate/ElfieNest-complete-final.glb":"222810a8a4b0117855702f59acad18ebd3527b57c1b48322c7d25ad419f0903e", "estate/ElfieNest-complete-final.instances.bin":"18cd7a3718f1e1afb3edd239866bce8402bfe03be3ecc95f94be6b32026460de"}
 const OMIT := ["resource_path", "resource_name", "resource_local_to_scene", "resource_scene_unique_id", "script", "owner", "name", "unique_name_in_owner", "scene_file_path", "editor_description", "process_mode", "process_priority", "process_physics_priority", "process_thread_group", "process_thread_group_order", "process_thread_messages", "physics_interpolation_mode", "transform", "position", "basis", "rotation", "rotation_degrees", "quaternion", "scale"]
 const ATTRIBUTES := ["position", "normal", "tangent", "color", "uv", "uv2", "custom0", "custom1", "custom2", "custom3", "bones", "weights", "index"]
 const DRAW_STATE := ["layers", "cast_shadow", "transparency", "extra_cull_margin", "ignore_occlusion_culling", "gi_mode", "visibility_range_begin", "visibility_range_end", "visibility_range_begin_margin", "visibility_range_end_margin", "visibility_range_fade_mode", "lod_bias", "sorting_offset", "sorting_use_aabb_center"]
@@ -14,7 +13,7 @@ var snap_resources := {}
 var snap_inputs := {}
 var snap_errors: Array[String] = []
 
-# Reuse the production review's fresh V044 evaluation, without constructing a PCK.
+# Capture current formal inputs without constructing a PCK.
 func add_file(_target: String, _source: String) -> bool:
 	return true
 
@@ -175,10 +174,8 @@ func capture(world: Node3D, label: String) -> bool:
 	return true
 
 func run() -> void:
-	for frozen: String in FROZEN:
-		if not require(FileAccess.get_sha256(NEST + frozen) == FROZEN[frozen], "Frozen V044 source changed: " + frozen): return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(COMPARISON))
-	var pending: Array[String] = [NEST + "nest.tscn",NEST + "estate/estate.tscn",NEST + "estate/estate_physics.gd",NEST + "estate/estate_lighting_sample.gd",NEST + "estate/estate_water_display.gd",NEST + "estate/ElfieNest-complete-final.glb",NEST + "estate/ElfieNest-complete-final.instances.bin",NEST + "assembly/asset-index.json",NEST + "assembly/glb_placement.gd", "res://tools/export_nest_comparison.gd", "res://tools/pack_nest_assets.gd", "res://tools/static_asset_review.gd", "res://project.godot"]
+	var pending: Array[String] = [NEST + "nest.tscn",NEST + "estate/estate_physics.gd",NEST + "estate/estate_lighting_sample.gd",NEST + "estate/estate_water_display.gd",NEST + "assembly/asset-index.json",NEST + "assembly/glb_placement.gd", "res://tools/export_nest_comparison.gd", "res://tools/pack_nest_assets.gd", "res://tools/static_asset_review.gd", "res://project.godot"]
 	var index: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(INDEX))
 	for entry: Dictionary in index.fileGraph.entries.values():
 		pending.append(NEST + str(entry.file))
@@ -191,11 +188,6 @@ func run() -> void:
 		if file.get_extension() in ["glb","scn","tscn","tres","res","gd","gdshader","gdshaderinc","gltf"]:
 			for dependency: String in dependencies(file):
 				if dependency.begins_with("res://") and not dependency.begins_with("res://../build/"): pending.append(dependency)
-	if not pack_reference(): return
-	var original := (load(OUTPUT + "reference.scn") as PackedScene).instantiate() as Node3D
-	root.add_child(original)
-	if not capture(original,"reference"): return
-	original.free()
 	var assembled := (load(NEST + "assembly/estate.tscn") as PackedScene).instantiate() as Node3D
 	root.add_child(assembled)
 	if not capture(assembled,"reassembled"): return
@@ -204,7 +196,7 @@ func run() -> void:
 		if FileAccess.get_sha256(file) != snap_inputs[file]: snap_errors.append("Source changed during export: " + file)
 	# The reference JSON was written first; persist any late export failures in both.
 	if not snap_errors.is_empty():
-		for label: String in ["reference","reassembled"]:
+		for label: String in ["reassembled"]:
 			var document: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(COMPARISON + label + ".json"))
 			document.errors = snap_errors
 			write(COMPARISON + label + ".json", JSON.stringify(document,"  ",false,true))

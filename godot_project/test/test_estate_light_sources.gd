@@ -4,20 +4,19 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	var raw: Node3D=load("res://nest/estate/ElfieNest-complete-final.glb").instantiate()
+	var raw: Node3D=load("res://nest/assembly/estate.tscn").instantiate()
 	root.add_child(raw)
-	preload("res://nest/estate/estate_complete_final.gd")._place_lakeside_bench(raw)
 	var bench: Dictionary={}
 	for part: MeshInstance3D in raw.find_children("Lakeside*","MeshInstance3D",true,false):
 		if "bench" in str(part.name) or str(part.name).begins_with("Lakeside back frame"):
 			bench[str(part.name)]=part.global_transform
 	raw.free()
-	var estate: Node3D=load("res://nest/estate/estate.tscn").instantiate()
+	var estate: Node3D=load("res://nest/assembly/estate.tscn").instantiate()
 	root.add_child(estate)
 	var failures: Array[String]=[]
 	if bench.size()!=9: failures.append("Missing bench seat, back, legs or frames")
 	for part_name: String in bench:
-		var part: Node3D=estate.get_node("CompleteFinal").find_child(part_name,true,false)
+		var part: Node3D=estate.find_child(part_name,true,false)
 		if part==null or not part.global_transform.is_equal_approx(bench[part_name]):
 			failures.append("Composed bench part did not move with the seat: "+part_name)
 	var outdoor:=0

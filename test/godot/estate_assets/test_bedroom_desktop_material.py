@@ -5,8 +5,8 @@ import struct
 
 import pytest
 
-from test.godot.asset_geometry import _Model
 from test.godot.estate_assets.test_pod_desktop_contacts import ROOT
+from test.godot.formal_asset_geometry import NamedModel as _Model
 
 
 def _check_desktops(model, expected_count):
@@ -44,7 +44,7 @@ def _check_desktops(model, expected_count):
 @pytest.mark.parametrize(
     "relative,count",
     [
-        ("godot_project/nest/estate/ElfieNest-complete-final.glb", 32),
+        ("godot_project/nest/furniture/shared/bedroom/bedroom-cabinet.glb", 4),
     ],
 )
 def test_bedroom_desktop_has_valid_texture_coordinates(relative, count):

@@ -28,12 +28,12 @@ func run() -> void:
 	wrong_actor.navigation_settings["agent_radius"]=0.5
 	if not require(not wrong_actor.matches_inputs(inputs),"Changed actor clearance must require rebaking"):return
 	var world := Node3D.new();root.add_child(world)
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	world.add_child(estate)
 	var authority: Node3D=data.authority_scene.instantiate()
 	root.add_child(authority)
 	var bench_parts:=0
-	for part: MeshInstance3D in estate.get_node("CompleteFinal").find_children("Lakeside*","MeshInstance3D",true,false):
+	for part: MeshInstance3D in estate.find_children("Lakeside*","MeshInstance3D",true,false):
 		if not ("bench" in str(part.name) or str(part.name).begins_with("Lakeside back frame")):continue
 		var physical_part: Node3D=authority.find_child(str(part.name),true,false)
 		if not require(physical_part!=null and physical_part.global_transform.is_equal_approx(part.global_transform),"Compiled bench part must follow the visible seat: "+str(part.name)):return

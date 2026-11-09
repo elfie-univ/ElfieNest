@@ -8,7 +8,7 @@ GODOT_ROOT = PROJECT_ROOT / "godot_project"
 EXPECTED_SCENES = (
     "main.tscn",
     "nest/nest.tscn",
-    "nest/estate/estate.tscn",
+    "nest/assembly/estate.tscn",
     "characters/tovren/tovren.tscn",
     "characters/saevi/saevi.tscn",
     "characters/myelle/myelle.tscn",

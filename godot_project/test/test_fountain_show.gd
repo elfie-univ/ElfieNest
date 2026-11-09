@@ -30,7 +30,7 @@ func run() -> void:
   var left:Array=score.sample(t-0.001)
   var right:Array=score.sample(t+0.001)
   for j in range(9): check(absf(left[j].height-right[j].height)<0.02,"Continuous pressure at phrase boundaries")
- var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+ var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
  root.add_child(estate)
  var display := preload("res://nest/estate/estate_water_display.gd").new()
  root.add_child(display)
@@ -117,10 +117,16 @@ func run() -> void:
  check(show.sample_count==count,"Offscreen frames perform no fountain samples")
  camera.look_at(show.global_position+Vector3.UP);display.refresh_visibility()
  check(absf(display.presentation_seconds()-visible_time-float(Time.get_ticks_msec()-wall_start)/1000.0)<0.01,"Return skips actual elapsed invisible time without replay")
- var blocker:=StaticBody3D.new();var collider:=CollisionShape3D.new();var box:=BoxShape3D.new();box.size=Vector3(20,20,0.3);collider.shape=box;blocker.add_child(collider);root.add_child(blocker);blocker.global_position=show.global_position+Vector3(0,4,7)
+ var blocker:=StaticBody3D.new();var collider:=CollisionShape3D.new();var box:=BoxShape3D.new();box.size=Vector3(6,20,0.3);collider.shape=box;blocker.add_child(collider);root.add_child(blocker);blocker.global_position=show.global_position+Vector3(0,4,7)
+ await physics_frame
  await physics_frame
  display.refresh_visibility()
- check(not display.is_processing(),"Opaque walls stop occluded fountain work")
+ check(not show.visible_from(camera) and display.is_processing(),"An exposed waterfall must keep running when only the fountain is occluded")
+ box.size=Vector3(20,20,0.3)
+ await physics_frame
+ await physics_frame
+ display.refresh_visibility()
+ check(not display.is_processing(),"Opaque walls stop both occluded fountain and waterfall work")
  blocker.free();await physics_frame
  display.refresh_visibility()
  check(display.is_processing(),"Removing occlusion restores animation")

@@ -10,7 +10,7 @@ func run() -> void:
   push_error("Compile the matching estate spatial data first");quit(1);return
  var world := Node3D.new()
  root.add_child(world)
- var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+ var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
  world.add_child(estate)
  var physics := PHYSICS.new()
  world.add_child(physics)

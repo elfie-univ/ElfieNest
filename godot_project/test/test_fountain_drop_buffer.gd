@@ -8,7 +8,7 @@ func run() -> void:
 	if not check_glb_materials() or not check_bedding_normals():
 		quit(1)
 		return
-	var estate := (load("res://nest/estate/estate.tscn") as PackedScene).instantiate() as Node3D
+	var estate := (load("res://nest/assembly/estate.tscn") as PackedScene).instantiate() as Node3D
 	root.add_child(estate)
 	var display := preload("res://nest/estate/estate_water_display.gd").new()
 	root.add_child(display)

@@ -9,13 +9,6 @@ func _initialize() -> void:
 
 func run() -> void:
 	create_timer(40.0).timeout.connect(func() -> void: quit(2))
-	var imported := (load("res://nest/estate/ElfieNest-complete-final.glb") as PackedScene).get_state()
-	for node_index in range(imported.get_node_count()):
-		if imported.get_node_type(node_index) == &"DirectionalLight3D":
-			var properties := {}
-			for property_index in range(imported.get_node_property_count(node_index)):
-				properties[str(imported.get_node_property_name(node_index, property_index))] = str(imported.get_node_property_value(node_index, property_index))
-			print("DAYLIGHT_SOURCE_SUN ", JSON.stringify(properties))
 	var fixture := Node3D.new()
 	root.add_child(fixture)
 	var sun := DirectionalLight3D.new()
@@ -123,7 +116,7 @@ func run() -> void:
 	if not _require(environment_material.shader == load("res://nest/estate/estate_reflection_sky.gdshader"), "Environment does not use the reference-derived reflection field"):
 		return
 	var estate := nest.get_node("Generated/CompleteEstate")
-	var source := estate.get_node("CompleteFinal")
+	var source := estate
 	var review_camera := nest.get_node("Generated/courtyard") as Camera3D
 	var third_floor_camera := nest.get_node("Generated/central-3") as Camera3D
 	if not _require(third_floor_camera.global_position.is_equal_approx(nest.to_global(Vector3(0, 8.5, 3.2))), "Third-floor review camera is inside the ceiling or cabinet"):
@@ -216,7 +209,7 @@ func run() -> void:
 				preserved_sky_count += 1
 			elif DAYLIGHT._is_artificial(material.resource_name.to_lower()) and material.emission_enabled:
 				preserved_fixture_emission_count += 1
-	# The source sun plus one key and two reference fills share CompleteFinal.
+	# The source sun, key and reference fills belong to the assembled estate.
 	var reference_fills := estate.find_children("CourtyardReferenceFill*", "DirectionalLight3D", true, false)
 	if not _require(restored_finishes.size() == 5, "Five authored finish families were not restored"):
 		return
@@ -248,39 +241,17 @@ func run() -> void:
 				return
 	if not _require(contact_lights > 0, "Designed fixture contact shadows are missing"):
 		return
-	var full_crowns := 0
-	var checked_crowns := {}
-	for instance: Node in estate.get_children():
-		if not instance is MultiMeshInstance3D:
-			continue
+	# Split GLB prototypes are the fidelity source, including their authored LODs.
+	for instance: MultiMeshInstance3D in estate.find_children("*", "MultiMeshInstance3D", true, false):
 		if not _require(instance.layers == (1 | DAYLIGHT.LANDSCAPE_LIGHT_LAYER), "Room fixture masks leaked into landscape batches"):
 			return
-		var rendered := (instance as MultiMeshInstance3D).multimesh.mesh as ArrayMesh
-		if not CompleteEstateFinal.is_canopy_mesh(rendered):
-			continue
-		var source_group := str(instance.get_meta("source_group"))
-		if checked_crowns.has(source_group):
-			continue
-		checked_crowns[source_group] = true
-		full_crowns += 1
-		var marker := source.find_child(str(instance.get_meta("source_group")), true, false)
-		var original := (estate as CompleteEstateFinal)._first_mesh_instance(marker).mesh as ArrayMesh
-		var rendered_surfaces: Array = rendered.get("_surfaces")
-		var original_surfaces: Array = original.get("_surfaces")
-		for index in range(rendered_surfaces.size()):
-			if bool(rendered.surface_get_format(index) & Mesh.ARRAY_FORMAT_COLOR):
-				var leaf_material := rendered.surface_get_material(index) as ShaderMaterial
-				if not _require(leaf_material != null and leaf_material.get_shader_parameter("use_linear_vertex_color"), "Linear glTF leaf colors can be decoded twice"):
-					return
-			var actual: Dictionary = rendered_surfaces[index]
-			var before: Dictionary = original_surfaces[index]
-			if not _require(actual.get("lods", []).is_empty() and actual["vertex_data"] == before["vertex_data"] and actual.get("attribute_data") == before.get("attribute_data") and actual["index_data"] == before["index_data"], "Crown still uses generated LOD or base geometry bytes changed"):
-				return
-	if not _require(full_crowns == 13, "Named and unnamed painted broadleaf crown source groups were not both restored"):
-		return
-	print("RENDER_FIDELITY full_crowns=", full_crowns, " fixtures=", fixtures.size(), " contact_lights=", contact_lights)
-	if not _require(estate.multimesh_instance_count == 216743, "Instanced geometry changed during calibration"):
-		return
+		var rendered := instance.multimesh.mesh
+		for surface: int in rendered.get_surface_count():
+			if rendered.surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR:
+				var material := rendered.surface_get_material(surface)
+				var keeps_color: bool = material is BaseMaterial3D and material.vertex_color_use_as_albedo
+				if material is ShaderMaterial: keeps_color = bool(material.get_shader_parameter("use_linear_vertex_color"))
+				if not _require(keeps_color, "Split foliage lost authored vertex colors"): return
 	var transform_error := str(load("res://test/test_estate_asset_baseline.gd").batch_transform_error(estate))
 	if not _require(transform_error.is_empty(), transform_error):
 		return

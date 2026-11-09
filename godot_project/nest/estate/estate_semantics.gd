@@ -91,7 +91,10 @@ func build(parent: Node3D, estate: Node3D) -> void:
 			var point := (mesh.global_transform * mesh.get_aabb()).get_center()
 			point.y = (mesh.global_transform * mesh.get_aabb()).end.y + 0.02
 			var id := "courtyard/picnic-seat" if source == "Picnic seat plank" else "courtyard/lakeside-seat"
-			var approach := point + Vector3(0, 0, 1 if source == "Picnic seat plank" else -1)
+			# Approach the real seat from its facing side after placement/rotation.
+			var front := mesh.global_basis.z.normalized()
+			front.y = 0.0
+			var approach := point + front.normalized()
 			approach.y = 0.02
 			var marker := _add_anchor(id, "courtyard", "chair", "野餐长凳" if source == "Picnic seat plank" else "湖边长凳", approach, mesh)
 			marker.set_meta("furniture_type", "bench")
@@ -240,7 +243,9 @@ func _activity_connected(marker: Marker3D, map: RID, point: Vector3, destination
 
 
 func _valid_approach(marker: Marker3D, origin: Vector3, candidate: Vector3, limit: float) -> bool:
-	if absf(candidate.y - origin.y) > 0.16 or candidate.distance_to(origin) > limit:
+	# Recast stores voxel heights as floats; the 0.16 m boundary needs only
+	# arithmetic epsilon, not a larger same-storey allowance.
+	if absf(candidate.y - origin.y) > 0.16 + 0.00001 or candidate.distance_to(origin) > limit:
 		return false
 	if marker.has_meta("interaction_transform"):
 		var contact := marker.get_meta("interaction_transform") as Transform3D

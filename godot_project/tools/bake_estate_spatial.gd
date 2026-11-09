@@ -18,7 +18,7 @@ func own_children(node: Node,owner_root: Node) -> void:
 func run() -> void:
 	var started := Time.get_ticks_msec()
 	var world := Node3D.new();root.add_child(world)
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	world.add_child(estate)
 	var physics := PHYSICS.new();world.add_child(physics)
 	physics.build(estate,true)
@@ -40,6 +40,10 @@ func run() -> void:
 	var hardscape := estate.find_child("GardenCollision_Hardscape",true,false)
 	var hard_shapes := hardscape.find_children("*","CollisionShape3D",true,false)
 	data.hardscape_shape=(hard_shapes[0] as CollisionShape3D).shape
+	var background := estate.get_node("LandscapePhysics") as Node3D
+	own_children(background, background)
+	data.background_scene = PackedScene.new()
+	if not require(data.background_scene.pack(background) == OK, "Could not pack shared landscape collision shapes"): return
 	for source: String in ["GardenCollision_TreeTrunks","GardenCollision_ShoreRocks","GardenCollision_Furniture"]:
 		var body := physics._static.get_node_or_null("Accessible"+source.trim_prefix("GardenCollision_"))
 		if body!=null:data.accessible_shapes[source]=(body.get_child(0) as CollisionShape3D).shape
@@ -53,6 +57,9 @@ func run() -> void:
 	var reloaded := ResourceLoader.load(path,"",ResourceLoader.CACHE_MODE_IGNORE) as Resource
 	if not require(reloaded!=null and reloaded.matches_inputs(DATA.current_inputs()),"Compiled resource round trip failed"):return
 	var report := {"elapsed_ms":Time.get_ticks_msec()-started,"polygons":navigation.navigation_mesh.get_polygon_count(),"mesh_collider_bindings":data.mesh_shapes.size(),"boundary_segments":data.boundary_segments.size(),"movement_obstacle_groups":data.accessible_shapes.size(),"source_inputs":data.source_inputs}
+	var receipt := FileAccess.open(output.path_join("runtime-inputs.json"), FileAccess.WRITE)
+	receipt.store_string(JSON.stringify(DATA.source_receipt(), "  "))
+	receipt.close()
 	var file := FileAccess.open(output.path_join("bake-report.json"),FileAccess.WRITE)
 	file.store_string(JSON.stringify(report,"  "));file.close()
 	print("ESTATE_SPATIAL_AUTHORED ",JSON.stringify(report))

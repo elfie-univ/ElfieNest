@@ -26,6 +26,7 @@ func bind(source: Node3D,pool: MeshInstance3D,materials: Array[ShaderMaterial],o
  var original: Array[MeshInstance3D] = []
  var central_fan: Array[MeshInstance3D] = []
  for mesh: MeshInstance3D in source.find_children("*","MeshInstance3D",true,false):
+  if mesh.get_meta("estate_water_preview_derivative",false): continue
   if str(mesh.name).begins_with("Animated reference central aerated jet "):
    central_fan.append(mesh)
    continue

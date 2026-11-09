@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from infrastructure.godot.artifacts.authority_pack import build_authority_pack
+from infrastructure.godot.artifacts.authority_pack import (
+    build_authority_pack,
+    verify_split_sources,
+)
 
 
 def make_pack(path: Path, files: dict[str, bytes]) -> None:
@@ -55,11 +58,24 @@ def read_pack(path: Path) -> dict[str, bytes]:
 
 
 def test_authority_pack_preserves_payloads_and_input_hashes(tmp_path: Path) -> None:
-    scene = ".godot/imported/ElfieNest-complete-final.glb-test.scn"
+    scene = ".godot/imported/central-building.glb-test.scn"
+    source_files = {
+        "nest/assembly/estate.tscn": hashlib.sha256(b"split assembly").hexdigest(),
+        "nest/buildings/main/central-building.glb": hashlib.sha256(
+            b"split prototype"
+        ).hexdigest(),
+    }
+    digest = hashlib.sha256()
+    for name, value in sorted(source_files.items()):
+        digest.update(f"{name}\t{value}\n".encode())
+    receipt = json.dumps(
+        {"source_tree": digest.hexdigest(), "files": source_files}
+    ).encode()
     files = {
         scene: b"complete display model" * 30,
-        "nest/estate/ElfieNest-complete-final.instances.bin": b"instances",
-        "nest/estate/estate_outdoor_lighting.scn": b"lighting",
+        "nest/buildings/main/central-building.glb.remap": f'[remap]\npath="res://{scene}"'.encode(),
+        "nest/assembly/estate.tscn": b"split assembly",
+        "nest/assembly/runtime-inputs.json": receipt,
         "nest/estate/estate_spatial.res": b"all physical shapes and navigation",
         "characters/resident.scn": b"complete resident model",
         "project.binary": b"project settings",
@@ -70,13 +86,15 @@ def test_authority_pack_preserves_payloads_and_input_hashes(tmp_path: Path) -> N
     before = original.read_bytes()
     build_authority_pack(original, output)
     packed = read_pack(output)
-    inputs = json.loads(packed.pop("nest/estate/authority_inputs.json"))
-    assert inputs == {
-        "scene": hashlib.sha256(files[scene]).hexdigest(),
-        "instances": hashlib.sha256(b"instances").hexdigest(),
-        "lighting": hashlib.sha256(b"lighting").hexdigest(),
+    assert packed["nest/assembly/runtime-inputs.json"] == receipt
+    removed = {
+        scene,
+        "nest/buildings/main/central-building.glb.remap",
+        "nest/assembly/estate.tscn",
     }
-    assert packed == {name: payload for name, payload in files.items() if name != scene}
+    assert packed == {
+        name: payload for name, payload in files.items() if name not in removed
+    }
     assert original.read_bytes() == before
 
 
@@ -85,3 +103,32 @@ def test_authority_pack_rejects_unrecognized_pack(tmp_path: Path) -> None:
     original.write_bytes(bytes(112))
     with pytest.raises(ValueError, match="PCK"):
         build_authority_pack(original, tmp_path / "authority.pck")
+
+
+def test_authority_pack_rejects_missing_split_receipt(tmp_path: Path) -> None:
+    original = tmp_path / "full.pck"
+    make_pack(original, {"nest/estate/estate_spatial.res": b"physical world"})
+    with pytest.raises(ValueError, match="receipt"):
+        build_authority_pack(original, tmp_path / "authority.pck")
+
+
+def test_source_receipt_rejects_changed_and_new_split_inputs(tmp_path: Path) -> None:
+    assembly = tmp_path / "nest/assembly"
+    assembly.mkdir(parents=True)
+    scene = assembly / "estate.tscn"
+    scene.write_bytes(b"split world")
+    name = "nest/assembly/estate.tscn"
+    checksum = hashlib.sha256(scene.read_bytes()).hexdigest()
+    receipt = {
+        "files": {name: checksum},
+        "source_tree": hashlib.sha256(f"{name}\t{checksum}\n".encode()).hexdigest(),
+    }
+    (assembly / "runtime-inputs.json").write_text(json.dumps(receipt))
+    assert verify_split_sources(tmp_path) == receipt
+    scene.write_bytes(b"edited split world")
+    with pytest.raises(ValueError, match="Stale split"):
+        verify_split_sources(tmp_path)
+    scene.write_bytes(b"split world")
+    (assembly / "new.tres").write_bytes(b"new activity data")
+    with pytest.raises(ValueError, match="new.tres"):
+        verify_split_sources(tmp_path)

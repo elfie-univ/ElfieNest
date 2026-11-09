@@ -15,13 +15,19 @@ func run() -> void:
  nest.set("physical_authority", true)
  root.add_child(nest)
  for i in range(5): await process_frame
+ var generated := nest.get_node("Generated")
+ var bindings: Dictionary = generated.get_meta("authority_bindings", {})
+ var canonical_colliders := int(bindings.get("collider_count", 0))
+ print("AUTHORITY_COUNTS colliders=", nest._estate_physics.collider_count, " canonical=", canonical_colliders, " anchors=", nest.semantic_anchor_ids().size())
+ if canonical_colliders <= 0 or nest._estate_physics.collider_count != canonical_colliders:
+  fail("Authority collider count differs from its compiled canonical scene");return
  var bytes := OS.get_static_memory_usage()-before
  print("AUTHORITY_MEMORY bytes=",bytes)
- if ResourceLoader.has_cached("res://nest/estate/ElfieNest-complete-final.glb") or not nest.get_node("Generated").find_children("*", "MeshInstance3D", true, false).is_empty():
+ if ResourceLoader.has_cached("res://nest/assembly/estate.tscn") or not nest.get_node("Generated").find_children("*", "MeshInstance3D", true, false).is_empty():
   fail("Hidden authority must not load or retain the display model");return
  if bytes > 900*1024*1024:
   fail("Authority exceeds the physical-only memory budget");return
- if nest.semantic_anchor_ids().size()!=92 or nest._estate_physics.collider_count!=1258 or nest._estate_physics._doors.size()!=10:
+ if nest.semantic_anchor_ids().size()!=92 or nest._estate_physics.collider_count<=0 or nest._estate_physics._doors.size()!=10:
   fail("Authority must retain all anchors, colliders and sliding doors");return
  for anchor:String in ["central-01/sofa-left","central-01/sofa","central-01/sofa-right"]:
   var marker := nest.resolve_anchor(anchor)

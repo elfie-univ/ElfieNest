@@ -1,27 +1,25 @@
 extends SceneTree
-## Explicit offline authoring: publish the checked PackedScene from build/.
+## Snapshot current authored split fixtures; never regenerate a second lighting source.
 func _initialize() -> void: call_deferred("run")
 
-func own(node: Node, owner_root: Node) -> void:
-	for child: Node in node.get_children():
-		child.owner = owner_root
-		own(child,owner_root)
-
 func run() -> void:
-	var source := load("res://nest/estate/ElfieNest-complete-final.glb").instantiate() as Node3D
+	var source := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(source)
-	var builder := preload("res://tools/outdoor_lighting_layout.gd").new()
-	var layout := builder.build(source)
-	if layout==null:
-		quit(1)
-		return
-	own(layout,layout)
-	print("V4_HIGH_POLES ",JSON.stringify(layout.get_meta("high_poles")))
-	assert(layout.get_meta("fountain_rim").size() > 30, "Fountain contour missing")
+	var fixtures := Node3D.new()
+	fixtures.name = "CourtyardLighting"
+	root.add_child(fixtures)
+	for node: Node in source.find_children("*", "", true, false):
+		if not (node is MeshInstance3D or node is Light3D): continue
+		var extras: Dictionary = node.get_meta("extras", {})
+		if not extras.has("outdoor_fixture_id"): continue
+		var copy := node.duplicate(0) as Node3D
+		fixtures.add_child(copy)
+		copy.global_transform = node.global_transform
+		copy.owner = fixtures
 	var packed := PackedScene.new()
-	assert(packed.pack(layout) == OK)
-	var directory := ProjectSettings.globalize_path("res://../build/estate-lighting-v4")
+	assert(fixtures.get_child_count() > 0 and packed.pack(fixtures) == OK)
+	var directory := ProjectSettings.globalize_path("res://../build/courtyard-lighting")
 	DirAccess.make_dir_recursive_absolute(directory)
-	assert(ResourceSaver.save(packed,directory.path_join("estate_outdoor_lighting.scn"),ResourceSaver.FLAG_COMPRESS) == OK)
-	print("V5_LIGHTING_AUTHORED high=",layout.get_meta("high_poles").size()," forest=",layout.get_meta("forest_lamps").size()," edges=",layout.get_meta("road_edge_paths").size()," patterns=",layout.get_meta("plaza_pattern_paths").size()," patches=",layout.get_meta("ground_patches").size()," shoreline=",layout.get_meta("shoreline").size())
-	quit(0)
+	assert(ResourceSaver.save(packed, directory.path_join("courtyard-lighting.scn"), ResourceSaver.FLAG_COMPRESS) == OK)
+	print("SPLIT_LIGHTING_SNAPSHOT fixtures=", fixtures.get_child_count())
+	source.free(); fixtures.free(); quit()

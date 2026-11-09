@@ -30,10 +30,10 @@ export function CameraSelectors({ mode, catalog, actors, actorId, disabled, pers
     ]} onChange={(value: Perspective) => chooseActor(actorId, value)} />
   </>;
 }
-export function ObservationToolbar({ catalog, actors, ready, actorId, selectActor, manageActors, send }: Props) {
+export function ObservationToolbar({ catalog, actors, actorId, selectActor, manageActors, send }: Props) {
   const [mode, setMode] = useState<ViewMode>(catalog?.active_id.startsWith("elfie-") ? "elfie" : "fixed");
   const [perspective, setPerspective] = useState<Perspective>(catalog?.active_id.startsWith("elfie-pov-") ? "first_person" : "follow");
-  const disabled = !ready || catalog === null;
+  const disabled = catalog === null;
   useEffect(() => {
     if (!catalog) return;
     setMode(catalog.active_id.startsWith("elfie-") ? "elfie" : "fixed");

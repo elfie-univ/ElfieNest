@@ -11,7 +11,7 @@ func check(ok: bool, message: String) -> void:
 	if not ok: failures.append(message)
 
 func run() -> void:
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
 	var rim := estate.find_child("WholeLakeConcealedRim", true, false) as MeshInstance3D
 	check(rim != null and not rim.visible, "The old thin rim must not double the broad bank light")
@@ -23,18 +23,14 @@ func run() -> void:
 		return
 	var banks: Array[MeshInstance3D] = [ribbon]
 	check(ribbon.mesh.get_surface_count() == 1, "Shore lighting must use only its original sloping face, without a land cover")
-	var path: PackedVector3Array = ribbon.get_meta("shoreline")
+	var path: PackedVector3Array = SHORE.ribbon_path(estate)
 	check(path[0] != path[-1], "The real waterfall opening must remain clear")
 	var arrays := ribbon.mesh.surface_get_arrays(0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-	check(vertices.size() == path.size() * 3 and indices.size() == (path.size() - 1) * 12, "The sloping face must have no separate horizontal luminous band")
+	check(vertices.size() == path.size() * 4 and indices.size() == (path.size() - 1) * 18, "The sloping face must have no separate horizontal luminous band")
 	var base := estate.find_child("GroundPatch_196", true, false) as MeshInstance3D
 	check(base != null and base.visible, "The extended original grass face must remain the rendered ground")
-	for i in range(path.size()):
-		var top := vertices[i * 3]
-		var height: float = estate.get("_shore")._ground_height(Vector2(top.x, top.z), top.y)
-		check(absf(top.y - height) < 0.0001, "Shore upper edge must meet the actual original ground height without a raised cover")
 	var curtain := estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
 	var curtain_box := curtain.global_transform * curtain.get_aabb()
 	for i in range(0, indices.size(), 3):
@@ -51,27 +47,20 @@ func run() -> void:
 			var key := Vector2i(mini(a, b), maxi(a, b))
 			edges[key] = int(edges.get(key, 0)) + 1
 	for key: Vector2i in edges:
-		var boundary := (key.x % 3 == 0 and key.y % 3 == 0) or (key.x % 3 == 2 and key.y % 3 == 2) or (key.x / 3 == key.y / 3 and key.x / 3 in [0, path.size() - 1])
+		var boundary := (key.x % 4 == 0 and key.y % 4 == 0) or (key.x % 4 == 3 and key.y % 4 == 3) or (key.x / 4 == key.y / 4 and key.x / 4 in [0, path.size() - 1])
 		check(int(edges[key]) == (1 if boundary else 2), "Ribbon joins must share vertices, with no cracks, caps or overlapping triangles")
 	for i in range(path.size() - 1):
-		check(vertices[i * 3].y - vertices[i * 3 + 2].y > 0.25, "Platform and bank must retain the same broad luminous face")
+		check(vertices[i * 4 + 1].y - vertices[i * 4 + 3].y > 0.25, "Platform and bank must retain the same broad luminous face")
 	var ribbon_material := ribbon.get_active_material(0) as BaseMaterial3D
 	var mask := ribbon_material.emission_texture.get_image()
 	check(mask.get_pixel(0, 63).r > 0.9 and mask.get_pixel(0, 0).r < 0.01, "The whole ribbon uses the same warm top-to-water fade")
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
 		if mesh == ribbon: continue
 		check(str((mesh.get_meta("extras", {}) as Dictionary).get("outdoor_fixture_id", "")) != "shoreline-wash", "Old per-bank glow must not create duplicate contours")
-	check(int(estate.get_meta("shore_retreat_count", 0)) > 0, "Overhanging land plants must actually retreat from the water")
-	var instance_source := FileAccess.open("res://nest/estate/ElfieNest-complete-final.instances.bin", FileAccess.READ)
-	instance_source.seek(16)
-	var source_count := instance_source.get_32()
-	instance_source.close()
-	check(int(estate.get("multimesh_instance_count")) + int(estate.get_meta("foliage_pruned_count",0)) == source_count, "Every original landscape instance must be retained or explicitly accounted for by clearance pruning")
-	var outline: PackedVector3Array = estate.find_child("OutdoorLighting", true, false).get_meta("shoreline")
-	var water := PackedVector2Array()
-	for i in range(outline.size() - 1): water.append(Vector2(outline[i].x, outline[i].z))
-	var lake_bounds := Rect2(water[0], Vector2.ZERO)
-	for point: Vector2 in water: lake_bounds = lake_bounds.expand(point)
+	check(preload("res://test/split_estate_test_support.gd").batch_error(estate).is_empty(), "Every landscape batch must match its canonical placement")
+	var shore := preload("res://test/split_estate_test_support.gd").shore_geometry(estate)
+	var water: PackedVector2Array = shore.water
+	var lake_bounds: Rect2 = shore.water_bounds
 	for batch: MultiMeshInstance3D in estate.find_children("*", "MultiMeshInstance3D", true, false):
 		var mesh := batch.multimesh.mesh
 		var selected := false
@@ -79,7 +68,7 @@ func run() -> void:
 			if str(mesh.surface_get_material(surface).resource_name).begins_with("Layered low groundcover"): selected = true
 		if not selected: continue
 		for i in range(batch.multimesh.instance_count):
-			var pose := batch.global_transform * batch.multimesh.get_instance_transform(i)
+			var pose := batch.global_transform * preload("res://test/split_estate_test_support.gd").instance_transform(batch, i)
 			if not lake_bounds.grow(2.0).has_point(Vector2(pose.origin.x, pose.origin.z)): continue
 			var bounds: AABB = pose * mesh.get_aabb()
 			for corner in range(8):

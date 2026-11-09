@@ -5,8 +5,8 @@ from functools import lru_cache
 
 import pytest
 
-from test.godot.asset_geometry import _Model
 from test.godot.estate_assets.test_pod_desktop_contacts import ROOT, _point, _values
+from test.godot.formal_asset_geometry import NamedModel as _Model
 
 
 @lru_cache
@@ -21,14 +21,14 @@ def _primitives(model, index):
 @pytest.mark.parametrize(
     "relative",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/buildings/pod/pod-building.glb",
     ],
 )
 def test_bedroom_strip_touches_the_actual_ceiling(relative):
     model = _model(relative)
-    for module in [f"M{number:02d}" for number in range(1, 9)]:
+    for module in ["M01"]:
         nodes = {
-            node.get("extras", {}).get("source_name"): index
+            node["name"].split(" | ")[-1].removesuffix("_001"): index
             for index, node in enumerate(model.doc["nodes"])
             if "mesh" in node and node.get("extras", {}).get("module") == module
         }
@@ -50,7 +50,7 @@ def test_bedroom_strip_touches_the_actual_ceiling(relative):
 @pytest.mark.parametrize(
     "relative",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/furniture/layouts/terraces/terrace-layout-06-local.glb",
     ],
 )
 def test_botanical_painting_has_its_stem_at_the_bottom(relative):

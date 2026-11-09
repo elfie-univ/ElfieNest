@@ -1,26 +1,97 @@
-"""Build a smaller authority package without changing the complete observer pack."""
+"""Strip split display payloads while retaining the validated physical snapshot."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 import struct
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
-_INPUTS = {
-    "instances": "nest/estate/ElfieNest-complete-final.instances.bin",
-    "lighting": "nest/estate/estate_outdoor_lighting.scn",
+INPUT_MANIFEST = "nest/assembly/runtime-inputs.json"
+_DISPLAY_EXTENSIONS = {".glb", ".scn", ".tscn", ".png", ".jpg", ".jpeg", ".webp"}
+_SOURCE_EXTENSIONS = {
+    ".gd",
+    ".glb",
+    ".scn",
+    ".tscn",
+    ".tres",
+    ".json",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gdshader",
+    ".gdshaderinc",
+    ".import",
 }
-INPUT_MANIFEST = "nest/estate/authority_inputs.json"
+_SOURCE_ROOTS = ("assembly", "buildings", "courtyard", "furniture", "estate")
+
+
+def _receipt(payload: bytes) -> dict:
+    try:
+        data = json.loads(payload)
+        files = data["files"]
+        if not isinstance(files, dict) or "nest/assembly/estate.tscn" not in files:
+            raise ValueError("missing split assembly")
+        digest = hashlib.sha256()
+        for name, checksum in sorted(files.items()):
+            path = PurePosixPath(name)
+            if path.is_absolute() or ".." in path.parts or not name.startswith("nest/"):
+                raise ValueError("unsafe source path")
+            if not isinstance(checksum, str) or not re.fullmatch(
+                "[0-9a-f]{64}", checksum
+            ):
+                raise ValueError("invalid source hash")
+            digest.update(f"{name}\t{checksum}\n".encode())
+        if data["source_tree"] != digest.hexdigest():
+            raise ValueError("source digest differs")
+        return data
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f"Invalid split source receipt: {error}") from error
+
+
+def verify_split_sources(project: Path) -> dict:
+    """Reject stale source receipts before either production export."""
+    try:
+        receipt = _receipt((project / INPUT_MANIFEST).read_bytes())
+    except OSError as error:
+        raise ValueError(
+            "Missing split source receipt; bake spatial data first"
+        ) from error
+    actual = {}
+    for folder in _SOURCE_ROOTS:
+        base = project / "nest" / folder
+        for path in base.rglob("*"):
+            if not path.is_file() or path.suffix not in _SOURCE_EXTENSIONS:
+                continue
+            name = path.relative_to(project).as_posix()
+            if name == INPUT_MANIFEST or path.name == "estate_complete_final.gd":
+                continue
+            if folder == "estate" and path.suffix not in {
+                ".gd",
+                ".gdshader",
+                ".gdshaderinc",
+            }:
+                continue
+            actual[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != receipt["files"]:
+        changed = sorted(
+            set(actual) ^ set(receipt["files"])
+            | {
+                name
+                for name in actual.keys() & receipt["files"].keys()
+                if actual[name] != receipt["files"][name]
+            }
+        )
+        raise ValueError(
+            "Stale split spatial inputs; rebake: " + ", ".join(changed[:8])
+        )
+    return receipt
 
 
 def build_authority_pack(source: Path, destination: Path) -> None:
-    """Keep every exported file except the unused display scene; record its hash.
-
-    Only Godot's pinned, unencrypted standalone V4 format is supported. Input
-    hashes come from the complete export, so the physical snapshot still fails
-    closed when any authoring input changes without a matching spatial bake.
-    """
+    """Preserve non-display bytes and the exact source receipt of the full export."""
     with source.open("rb") as original:
         header = original.read(112)
         if len(header) != 112:
@@ -35,7 +106,7 @@ def build_authority_pack(source: Path, destination: Path) -> None:
         original.seek(directory)
         count = struct.unpack("<I", original.read(4))[0]
         entries = []
-        names: set[str] = set()
+        names = set()
         for _ in range(count):
             length = struct.unpack("<I", original.read(4))[0]
             if not 0 < length <= 4096:
@@ -48,57 +119,50 @@ def build_authority_pack(source: Path, destination: Path) -> None:
                 raise ValueError("Unsupported Godot PCK entry")
             names.add(name)
             entries.append((name, base + offset, size, checksum))
-        scenes = [
-            name
-            for name in names
-            if name.startswith(".godot/imported/ElfieNest-complete-final.glb-")
-            and name.endswith(".scn")
-        ]
-        if (
-            len(scenes) != 1
-            or not set(_INPUTS.values()) <= names
-            or INPUT_MANIFEST in names
-        ):
-            raise ValueError(
-                "Godot PCK must contain exactly one complete estate and its inputs"
-            )
-        inputs = {**_INPUTS, "scene": scenes[0]}
-        digests: dict[str, str] = {}
+        indexed = {entry[0]: entry for entry in entries}
+        if INPUT_MANIFEST not in indexed:
+            raise ValueError("Godot PCK is missing its split source receipt")
+        if "nest/estate/estate_spatial.res" not in indexed:
+            raise ValueError("Godot PCK is missing its physical snapshot")
+        if any("ElfieNest-complete-final" in name for name in names):
+            raise ValueError("Godot PCK contains the retired merged estate")
+        _, offset, size, _ = indexed[INPUT_MANIFEST]
+        original.seek(offset)
+        receipt = _receipt(original.read(size))
+        removed = set()
+        for name in receipt["files"]:
+            if PurePosixPath(name).suffix not in _DISPLAY_EXTENSIONS:
+                continue
+            for candidate in (name, name + ".remap", name + ".import"):
+                if candidate not in indexed:
+                    continue
+                removed.add(candidate)
+                if candidate.endswith((".remap", ".import")):
+                    _, offset, size, _ = indexed[candidate]
+                    original.seek(offset)
+                    for target in re.findall(
+                        rb'"res://([^"\r\n]+)"', original.read(size)
+                    ):
+                        target_name = target.decode()
+                        if target_name in names:
+                            removed.add(target_name)
         records = []
         with destination.open("wb") as output:
             output.write(header)
             for name, offset, size, checksum in entries:
+                if name in removed:
+                    continue
                 original.seek(offset)
                 output.write(bytes((-output.tell()) % 16))
                 new_offset = output.tell() - base
-                digest = hashlib.sha256() if name in inputs.values() else None
                 remaining = size
                 while remaining:
                     chunk = original.read(min(1024 * 1024, remaining))
                     if not chunk:
                         raise ValueError("Truncated Godot PCK payload")
-                    if digest is not None:
-                        digest.update(chunk)
-                    if name != scenes[0]:
-                        output.write(chunk)
+                    output.write(chunk)
                     remaining -= len(chunk)
-                if digest is not None:
-                    digests[name] = digest.hexdigest()
-                if name != scenes[0]:
-                    records.append((name, new_offset, size, checksum))
-            payload = json.dumps(
-                {key: digests[name] for key, name in inputs.items()}, sort_keys=True
-            ).encode("utf-8")
-            output.write(bytes((-output.tell()) % 16))
-            records.append(
-                (
-                    INPUT_MANIFEST,
-                    output.tell() - base,
-                    len(payload),
-                    hashlib.md5(payload).digest(),
-                )
-            )
-            output.write(payload)
+                records.append((name, new_offset, size, checksum))
             directory = output.tell()
             output.write(struct.pack("<I", len(records)))
             for name, offset, size, checksum in records:

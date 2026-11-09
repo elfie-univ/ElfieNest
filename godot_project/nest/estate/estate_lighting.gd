@@ -61,8 +61,18 @@ func bind(nest: Node) -> Dictionary:
 				owned[identity] = material
 				_materials.append({"material": material, "energy": energy,"group":group})
 				counts["ordinary_emission"] += 1
-			mesh.set_surface_override_material(surface, owned[identity])
+			set_material(mesh, surface, owned[identity])
 	return counts
+
+
+static func set_material(mesh: MeshInstance3D, surface: int, material: Material) -> void:
+	# A geometry-wide override wins over every surface override. Preserve its
+	# effective values on all surfaces before assigning an owned runtime material.
+	if mesh.material_override != null:
+		var previous := mesh.material_override
+		for index: int in mesh.mesh.get_surface_count(): mesh.set_surface_override_material(index, previous)
+		mesh.material_override = null
+	mesh.set_surface_override_material(surface, material)
 
 
 func apply(lights_on: bool, quiet_mode: bool = false, occupied: PackedStringArray = PackedStringArray(), usage_known: bool = false) -> void:

@@ -128,7 +128,7 @@ func bind_m01(sample: Node3D) -> Dictionary:
 						# Screen content keeps its source emission; guides are ordinary lights.
 						# This sample does not invent their operational state.
 						counts["preserved_emissive_surfaces"] += 1
-			mesh.set_surface_override_material(surface, owned[identity])
+			ESTATE_LIGHTING.set_material(mesh, surface, owned[identity])
 	# Restored instance batches own shared runtime materials, separate from the
 	# hidden MeshInstance prototypes. Their daylight must follow the same switch.
 	for batch: MultiMeshInstance3D in sample.find_children("*", "MultiMeshInstance3D", true, false):

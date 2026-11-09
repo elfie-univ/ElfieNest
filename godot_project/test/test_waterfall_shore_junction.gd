@@ -4,16 +4,7 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	var model_path := "res://nest/estate/ElfieNest-complete-final.glb"
-	var imported := ConfigFile.new()
-	assert(imported.load(model_path + ".import") == OK)
-	var cached: String = imported.get_value("remap", "path")
-	var receipt := FileAccess.get_file_as_string(cached.get_basename() + ".md5")
-	if not receipt.contains(FileAccess.get_md5(model_path)):
-		push_error("The imported Godot model does not match the edited formal GLB")
-		quit(1)
-		return
-	var estate := load("res://nest/estate/estate.tscn").instantiate() as Node3D
+	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
 	var ribbon := estate.find_child("WholeLakeRibbon", true, false) as MeshInstance3D
 	var points: PackedVector3Array = ribbon.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
@@ -80,7 +71,7 @@ func run() -> void:
 		if batch_box.position.x > 28.0 or batch_box.end.x < 23.0 or batch_box.position.z > 32.0 or batch_box.end.z < 25.0: continue
 		var group_id := str(batch.get_meta("source_group", "")).trim_prefix("__ELFIE_INST_GROUP_").to_int()
 		for i in range(batch.multimesh.instance_count):
-			var pose := batch.global_transform * batch.multimesh.get_instance_transform(i)
+			var pose := batch.global_transform * preload("res://test/split_estate_test_support.gd").instance_transform(batch, i)
 			var box := pose * local
 			if box.position.y > 2.0 or box.position.x > 28.0 or box.end.x < 23.0: continue
 			var flower_group := group_id >= 91 and group_id <= 94 or group_id >= 98 and group_id <= 101

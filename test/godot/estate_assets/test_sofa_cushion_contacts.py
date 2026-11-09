@@ -4,8 +4,8 @@ import math
 
 import pytest
 
-from test.godot.asset_geometry import _Model
 from test.godot.estate_assets.test_pod_desktop_contacts import ROOT, _section, _values
+from test.godot.formal_asset_geometry import NamedModel as _Model
 
 
 def _components(points, indices):
@@ -85,7 +85,7 @@ def _contact(points, triangles):
 @pytest.mark.parametrize(
     "relative",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/furniture/layouts/terraces/terrace-layout-01-local.glb",
     ],
 )
 def test_six_loose_cushions_contact_the_sofa_back(relative):

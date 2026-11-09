@@ -27,8 +27,8 @@ func run() -> void:
 	):
 		return
 	if not _require(
-		String(estate.get("restore_error")).is_empty()
-			and int(estate.get("multimesh_instance_count")) > 0,
+		bool(estate.get_meta("split_runtime_ready", false))
+			and preload("res://test/split_estate_test_support.gd").batch_error(estate).is_empty(),
 		"Complete estate instance restoration failed",
 	):
 		return

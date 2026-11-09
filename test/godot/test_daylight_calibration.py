@@ -1,18 +1,38 @@
 """Keep daylight calibration local to rendering, not the approved source asset."""
 
+import hashlib
+import json
 import re
 from pathlib import Path
+
+from test.godot.asset_geometry import read_glb
 
 ROOT = Path(__file__).resolve().parents[2] / "godot_project"
 
 
-def test_complete_estate_applies_daylight_before_restoring_shared_instances() -> None:
-    source = (ROOT / "nest/estate/estate_complete_final.gd").read_text()
-    ready = source.split("func _ready() -> void:", 1)[1].split("\n\nfunc ", 1)[0]
-    assert 'preload("res://nest/estate/estate_daylight.gd")' in source
-    assert ready.index("DAYLIGHT.apply(self)") < ready.index(
-        "_restore_instanced_groups()"
+def test_split_estate_restores_all_authored_light_controls() -> None:
+    bindings = json.loads((ROOT / "nest/assembly/runtime-bindings.json").read_text())
+    lights = bindings["lighting"]["lights"]
+    assert len(lights) == 273
+    assert all(
+        set(control) == {"energy", "group", "mask", "visible"}
+        for control in lights.values()
     )
+    assert all(
+        control["energy"] >= 0 and control["mask"] > 0 and control["group"]
+        for control in lights.values()
+    )
+    source = (ROOT / "nest/assembly/estate_runtime.gd").read_text()
+    assert 'const BINDINGS := "res://nest/assembly/runtime-bindings.json"' in source
+    assert "restore_lighting(data.lighting)" in source
+    assert (
+        'restored_controls.lights == find_children("*", "Light3D", true, false).size()'
+        in source
+    )
+    for property in ("light_energy", "light_cull_mask", "visible"):
+        assert f"node.{property} =" in source
+    scene = (ROOT / "nest/assembly/estate.tscn").read_text()
+    assert 'path="res://nest/assembly/estate_runtime.gd"' in scene
 
 
 def test_daylight_does_not_change_render_quality_or_export_compression() -> None:
@@ -111,19 +131,53 @@ def test_courtyard_review_view_targets_the_building_not_the_sky_bounds() -> None
     assert "overview.fov = 38.0" in source
 
 
-def test_canopy_instances_do_not_use_importer_generated_silhouette_lods() -> None:
-    source = (ROOT / "nest/estate/estate_complete_final.gd").read_text()
-    assert "_full_detail_canopy" in source
-    assert 'surface["lods"] = []' in source
-    assert 'surface["vertex_data"] =' not in source
-    assert 'surface["index_data"] =' not in source
+def test_accepted_split_source_tree_keeps_authored_glb_inputs() -> None:
+    # Freeze the accepted split GLBs, including authored geometry and materials.
+    manifest = json.loads((ROOT / "nest/assembly/runtime-inputs.json").read_text())
+    expected = {
+        path: digest
+        for path, digest in manifest["files"].items()
+        if path.endswith(".glb")
+    }
+    assert len(expected) == 57
+    fingerprint = hashlib.sha256(
+        json.dumps(expected, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    assert (
+        fingerprint
+        == "68a42582c6c09d74a9c13ff43c5ed59e137ccf67667c0a41a7366c54ee8c4c71"
+    )
+    actual = {
+        str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in (ROOT / "nest").rglob("*.glb")
+        if path.parent.name != "estate"
+    }
+    assert actual == expected
 
 
-def test_full_detail_instances_are_spatially_batched_not_decimated() -> None:
-    source = (ROOT / "nest/estate/estate_complete_final.gd").read_text()
-    assert "MAX_BATCH_INSTANCES := 128" in source
-    assert "_spatial_batches(instance_buffer)" in source
-    assert 'set_meta("source_instance_indices"' in source
+def test_shared_placements_keep_actual_source_prototype_identities() -> None:
+    index = json.loads((ROOT / "nest/assembly/asset-index.json").read_text())
+    entries = index["fileGraph"]["entries"]
+    sources = [
+        entry["file"] for key, entry in entries.items() if key.startswith("source:")
+    ]
+    assert len(sources) == len(set(sources)) == 51
+    for relative in sources:
+        document, _ = read_glb(ROOT / "nest" / relative)
+        nodes = [node for node in document["nodes"] if "mesh" in node]
+        assert nodes, relative
+        assert len({node["name"] for node in nodes}) == len(nodes), relative
+        for node in nodes:
+            extras = node["extras"]
+            assert (
+                extras["source_name"] and extras["v044_path"] and extras["geometry_id"]
+            ), (relative, node["name"])
+    placement = (ROOT / "nest/assembly/glb_placement.gd").read_text()
+    assert "meshes[str(node.name)] = node.mesh" in placement
+    assert "target.mesh = mesh" in placement
+    assert "batch.mesh = mesh" in placement
+    assert "batch.buffer = buffer" in placement
+    assert "buffer.size() != data.instance_count * stride" in placement
 
 
 def test_authored_fixtures_are_restored_from_asset_local_definitions() -> None:
@@ -151,7 +205,15 @@ def test_authored_clearcoat_is_read_from_the_real_glb_not_repainted() -> None:
     assert "clearcoat_enabled = true" in source
     assert 'get_meta("source_optics"' in source
     assert "FileAccess.open" not in source
-    import_settings = (
-        ROOT / "nest/estate/ElfieNest-complete-final.glb.import"
-    ).read_text()
-    assert 'import_script/path="res://tools/import_estate_optics.gd"' in import_settings
+    # Split sources use the same current importer policy; calibrated materials
+    # are saved on placements rather than re-running the retired whole importer.
+    imports = [
+        path
+        for path in (ROOT / "nest").rglob("*.glb.import")
+        if path.parent.name != "estate"
+    ]
+    assert len(imports) == 57
+    for path in imports:
+        assert path.with_suffix("").is_file(), path
+        hooks = re.findall(r"^import_script/path=(.*)$", path.read_text(), re.M)
+        assert hooks == ['""'], path

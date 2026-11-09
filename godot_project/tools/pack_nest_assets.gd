@@ -58,8 +58,16 @@ func add_generated(target: String, content: String) -> bool:
 	var source := OUTPUT + target.get_file()
 	return write(source, content) and add_file(target, source)
 
+func review_project_settings() -> String:
+	# The isolated renderer must use the formal project's light budgets.
+	var result := SHELL
+	for key: String in ["limits/opengl/max_renderable_lights", "limits/opengl/max_lights_per_object"]:
+		result += key + "=" + str(ProjectSettings.get_setting("rendering/" + key)) + "\n"
+	return result
+
 func dependencies(source: String) -> PackedStringArray:
 	var files := PackedStringArray()
+	if source == NEST + "assembly/estate_runtime.gd": files.append(NEST + "assembly/runtime-bindings.json")
 	for dependency: String in ResourceLoader.get_dependencies(source):
 		files.append(dependency.get_slice("::", 2) if dependency.contains("::") else dependency)
 	if source.get_extension() in ["gdshader", "gdshaderinc"]:
@@ -109,44 +117,6 @@ func verify_scene_links(path: String, entry: Dictionary, entries: Dictionary) ->
 			actual[dependency.simplify_path()] = true
 	return require(actual == expected, "Scene references differ from the asset index: " + path)
 
-func pack_reference() -> bool:
-	# Evaluate the retained merged source through its normal rendering inputs.
-	var world := (load(NEST + "nest.tscn") as PackedScene).instantiate() as Node3D
-	world.set_script(null)
-	world.get_node("ObservationHUD").free()
-	root.add_child(world)
-	var generated := Node3D.new()
-	generated.name = "Generated"
-	world.add_child(generated)
-	var estate := (load(NEST + "estate/estate.tscn") as PackedScene).instantiate() as Node3D
-	estate.name = "CompleteEstate"
-	generated.add_child(estate)
-	if not require(estate.restore_error.is_empty(), "Cannot restore the merged estate instances"): return false
-	var physics := (load(NEST + "estate/estate_physics.gd") as Script).new() as Node3D
-	physics.name = "EstatePhysics"
-	generated.add_child(physics)
-	physics.build(estate, true)
-	if not require(physics.outdoor_access != null, "Cannot restore merged outdoor access"): return false
-	var optics: RefCounted = (load(NEST + "estate/estate_lighting_sample.gd") as Script).new()
-	optics.bind_m01(world)
-	optics.apply_environment(1.0, false, true, false, PackedStringArray(), true)
-	var water := (load(NEST + "estate/estate_water_display.gd") as Script).new() as Node3D
-	water.name = "ObserverFountainLighting"
-	generated.add_child(water)
-	water.bind(estate, world.get_node("WorldEnvironment").environment, false)
-	water.sample(0.0, false)
-	water.set_presentation_paused(true)
-	make_static(world, world, {})
-	var reference := PackedScene.new()
-	var file := OUTPUT + "reference.scn"
-	var saved := reference.pack(world) == OK and ResourceSaver.save(reference, file, ResourceSaver.FLAG_COMPRESS) == OK
-	world.free()
-	if not require(saved, "Cannot save the merged reference view"): return false
-	if not add_file(BASE + "reference.scn", file): return false
-	for dependency: String in dependencies(file):
-		if not add_resource(dependency): return false
-	return true
-
 func make_static(node: Node, scene_root: Node, embedded: Dictionary) -> void:
 	if node is Timer: node.stop()
 	for signal_info: Dictionary in node.get_signal_list():
@@ -192,7 +162,7 @@ func run() -> void:
 		if entry.kind != "source" and not verify_scene_links(path, entry, entries): return
 		if not add_resource(path): return
 		previews[id].merge({"path": path, "source": entry.kind == "source", "focus": entry.get("focus", [])}, true)
-	if not (add_generated("res://project.godot", SHELL)
+	if not (add_generated("res://project.godot", review_project_settings())
 		and add_generated("res://review.tscn", REVIEW_SCENE)
 		and add_generated("res://.godot/global_script_class_cache.cfg", "list=[]\n")
 		and add_file("res://.godot/uid_cache.bin", "res://.godot/uid_cache.bin")

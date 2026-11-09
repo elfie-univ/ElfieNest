@@ -1,8 +1,9 @@
 extends SceneTree
 
 func _initialize() -> void:
-	var scene := load("res://nest/estate/ElfieNest-complete-final.glb") as PackedScene
+	var scene := load("res://nest/assembly/estate.tscn") as PackedScene
 	var estate := scene.instantiate()
+	root.add_child(estate)
 	var count := 0
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
 		var label := str(mesh.name).replace("_", " ").to_lower()

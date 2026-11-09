@@ -18,7 +18,10 @@ if os.name == "nt":
 else:
     import fcntl
 
-from infrastructure.godot.artifacts.authority_pack import build_authority_pack
+from infrastructure.godot.artifacts.authority_pack import (
+    build_authority_pack,
+    verify_split_sources,
+)
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.species_package_validation import (
     GodotSpeciesValidationRunner,
@@ -228,6 +231,11 @@ def _export_runtime_locked(
     godot_runner: GodotSpeciesValidationRunner,
 ) -> int:
     """Export, then validate the imported source before publishing the bundle."""
+    try:
+        verify_split_sources(GODOT_PROJECT)
+    except ValueError as error:
+        print(f"❌ {error}")
+        return 1
     staging = output.parent / f".{output.name}.staging"
     previous = output.parent / f".{output.name}.previous"
     shutil.rmtree(staging, ignore_errors=True)

@@ -1,5 +1,6 @@
-"""The four worktops must fit the actual bed shell, including their head corners."""
+"""Freeze the accepted shared bed and the four worktop prototypes."""
 
+import hashlib
 import math
 import struct
 from functools import lru_cache
@@ -7,10 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from test.godot.asset_geometry import _inverse, _Model, _multiply
+from test.godot.asset_geometry import _multiply
+from test.godot.formal_asset_geometry import NamedModel, assert_approved_source
 
 ROOT = Path(__file__).resolve().parents[3]
-RUNTIME = ROOT / "godot_project/nest/estate/ElfieNest-complete-final.glb"
+PROTOTYPE = ROOT / "godot_project/nest/furniture/shared/bedroom/bedroom-cabinet.glb"
 
 
 def _values(model, accessor):
@@ -81,41 +83,29 @@ def _radii(segments, angle):
 
 @lru_cache
 def _model():
-    return _Model(str(RUNTIME))
+    return NamedModel(str(PROTOTYPE))
 
 
 @pytest.mark.parametrize("resident", "ABCD")
-def test_four_desktops_touch_their_formal_bed_shell(resident):
+def test_four_desktop_prototypes_keep_the_approved_source_geometry(resident):
+    # The accepted shared shell differs from the old merged shell. Freeze both
+    # current inputs; native measures their 32 actual scene contacts/identities.
+    assert_approved_source("furniture/shared/bedroom/bed-shared.glb")
+    assert hashlib.sha256(PROTOTYPE.read_bytes()).hexdigest() == (
+        "b9d4274561da88adcca2dc4bdfb230bbcacf03aea9aa9f5de0bde6e4ea6f4773"
+    )
     model = _model()
-    bed = next(
-        i
-        for i, n in enumerate(model.doc["nodes"])
-        if n.get("extras", {}).get("module") == "M01"
-        and n.get("extras", {}).get("piece") == "shell"
-        and n.get("extras", {}).get("resident") == resident
+    nodes = [
+        n
+        for n in model.doc["nodes"]
+        if n.get("extras", {}).get("piece") == "worktop"
+        and n["extras"].get("resident") == resident
+    ]
+    assert len(nodes) == 1
+    node = nodes[0]
+    assert (
+        node["name"]
+        == f"{resident} | longer curved desktop with compact rounded head joint"
     )
-    frame = _inverse(model.world(bed))
-    bed_triangles = list(_triangles(model, bed, frame))
-    desk = next(
-        i
-        for i, n in enumerate(model.doc["nodes"])
-        if n.get("extras", {}).get("module") == "M01"
-        and n.get("extras", {}).get("piece") == "worktop"
-        and n.get("extras", {}).get("resident") == resident
-    )
-    desk_triangles = list(_triangles(model, desk, frame))
-    for height in (0.551, 0.575, 0.599):
-        bed_section = _section(bed_triangles, height)
-        desk_section = _section(desk_triangles, height)
-        for degrees in (-101, -100, -90, -80, -70, -60, -56):
-            angle = math.radians(degrees)
-            br, dr = _radii(bed_section, angle), _radii(desk_section, angle)
-            assert br and dr, (resident, height, degrees, model.path)
-            gap = min(dr) - max(br)
-            assert -0.007 <= gap <= 0.001, (
-                resident,
-                height,
-                degrees,
-                gap,
-                model.path,
-            )
+    assert node["extras"]["module"] == "M01"
+    assert model.doc["meshes"][node["mesh"]]["primitives"]

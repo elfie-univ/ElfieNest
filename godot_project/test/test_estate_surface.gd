@@ -2,7 +2,7 @@ extends SceneTree
 
 const SURFACE := preload("res://nest/estate/estate_surface.gd")
 const DAYLIGHT := preload("res://nest/estate/estate_daylight.gd")
-const SOURCE := "res://nest/estate/ElfieNest-complete-final.glb"
+const SOURCE := "res://nest/assembly/estate.tscn"
 
 
 func _initialize() -> void:

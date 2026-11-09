@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from test.godot.asset_geometry import _Model
 from test.godot.estate_assets.test_pod_desktop_contacts import (
     _section,
     _triangles,
     _values,
 )
+from test.godot.formal_asset_geometry import NamedModel as _Model
 
 ROOT = Path(__file__).resolve().parents[3]
 IDENTITY = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
@@ -16,7 +16,7 @@ IDENTITY = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/buildings/main/central-building.glb",
     ],
 )
 @pytest.mark.parametrize("height", [0.8, 1.5, 2.3])
@@ -50,7 +50,7 @@ def test_glass_edge_reaches_garden_entrance_frame(path, height):
 @pytest.mark.parametrize(
     "path",
     [
-        "godot_project/nest/estate/ElfieNest-complete-final.glb",
+        "godot_project/nest/buildings/main/central-building.glb",
     ],
 )
 def test_curved_glass_edge_has_no_sudden_depth_step(path):

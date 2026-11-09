@@ -8,7 +8,7 @@ func _init() -> void:
 
 
 func _profile() -> void:
-	var final_scene := load("res://nest/estate/estate.tscn") as PackedScene
+	var final_scene := load("res://nest/assembly/estate.tscn") as PackedScene
 	var estate := final_scene.instantiate() as Node3D
 	root.add_child(estate)
 	await process_frame
@@ -30,7 +30,7 @@ func _profile() -> void:
 	root.add_child(nest)
 	await process_frame
 	_checkpoint("complete_nest_with_observer")
-	if nest.observation_view_count() != 15:
+	if nest.observation_view_count() != 21:
 		push_error("Complete estate observer camera catalog is incomplete")
 		quit(1)
 		return

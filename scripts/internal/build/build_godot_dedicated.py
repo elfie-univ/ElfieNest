@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from infrastructure.godot.artifacts.authority_pack import verify_split_sources
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.species_package_validation import (
     SpeciesPackageValidationError,
@@ -98,6 +99,11 @@ def main() -> int:
 
 def _export_runtime(output: Path, binary: Path, godot_version: str) -> int:
     """Export into staging and atomically replace only a complete bundle."""
+    try:
+        verify_split_sources(GODOT_PROJECT)
+    except ValueError as error:
+        print(f"❌ {error}")
+        return 1
     try:
         species_package_ids = source_species_package_ids(
             config_root=PROJECT_ROOT / "config",

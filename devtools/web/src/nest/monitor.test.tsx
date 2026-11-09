@@ -19,6 +19,12 @@ const catalog = previewCatalogSchema.parse({
 });
 
 describe("Nest Lab cascade", () => {
+  it("allows inspecting a ready scene before the resident runtime is configured", () => {
+    const html = renderToStaticMarkup(<ObservationToolbar catalog={catalog} actors={[]} actorId="" selectActor={() => {}} manageActors={() => {}} ready={false} send={() => {}} />);
+    const reset = html.match(/<button\b[^>]*aria-label="复位"[^>]*>/)?.[0];
+    expect(reset).toBeDefined();
+    expect(reset).not.toContain("disabled");
+  });
   it("uses short lighting state names without time ranges", () => {
     for (const [lighting, label] of [["lighting-live", "实时"], ["lighting-day", "白天"], ["lighting-night", "晚上"], ["lighting-quiet", "深夜"]] as const) {
       const html = renderToStaticMarkup(<EnvironmentToolbar catalog={{ ...catalog, lighting }} send={() => {}} />);

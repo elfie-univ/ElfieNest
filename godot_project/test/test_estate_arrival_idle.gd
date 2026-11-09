@@ -20,7 +20,7 @@ func snapshot(charge: Node3D) -> Array:
 	return result
 
 func run() -> void:
-	var geometry: Node3D=load("res://nest/estate/ElfieNest-complete-final.glb").instantiate()
+	var geometry: Node3D=load("res://nest/assembly/estate.tscn").instantiate()
 	root.add_child(geometry)
 	var charge := CHARGE.new()
 	root.add_child(charge)

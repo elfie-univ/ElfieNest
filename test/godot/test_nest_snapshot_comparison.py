@@ -15,6 +15,60 @@ comparison = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(comparison)
 
 
+def test_formal_ground_has_one_source_and_no_captured_render_chunks():
+    path = ROOT / "godot_project/nest/courtyard/parts/ground/shared-ground.glb"
+    data = path.read_bytes()
+    size = struct.unpack_from("<I", data, 12)[0]
+    document = json.loads(data[20 : 20 + size])
+    nodes = [node for node in document["nodes"] if "mesh" in node]
+    assert not any(
+        node.get("extras", {}).get("source_name", "").startswith("GroundPatch_")
+        for node in nodes
+    ), "Generated render chunks must not be stored alongside their source geometry"
+    sources = [
+        node for node in nodes if "nest_render_partition" in node.get("extras", {})
+    ]
+    assert sources, (
+        "The corrected ground must declare how its render chunks are rebuilt"
+    )
+    assert all(
+        node["extras"]["nest_render_partition"]["cell_size"] > 0 for node in sources
+    )
+    index = json.loads(
+        (ROOT / "godot_project/nest/assembly/asset-index.json").read_text()
+    )
+    focus = index["fileGraph"]["entries"]["source:shared-ground"]["focus"]
+    assert set(focus) == {node["extras"]["v044_path"] for node in nodes}
+
+
+def test_water_source_preview_omits_replaced_rim_and_dormant_jet_templates():
+    index = json.loads(
+        (ROOT / "godot_project/nest/assembly/asset-index.json").read_text()
+    )
+    for key in ("source:lake", "source:fountain"):
+        entry = index["fileGraph"]["entries"][key]
+        data = (ROOT / "godot_project/nest" / entry["file"]).read_bytes()
+        size = struct.unpack_from("<I", data, 12)[0]
+        document = json.loads(data[20 : 20 + size])
+        nodes = [node for node in document["nodes"] if "mesh" in node]
+        assert all(
+            node["extras"]["source_name"] != "WholeLakeConcealedRim" for node in nodes
+        )
+        dormant = {
+            node["extras"]["v044_path"]
+            for node in nodes
+            if not node["extras"].get("review_visible", True)
+        }
+        assert dormant.isdisjoint(entry["focus"])
+        if key == "source:fountain":
+            assert dormant
+            # Actual nozzle housings and lamp lenses remain part of the static component.
+            assert any(
+                node["extras"]["source_name"].startswith("NozzleHousing_")
+                for node in nodes
+            )
+
+
 def test_bedding_normal_variants_share_geometry_and_keep_room_and_bed_context():
     path = ROOT / "godot_project/nest/furniture/shared/bedroom/bed-shared.glb"
     data = path.read_bytes()
