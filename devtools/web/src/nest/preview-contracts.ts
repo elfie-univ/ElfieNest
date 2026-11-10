@@ -23,7 +23,7 @@ export type CameraCommand =
   | Readonly<{ action: "select"; view_id: string }>
   | Readonly<{ action: "reset" }>
   | Readonly<{ action: "pause"; paused: boolean }>
-  | Readonly<{ action: "scene"; target: string; paused: boolean }>
+  | Readonly<{ action: "scene"; target: string; paused: boolean; actor_id?: string }>
   | Readonly<{ action: "scene"; target: string; mode: "auto" | "open" | "closed" }>
   | Readonly<{ action: "demonstration"; actor_id: string; demonstration_id: string }>;
 

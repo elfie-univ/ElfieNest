@@ -12,7 +12,10 @@ var _folded := PackedVector3Array()
 var _folded_empty := PackedVector3Array()
 var _dynamic := ArrayMesh.new()
 var _bounds: AABB
-var _last := Vector2(-1, -1)
+var _last_sample := PackedFloat64Array()
+var _vertices := PackedVector3Array()
+var _dirty := false
+var _winding := PackedByteArray()
 var _neighbors: Array[PackedInt32Array] = []
 
 func bind(value: MeshInstance3D) -> void:
@@ -27,10 +30,13 @@ func bind(value: MeshInstance3D) -> void:
 		_insert_peak(_source_top, point)
 	_neighbors.resize(_rest.size())
 	var indices: PackedInt32Array = _arrays[Mesh.ARRAY_INDEX]
+	var normals: PackedVector3Array = _arrays[Mesh.ARRAY_NORMAL]
 	for i in range(0,indices.size(),3):
-		for a: int in [indices[i],indices[i+1],indices[i+2]]:
-			for b: int in [indices[i],indices[i+1],indices[i+2]]:
-				if a != b and not _neighbors[a].has(b): _neighbors[a].append(b)
+		var a := indices[i]; var b := indices[i+1]; var c := indices[i+2]
+		_winding.append(1 if (_rest[b]-_rest[a]).cross(_rest[c]-_rest[a]).dot(normals[a]+normals[b]+normals[c]) < 0.0 else 0)
+		for corner: int in [a,b,c]:
+			for neighbor: int in [a,b,c]:
+				if corner != neighbor and not _neighbors[corner].has(neighbor): _neighbors[corner].append(neighbor)
 
 func build_pose(body: Node3D, skeleton: Skeleton3D) -> void:
 	var skin := skin_points(body, skeleton, true)
@@ -69,7 +75,7 @@ func build_pose(body: Node3D, skeleton: Skeleton3D) -> void:
 		_folded.append(folded)
 	_fit_contacts(_posed, skin)
 	_soften_lift(_posed)
-	_last = Vector2(-1, -1)
+	_last_sample.clear()
 
 func _soften_lift(vertices: PackedVector3Array) -> void:
 	# Spread contact corrections with a rounded falloff. Keep all verified skin
@@ -113,58 +119,71 @@ func _fit_contacts(vertices: PackedVector3Array, skin: PackedVector3Array) -> vo
 		for corner: int in upper:
 			vertices[corner].y += point.y + 0.012 - height
 
-func sample(cover: float, open_amount: float, lift: float, breath: float, body_weight: float = 1.0) -> void:
+func sample(cover: float, open_amount: float, lift: float, breath: float, body_weight: float = 1.0, defer_upload: bool = false) -> void:
 	if cover <= 0.0 and open_amount <= 0.0:
 		cloth.mesh = original
-		_last = Vector2(-1, -1)
+		_last_sample.clear()
+		_vertices = _rest
+		_dirty = false
 		return
+	var parameters := PackedFloat64Array([cover, open_amount, lift, breath, body_weight])
+	if parameters == _last_sample:
+		if not defer_upload: commit()
+		return
+	_last_sample = parameters
 	var vertices := PackedVector3Array()
+	vertices.resize(_rest.size())
 	for i in range(_rest.size()):
 		var folded := _folded_empty[i].lerp(_folded[i],body_weight)
 		var point := _rest[i].lerp(folded, open_amount).lerp(_posed[i], cover)
 		var u := float((_rest[i].z - _bounds.position.z) / _bounds.size.z)
 		point.y += lift * (1.0 - u) + breath * sin(u * PI) * cover
-		vertices.append(point)
+		vertices[i] = point
+	_vertices = vertices
+	_dirty = true
+	if not defer_upload: commit()
+
+func commit() -> void:
+	if not _dirty: return
 	var arrays := _arrays.duplicate()
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = _normals(vertices)
+	arrays[Mesh.ARRAY_VERTEX] = _vertices
+	arrays[Mesh.ARRAY_NORMAL] = _normals(_vertices)
 	# Original tangents no longer match the deformed silhouette. Keep original UVs.
 	arrays[Mesh.ARRAY_TANGENT] = null
 	_dynamic.clear_surfaces()
 	_dynamic.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	_dynamic.surface_set_material(0, original.surface_get_material(0))
 	cloth.mesh = _dynamic
+	_dirty = false
 
-func pin_grip(index: int, target: Vector3, weight: float) -> void:
+func pin_grip(index: int, target: Vector3, weight: float, defer_upload: bool = false) -> void:
 	# The held original hem follows the solved real wrist. Adjacent cloth falls
 	# off from this attachment; no second cloth or detached floating grip is used.
-	var arrays := cloth.mesh.surface_get_arrays(0).duplicate()
-	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var vertices := _vertices
 	var delta := (target-vertices[index])*weight
 	var grab_u := (_rest[index].z-_bounds.position.z)/_bounds.size.z
 	for i in range(vertices.size()):
 		var u := (_rest[i].z-_bounds.position.z)/_bounds.size.z
 		var x := (_rest[i].x-_rest[index].x)/0.24
 		vertices[i] += delta*exp(-x*x)*pow(clampf((1.0-u)/(1.0-grab_u),0.0,1.0),3.0)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = _normals(vertices)
-	_dynamic.clear_surfaces()
-	_dynamic.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
-	_dynamic.surface_set_material(0,original.surface_get_material(0))
-	cloth.mesh = _dynamic
+	_vertices = vertices
+	_dirty = true
+	_last_sample.clear()
+	if not defer_upload: commit()
+
+func points() -> PackedVector3Array:
+	return _vertices
 
 func _normals(points: PackedVector3Array) -> PackedVector3Array:
 	var result := PackedVector3Array()
 	result.resize(points.size())
 	var indices: PackedInt32Array = _arrays[Mesh.ARRAY_INDEX]
-	var source_normals: PackedVector3Array = _arrays[Mesh.ARRAY_NORMAL]
 	for i in range(0, indices.size(), 3):
 		var a := indices[i]
 		var b := indices[i+1]
 		var c := indices[i+2]
 		var n := (points[b]-points[a]).cross(points[c]-points[a])
-		var old := (_rest[b]-_rest[a]).cross(_rest[c]-_rest[a])
-		if old.dot(source_normals[a] + source_normals[b] + source_normals[c]) < 0.0:
+		if _winding[i/3]:
 			n = -n
 		result[a] += n
 		result[b] += n
@@ -189,17 +208,19 @@ static func _peak(field: Dictionary, point: Vector3, radius: int) -> float:
 	return value
 
 static func skin_points(body: Node3D, skeleton: Skeleton3D, omit_head: bool = false) -> PackedVector3Array:
+	skeleton.force_update_all_bone_transforms()
 	var result := PackedVector3Array()
 	for mesh: MeshInstance3D in body.find_children("*", "MeshInstance3D", true, false):
 		if mesh.skin == null or mesh.mesh == null: continue
 		var matrices: Array[Transform3D] = []
 		var is_head: Array[bool] = []
+		var mesh_frame := skeleton.global_transform.affine_inverse()*mesh.global_transform
 		for binding in range(mesh.skin.get_bind_count()):
 			var name := String(mesh.skin.get_bind_name(binding))
 			var bone := skeleton.find_bone(name) if not name.is_empty() else mesh.skin.get_bind_bone(binding)
 			var label := skeleton.get_bone_name(bone)
 			is_head.append("Head" in label or "Neck" in label or "Eye" in label or "Jaw" in label)
-			matrices.append(skeleton.global_transform * skeleton.get_bone_global_pose(bone) * mesh.skin.get_bind_pose(binding))
+			matrices.append(skeleton.global_transform * skeleton.get_bone_global_pose(bone) * mesh.skin.get_bind_pose(binding) * mesh_frame)
 		for surface in range(mesh.mesh.get_surface_count()):
 			var arrays := mesh.mesh.surface_get_arrays(surface)
 			var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -212,6 +233,7 @@ static func skin_points(body: Node3D, skeleton: Skeleton3D, omit_head: bool = fa
 				for slot in range(stride):
 					var bind := bones[index*stride+slot]
 					var weight := weights[index*stride+slot]
+					if weight == 0.0: continue
 					point += (matrices[bind] * points[index]) * weight
 					if is_head[bind]: head_weight += weight
 				if not omit_head or head_weight < 0.5: result.append(point)

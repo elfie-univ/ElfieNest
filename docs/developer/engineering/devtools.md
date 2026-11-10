@@ -37,6 +37,11 @@ In the single-asset preview, drag with the left mouse button to orbit, drag with
 the right button to pan, and use the wheel to zoom. Reset restores the asset's
 center and initial framing.
 
+
+All seating actions use the shared direct seated landing for both species: wait clear of the chair, turn out toward a clear boarding direction, approach, tuck the six-joint tail, turn on the floor, hop into the seated pose, turn toward the desk, then exit with a separate landing curve. Desktop collision silhouettes are baked into the spatial resource; first-use body collision preparation yields between input batches and poses while the menu shows its preparation status. Repeated playback reuses collision poses for the same body; changing the body invalidates that cache. Day/night controls preserve authored light availability, so a daytime export does not disable bedroom ceilings at night. Static seats use their own contact and approach frames without a chair rotation. The former climb, stand-on-seat and sit/stand clip chain has been removed. Sleep actions offer back, left-side and right-side variants; each selects a bed and restores the cloth and attached bedding layers after completion or cancellation.
+
+Under **Scene actions → Arrival platform → Complete arrival**, select a resident to replay the production fourth-floor arrival presentation. The Lab resumes presentation and frames the platform; completion or selecting another scene restores the resident’s prior placement. This preview does not create an admission event or change residency facts.
+
 Whole-scene cameras and reset become available when the renderer publishes its
 view catalog; resident actions still require the configured Runtime.
 

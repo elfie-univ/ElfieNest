@@ -1,6 +1,7 @@
 extends Node3D
 ## One local arrival preview: original interior fixtures, owned materials.
 const FIXTURE := preload("res://nest/estate/estate_arrival_fixture.gdshader")
+const OPAQUE_FIXTURE := preload("res://nest/estate/estate_arrival_opaque.gdshader")
 const TIMING := preload("res://nest/estate/estate_platform_cycle.gd")
 var bindings: Array[Dictionary] = []
 var petal_lights: Dictionary = {}
@@ -68,7 +69,7 @@ func bind(geometry: Node3D) -> void:
 			var assigned := group
 			if group=="platform":
 				assigned="platform_side" if source.resource_name.contains("soft warm-white concealed") else ("platform_ring" if source.resource_name.contains("cyan light channel") else "platform_disc")
-			var material := _material(source.albedo_color,tint,assigned)
+			var material := _material(source.albedo_color,tint,assigned,source.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED and source.blend_mode == BaseMaterial3D.BLEND_MODE_MIX)
 			var bounds := mesh.global_transform*mesh.get_aabb()
 			material.set_shader_parameter("petal_bottom",bounds.position.y)
 			material.set_shader_parameter("petal_height",maxf(bounds.size.y,0.05))
@@ -114,9 +115,9 @@ func _widen_interior_diffuser(mesh: MeshInstance3D) -> void:
 		owned.surface_set_material(surface,source.surface_get_material(surface))
 	mesh.mesh=owned
 
-func _material(albedo: Color,tint: Color,group: String) -> ShaderMaterial:
+func _material(albedo: Color,tint: Color,group: String,opaque: bool) -> ShaderMaterial:
 	var result := ShaderMaterial.new()
-	result.shader=FIXTURE
+	result.shader=OPAQUE_FIXTURE if opaque else FIXTURE
 	result.set_shader_parameter("source_albedo",albedo)
 	result.set_shader_parameter("light_tint",Vector3(tint.r,tint.g,tint.b))
 	result.set_shader_parameter("chases",group.begins_with("top_") or group=="platform_ring")

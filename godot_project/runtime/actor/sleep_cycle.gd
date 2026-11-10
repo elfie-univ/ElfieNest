@@ -162,7 +162,11 @@ func _settle_feet() -> void:
 			ARM_POSE._swing(_hips,foot,ARM_POSE._point(_hips,toe)-ARM_POSE._point(_hips,foot),-_axis)
 
 func _settle_tail() -> void:
-	var tail := ARM_POSE._bone(_hips,"Tail_Bone")
+	var tail := -1
+	for bone in range(_hips.get_bone_count()):
+		if _hips.get_bone_name(bone).ends_with("Tail_Bone"):
+			tail = bone
+			break
 	if tail<0: return
 	var points := DUVET.skin_points(_body,_hips)
 	var offset := 0
@@ -170,6 +174,12 @@ func _settle_tail() -> void:
 	var count := 0
 	for mesh: MeshInstance3D in _body.find_children("*","MeshInstance3D",true,false):
 		if mesh.skin==null or mesh.mesh==null: continue
+		var tail_bindings := PackedByteArray()
+		for bind in range(mesh.skin.get_bind_count()):
+			var name := mesh.skin.get_bind_name(bind)
+			var bone := _hips.find_bone(name) if not name.is_empty() else mesh.skin.get_bind_bone(bind)
+			while bone >= 0 and bone != tail: bone = _hips.get_bone_parent(bone)
+			tail_bindings.append(1 if bone == tail else 0)
 		for surface in range(mesh.mesh.get_surface_count()):
 			var arrays := mesh.mesh.surface_get_arrays(surface)
 			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -177,10 +187,12 @@ func _settle_tail() -> void:
 			var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
 			var stride := bones.size()/vertices.size()
 			for i in range(vertices.size()):
+				var tail_weight := 0.0
 				for j in range(stride):
-					if str(mesh.skin.get_bind_name(bones[i*stride+j])).ends_with("Tail_Bone") and weights[i*stride+j]>0.65:
-						center+=points[offset+i]
-						count+=1
+					if tail_bindings[bones[i*stride+j]]: tail_weight += weights[i*stride+j]
+				if tail_weight > 0.65:
+					center += points[offset+i]
+					count += 1
 			offset+=vertices.size()
 	if count>0:
 		ARM_POSE._swing(_hips,tail,center/float(count)-ARM_POSE._point(_hips,tail),-_axis-Vector3.UP*0.15)
@@ -238,13 +250,15 @@ func sample_bedding(seconds: float) -> void:
 		var spine := ARM_POSE._bone(_hips,"Spine2")
 		_hips.set_bone_pose_rotation(spine,_hips.get_bone_pose_rotation(spine)*Quaternion(Vector3.RIGHT,breath*2.0))
 	var body_weight := smoothstep(2.3,3.3,t)*(1.0-smoothstep(14.0,16.0,t))
-	_duvet.sample(cover,opened,lift,breath,body_weight)
+	# Solve the held hem before normals/upload, not by rebuilding twice per frame.
+	_duvet.sample(cover,opened,lift,breath,body_weight,true)
 	grip_report = {}
 	var grip := 0.0
 	if t>=1.5 and t<2.7: grip = smoothstep(1.5,1.9,t)*(1.0-smoothstep(2.3,2.7,t))
 	if t>=3.3 and t<5.9: grip = smoothstep(3.3,3.7,t)*(1.0-smoothstep(5.5,5.9,t))
 	if t>=12.0 and t<15.3: grip = smoothstep(12.0,12.4,t)*(1.0-smoothstep(15.0,15.3,t))
 	_reach_duvet(grip)
+	_duvet.commit()
 	if blanket.has_meta("estate_bedding_layers"):
 		blanket.get_meta("estate_bedding_layers").sample()
 
@@ -259,8 +273,8 @@ func _walk(distance: float, seconds: float) -> void:
 
 func _reach_duvet(weight: float) -> void:
 	if weight <= 0.0: return
-	var points: PackedVector3Array = blanket.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var rest: PackedVector3Array = source_duvet_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var points: PackedVector3Array = _duvet.points()
+	var rest: PackedVector3Array = _duvet._rest
 	var bounds := source_duvet_mesh.get_aabb()
 	# Use the upper/free arm on side poses, keeping the lower arm out of the bed.
 	var prefix := "Left" if _bone("LeftArm").y>=_bone("RightArm").y else "Right"
@@ -283,6 +297,6 @@ func _reach_duvet(weight: float) -> void:
 			if bone>=0: _hips.set_bone_pose_rotation(bone,_hips.get_bone_pose_rotation(bone)*Quaternion(Vector3.RIGHT,weight*0.55))
 	var wrist := _bone(prefix+"Hand")
 	if weight>=0.999:
-		_duvet.pin_grip(grab,blanket.to_local(wrist-Vector3.UP*0.012),1.0)
-	var actual: PackedVector3Array = blanket.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		_duvet.pin_grip(grab,blanket.to_local(wrist-Vector3.UP*0.012),1.0,true)
+	var actual: PackedVector3Array = _duvet.points()
 	grip_report = {"hand":prefix,"gap":wrist.distance_to(blanket.to_global(actual[grab])),"weight":weight}

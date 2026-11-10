@@ -140,6 +140,7 @@ func _add_anchor(id: String, zone: String, kind: String, label: String, point: V
 	marker.set_meta("zone_id", zone)
 	marker.set_meta("kind", kind)
 	marker.set_meta("source_node", str(source.name))
+	if source is MeshInstance3D: marker.set_meta("furniture_source",source)
 	anchors[id] = marker
 	descriptors.append({"anchor_id": id, "zone_id": zone, "kind": kind, "label": label, "stable_order": descriptors.size(), "active": true})
 	return marker

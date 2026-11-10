@@ -8,6 +8,7 @@ var _last_publish := ""
 var _lighting := "lighting-live"
 var _last_refresh := -1000
 var _live_environment: Dictionary = {}
+var _arrival_preview: Node
 var _demonstrations: Node
 
 func bind_actor_controller(controller: Node) -> void:
@@ -30,6 +31,10 @@ func setup(nest: ModularNest, characters: Node3D) -> void:
 		+ " if (d.type === 'camera' || d.type === 'catalog') window.__nestLabQueue.push(d);"
 		+ " }); })()"
 	)
+	if bool(JavaScriptBridge.eval("['batching','compare'].includes(new URLSearchParams(parent.location.search).get('render_probe'))")):
+		var probe := preload("res://runtime/lab/estate_render_probe.gd").new()
+		add_child(probe)
+		probe.call_deferred("run",nest,characters)
 
 
 func process_frame() -> void:
@@ -70,6 +75,19 @@ func camera_command(message: Dictionary) -> bool:
 			_nest.reset_observer_camera()
 		"scene":
 			var target := str(message.get("target", ""))
+			if target == "arrival-platform":
+				var body := _characters.get_node_or_null(str(message.get("actor_id", ""))) as ElfieActor
+				# Actor node names need not equal the public actor ID.
+				for candidate in _characters.get_children():
+					if candidate is ElfieActor and candidate.elfie_id == str(message.get("actor_id", "")): body = candidate
+				if body == null: return false
+				if _arrival_preview == null:
+					_arrival_preview = preload("res://runtime/lab/arrival_preview.gd").new()
+					add_child(_arrival_preview)
+				if not _arrival_preview.play(_nest, body): return false
+				_set_presentation_paused(false)
+				return _nest.select_observer_camera_by_id("central-4")
+			if _arrival_preview != null: _arrival_preview.finish()
 			if target.begins_with("door-"):
 				if _nest._estate_physics == null or not _nest._estate_physics.preview_door(target, str(message.get("mode", ""))): return false
 				return _focus_scene(target)
@@ -176,7 +194,7 @@ func catalog() -> Dictionary:
 			"demonstration_state": str(_demonstrations.states.get(actor.elfie_id,"")) if _demonstrations != null else "",
 			"posture": str(actor.get_meta("furniture_cycle_stage", actor.runtime_posture())), "command_id": str(actor.get("furniture_cycle_command")) if actor.has_method("play_furniture_cycle") and not str(actor.get("furniture_cycle_command")).is_empty() else actor.active_command_id})
 	result["actors"] = actors
-	result["scene_actions"] = []
+	result["scene_actions"] = [{"id":"arrival-platform","label":"完整抵达动画","paused":_arrival_preview == null or not _arrival_preview.running()}]
 	if _nest._estate_physics != null:
 		for door: Dictionary in _nest._estate_physics.preview_doors():
 			result["scene_actions"].append({"id":door.id,"label":_door_label(door),"paused":false,"mode":door.mode})

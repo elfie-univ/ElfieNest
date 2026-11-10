@@ -230,6 +230,7 @@ static func uses_furniture_collision(mesh: MeshInstance3D) -> bool:
 
 static func uses_concave_collision(mesh: MeshInstance3D) -> bool:
 	var e := mesh.get_meta("extras", {}) as Dictionary
+	if e.get("assembly") == "desk" and e.get("piece") == "worktop": return true
 	# Preserve the seating recess of integrated sofa bodies.
 	if e.get("kind") == "sofa" or str(mesh.name) in ["Soft V2 continuous sculpted back and integrated arms", "Soft V2 single rounded upholstered body"]: return true
 	var module := str(e.get("module", ""))
@@ -284,7 +285,11 @@ func _add_mesh(mesh: MeshInstance3D, concave: bool, parent: Node3D = null) -> St
 	var key := "%s:%s:%s" % [_geometry_signatures[resource_id], str(concave), str(mirrored)]
 	if not _shapes.has(key):
 		var shape: Shape3D
-		if concave:
+		var extras := mesh.get_meta("extras", {}) as Dictionary
+		if extras.get("assembly") == "desk" and extras.get("piece") == "worktop":
+			shape = preload("res://nest/estate/estate_desktop_collision.gd").bake(mesh)
+			assert(shape != null, "Desktop silhouette authoring failed")
+		elif concave:
 			if source_faces.is_empty(): source_faces = collision_faces(physical_mesh)
 			var triangle_shape := ConcavePolygonShape3D.new()
 			triangle_shape.set_faces(source_faces)
@@ -317,6 +322,7 @@ func _add_mesh_body(mesh: MeshInstance3D,mirrored: bool,shape: Shape3D,parent: N
 	var body := StaticBody3D.new()
 	body.name = "Collision_%d" % collider_count
 	body.set_meta("source_node", str(mesh.name))
+	body.set_meta("source_mesh_id", mesh.get_instance_id())
 	var extras := mesh.get_meta("extras", {}) as Dictionary
 	body.set_meta("estate_module", str(extras.get("module", "")))
 	body.set_meta("estate_floor", int(extras.get("floor", 1)))

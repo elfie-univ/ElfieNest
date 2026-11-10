@@ -93,6 +93,20 @@ describe("Nest Lab cascade", () => {
     expect(html).not.toContain('aria-label="场景动作"');
     expect(cameraGroups(catalog.views).map(group=>group.label)).toEqual(["室外","主楼","M01 卧室与露台"]);
   });
+  it("prepares the selected actor before replaying the complete platform arrival", async () => {
+    const calls: unknown[] = [];
+    const send = vi.fn(command => { calls.push(command); });
+    const run = vi.fn(async () => { calls.push("prepare"); return true; });
+    await previewSceneAction({id:"arrival-platform",label:"完整抵达动画",paused:true},send,"actor",run);
+    expect(calls).toEqual(["prepare",{action:"pause",paused:false},{action:"scene",target:"arrival-platform",actor_id:"actor",paused:false}]);
+    calls.length = 0;
+    await previewSceneAction({id:"arrival-platform",label:"完整抵达动画",paused:true},send);
+    expect(calls).toEqual([]);
+    await previewSceneAction({id:"arrival-platform",label:"完整抵达动画",paused:true},send,"actor",async () => false);
+    expect(calls).toEqual([]);
+    await previewSceneAction({id:"arrival-platform",label:"完整抵达动画",paused:true},send,"actor",run,"auto",() => false);
+    expect(calls).toEqual(["prepare"]);
+  });
   it("opens each selected water scene directly, without needing an actor", async () => {
     const send = vi.fn();
     for (const id of ["fountain", "waterfall", "lake"]) {

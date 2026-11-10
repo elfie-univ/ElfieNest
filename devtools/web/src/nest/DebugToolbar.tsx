@@ -29,7 +29,7 @@ type Props = {
 };
 
 const stageLabels: Readonly<Record<string, string>> = {
-  chair_turn_out: "空椅转出", approach_seat: "接近座位", step_up: "登上座位", turn_left_90: "转身", sit_down: "坐下", seated_idle: "坐姿待机", chair_turn_to_desk: "转回桌前", chair_turn_to_exit: "转向出口", stand_up: "起身", jump_down: "下座", leave_seat: "离开座位", sit_on_bed_edge: "坐床沿", lie_down: "躺下", pull_original_duvet: "拉被", covered_breathing: "盖被呼吸", fold_duvet_down: "掀被", sit_up: "坐起", leave_and_lay_back: "下床回铺",
+  prepare_seat: "准备坐姿", wait_outside_chair: "等待椅子转出", tail_tuck: "收拢尾巴", turn_on_floor: "转身对准座位", direct_seated_hop: "跃起落座", direct_seated_exit: "离座落地", chair_turn_out: "空椅转出", approach_seat: "接近座位", step_up: "登上座位", turn_left_90: "转身", sit_down: "坐下", seated_idle: "坐姿待机", chair_turn_to_desk: "转回桌前", chair_turn_to_exit: "转向出口", stand_up: "起身", jump_down: "下座", leave_seat: "离开座位", sit_on_bed_edge: "坐床沿", lie_down: "躺下", pull_original_duvet: "拉被", covered_breathing: "盖被呼吸", fold_duvet_down: "掀被", sit_up: "坐起", leave_and_lay_back: "下床回铺",
 };
 const animationLabels: Readonly<Record<string, string>> = {
   idle: "待机", walking: "走路（原地）", running: "跑步（原地）", jump: "跳跃", twist_dance: "跳舞",
@@ -43,7 +43,7 @@ export function actionLocationGroups(targets: readonly NestTarget[], action: str
   const groups = new Map<string, {value:string; label:string}[]>();
   for (const target of targets) {
     if (action === "seat" && target.kind !== "chair") continue;
-    if (action === "sleep-back" && target.kind !== "bed") continue;
+    if (action.startsWith("sleep-") && target.kind !== "bed") continue;
     const prefix = target.anchor_id.split("/")[0] ?? "";
     const group = prefix.startsWith("dorm-") ? `M${prefix.slice(5)} 卧室与露台` : prefix.startsWith("central-") ? `主楼 ${Number(prefix.slice(8))} 层` : prefix.startsWith("terrace-") ? `M${prefix.slice(8)} 卧室与露台` : "户外";
     const options = groups.get(group) ?? [];
@@ -84,7 +84,7 @@ export function DebugToolbar(props: Props) {
       <ActorPicker actors={actors} actorId={actorId} disabled={busy} selectActor={id => {setSelection("");setLocation("");setDemonstration("");selectActor(id);}} manageActors={props.manageActors}/>
       <CascadeSeparator/>
       {category === "demo" ? <TwoLevelMenu label="组合演示" placeholder="选择演示" value={demonstration} disabled={disabled} groups={demoGroups} onSelect={(value:string)=>{setDemonstration(value);void (async()=>{if(await run(`actors/${encodeURIComponent(actorId)}/prepare-demo`,"正在准备组合演示。") === false)return; props.send({action:"select",view_id:`elfie-${actorId}`}); props.send({action:"demonstration",actor_id:actorId,demonstration_id:value});})();}}/> : <TwoLevelMenu label="动作" placeholder="选择动作" value={selection} disabled={disabled}
-        groups={[...animationGroups,{label:"坐卧",options:[{value:"seat",label:"坐下并起来"},{value:"sleep-back",label:"上床睡觉并起床"}]},{label:"移动",options:[{value:"move",label:"走到指定位置"}]}]}
+        groups={[...animationGroups,{label:"坐卧",options:[{value:"seat",label:"坐下并起来"},{value:"sleep-back",label:"平躺睡觉并起床"},{value:"sleep-left",label:"左侧躺睡觉并起床"},{value:"sleep-right",label:"右侧躺睡觉并起床"}]},{label:"移动",options:[{value:"move",label:"走到指定位置"}]}]}
         onSelect={chooseAction}/> }
       {category === "elfie" && needsLocation ? <><CascadeSeparator/><TwoLevelMenu label="动作位置" placeholder="选择位置" value={location} disabled={disabled}
         groups={actionLocationGroups(targets,selection)} onSelect={chooseLocation}/></> : null}

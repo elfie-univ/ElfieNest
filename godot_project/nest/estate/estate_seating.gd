@@ -13,7 +13,7 @@ func bind_seats() -> bool:
 	var cushion := _find("central", "Upholstery V3 fitted full-depth seat cushion 1")
 	if cushion == null: return false
 	var bounds := cushion.global_transform * cushion.get_aabb()
-	seats.append({"id": "F08", "label": "客厅长沙发·中间", "contact": Transform3D(Basis.IDENTITY, Vector3(bounds.get_center().x, bounds.end.y, bounds.end.z - 0.08)), "floor_y": 0.3})
+	seats.append({"source": cushion, "id": "F08", "label": "客厅长沙发·中间", "contact": Transform3D(Basis.IDENTITY, Vector3(bounds.get_center().x, bounds.end.y, bounds.end.z - 0.08)), "floor_y": 0.3})
 	# The side cushions are independent authored surfaces of the same sofa.
 	for side in [0, 2]:
 		var side_mesh := _find("central", "Upholstery V3 fitted full-depth seat cushion %d" % side)
@@ -25,7 +25,7 @@ func bind_seats() -> bool:
 			reach = maxf(reach, forward.dot(side_mesh.to_global(vertex) - side_bounds.get_center()))
 		var position := side_bounds.get_center() + forward * (reach - 0.08)
 		position.y = side_bounds.end.y
-		seats.append({"id": "F08-left" if side == 0 else "F08-right", "label": "客厅长沙发·左侧" if side == 0 else "客厅长沙发·右侧", "contact": Transform3D(Basis(Vector3.UP, atan2(forward.x, forward.z)), position), "floor_y": 0.3})
+		seats.append({"source": side_mesh, "id": "F08-left" if side == 0 else "F08-right", "label": "客厅长沙发·左侧" if side == 0 else "客厅长沙发·右侧", "contact": Transform3D(Basis(Vector3.UP, atan2(forward.x, forward.z)), position), "floor_y": 0.3})
 	# Per-seat contact annotations, measured on original seat surfaces. These
 	# are furniture inputs, not copied animation files or relocated furniture.
 	if not _terrace_seat("F10", "观影长沙发", "M01", "sofa_following_actual_wall", Vector3(-1.1, 3.705, 1.70), Vector3(0, 0, -1)): return false
@@ -53,5 +53,5 @@ func _terrace_seat(id: String, label: String, module: String, name: String, loca
 	var floor := _find(module, "ROOM • inset terrace walking finish")
 	if floor == null: return false
 	var floor_y := (floor.global_transform * floor.get_aabb()).end.y
-	seats.append({"id": id, "label": label, "contact": Transform3D(basis, contact), "floor_y": floor_y})
+	seats.append({"source": mesh, "id": id, "label": label, "contact": Transform3D(basis, contact), "floor_y": floor_y})
 	return true

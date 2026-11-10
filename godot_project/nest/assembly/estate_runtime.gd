@@ -62,7 +62,10 @@ func restore_lighting(controls: Dictionary) -> void:
 			node.light_cull_mask = int(data.mask)
 			node.visible = bool(data.visible)
 			node.set_meta("estate_initial_energy", float(data.energy))
-			node.set_meta(LIVE_LIGHTING.INITIAL_VISIBLE, bool(data.visible))
+			# The saved scene owns authored availability; visible is only the
+			# captured day/night state (calibrated bedroom ceilings start off).
+			if not node.has_meta(LIVE_LIGHTING.INITIAL_VISIBLE):
+				node.set_meta(LIVE_LIGHTING.INITIAL_VISIBLE, bool(data.visible))
 			node.set_meta("extras", ownership_extras(str(data.group), node.get_meta("extras", {})))
 			restored_controls.lights += 1
 		if node is MeshInstance3D and node.mesh != null:

@@ -10,34 +10,30 @@ var last_passenger_target := Transform3D.IDENTITY
 
 func install(geometry: Node3D, physics: Node3D, contact: Transform3D, module: String, resident: String) -> void:
 	global_position = contact.origin
-	for mesh: MeshInstance3D in geometry.find_children("*", "MeshInstance3D", true, false):
-		var e := mesh.get_meta("extras", {}) as Dictionary
-		if e.get("module") != module or e.get("resident") != resident or e.get("assembly") != "desk" or e.get("piece") != "worktop": continue
-		var replacement := preload("res://nest/estate/estate_desktop_collision.gd").create(mesh)
-		if replacement == null:
-			last_obstacle = "desktop_silhouette_unavailable"
-			return
-		for original: StaticBody3D in physics.find_children("*", "StaticBody3D", true, false):
-			if str(original.get_meta("source_node", "")) == str(mesh.name): original.free(); break
-		physics.add_child(replacement)
-		replacement.global_transform = mesh.global_transform
+	# Desktop silhouettes are baked with the world, never unioned/decomposed
+	# synchronously on the browser thread when a user presses Play.
 	var originals: Dictionary = {}
 	for body: StaticBody3D in physics.find_children("*", "StaticBody3D", true, false):
-		originals[String(body.get_meta("source_node", ""))] = body
+		# Split layouts repeat mesh names even within a room. Match the
+		# live source instance, never a display name or cached object ID.
+		if str(body.get_meta("estate_module", "")) == module:
+			originals[int(body.get_meta("source_mesh_id", 0))] = body
 	for mesh: MeshInstance3D in geometry.find_children("*", "MeshInstance3D", true, false):
 		var e: Dictionary = mesh.get_meta("extras", {})
 		if e.get("module") != module or e.get("resident") != resident or e.get("assembly") != "chair": continue
 		var piece := String(e.get("piece", ""))
 		if piece in ["chair_post", "chair_base"]:
-			if originals.has(String(mesh.name)): excluded.append((originals[String(mesh.name)] as StaticBody3D).get_rid())
+			if originals.has(mesh.get_instance_id()): excluded.append((originals[mesh.get_instance_id()] as StaticBody3D).get_rid())
 			continue
-		var original := originals.get(String(mesh.name)) as StaticBody3D
+		var original := originals.get(mesh.get_instance_id()) as StaticBody3D
 		var body: AnimatableBody3D
 		if original != null or piece == "chair_petal":
 			body = AnimatableBody3D.new()
 			body.sync_to_physics = false
 			body.set_meta("source_node", String(mesh.name))
+			body.set_meta("source_mesh_id", mesh.get_instance_id())
 			body.set_meta("piece", piece)
+			body.set_meta("estate_module",module)
 			add_child(body)
 			body.global_transform = mesh.global_transform
 			var shape := CollisionShape3D.new()
@@ -58,6 +54,7 @@ func turn_to(angle: float, passenger: CharacterBody3D) -> bool:
 	turning = true
 	last_obstacle = ""
 	var start := rotation.y
+	print("CHAIR_SWIVEL_PATH start=",start," target=",angle," passenger=",passenger != null)
 	var added_exceptions: Array[PhysicsBody3D] = []
 	if passenger != null:
 		# The seated passenger and carrier rotate as one joint. Do not sweep
@@ -118,6 +115,7 @@ func _passenger_clear(passenger: CharacterBody3D, next: Transform3D) -> bool:
 		if shape.disabled or shape.shape == null: continue
 		var query := PhysicsShapeQueryParameters3D.new()
 		query.shape = shape.shape
+		query.margin = 0.001
 		query.exclude = omit
 		query.collision_mask = passenger.collision_mask
 		query.transform = passenger.global_transform * shape.transform
@@ -148,6 +146,7 @@ func _clear(target: Transform3D, passenger: CharacterBody3D) -> bool:
 		var shape := body.get_child(0) as CollisionShape3D
 		var query := PhysicsShapeQueryParameters3D.new()
 		query.shape = shape.shape
+		query.margin = 0.001
 		query.transform = target * body.transform * shape.transform
 		query.exclude = omit
 		var hits := get_world_3d().direct_space_state.intersect_shape(query, 1)

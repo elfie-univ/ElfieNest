@@ -60,4 +60,13 @@ static func _sample(actor: ElfieActor, hips: bool) -> Dictionary:
 		if point.y <= lowest + 0.015:
 			contact += point
 			count += 1
-	return {"min_y": lowest, "point": contact / maxf(count, 1.0)}
+	contact /= maxf(count, 1.0)
+	if hips:
+		# A tilted pelvis can put only one side in the lowest 15 mm band.
+		# That band sets contact height, not a sideways seating offset.
+		var bone := int(actor._furniture_hips()["bone"])
+		var pelvis := actor.to_local(skeleton.to_global(skeleton.get_bone_global_pose(bone).origin))
+		var local := actor.to_local(contact)
+		local.x = pelvis.x
+		contact = actor.to_global(local)
+	return {"min_y": lowest, "point": contact}

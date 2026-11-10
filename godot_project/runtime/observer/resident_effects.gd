@@ -98,10 +98,9 @@ func _build_arrival() -> void:
  if platform == null or stairs == null or floor_mesh == null: return
  _body.observer_stop_presentation()
  var bounds := platform.global_transform * platform.get_aabb()
- var marker := _nest.resolve_anchor("central-04/activity")
  _arrival = EFFECTS.new()
  add_child(_arrival)
- _arrival.call("configure_arrival", Vector3(marker.global_position.x, bounds.end.y+0.025, marker.global_position.z), minf(1.1, minf(bounds.size.x,bounds.size.z)*0.25))
+ _arrival.call("configure_arrival", Vector3(bounds.get_center().x, bounds.end.y+0.025, bounds.get_center().z), minf(1.1, minf(bounds.size.x,bounds.size.z)*0.25))
  _lighting = _nest.get_node_or_null("ResidentArrivalLighting") as Node3D
  if _lighting == null:
   _lighting = LIGHTING.new()
@@ -111,6 +110,9 @@ func _build_arrival() -> void:
  _cycle = CYCLE.new()
  add_child(_cycle)
  _collision_disabled = (_body.get_node("CollisionShape3D") as CollisionShape3D).disabled
+ # Bind derives facing from the current body position; establish the platform
+ # origin first so a resident downstairs cannot acquire a pitched orientation.
+ _body.global_position = Vector3(bounds.get_center().x, bounds.end.y+0.02, bounds.get_center().z)
  var surfaces: Array[MeshInstance3D] = [platform, stairs, floor_mesh]
  _cycle.call("bind", _arrival, bounds, Callable(_lighting, "sample"), (stairs.global_transform*stairs.get_aabb()).get_center(), surfaces, _body, true)
 

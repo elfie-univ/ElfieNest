@@ -10,6 +10,8 @@ var _emission: Dictionary = {}
 var _natural_materials: Array[ShaderMaterial] = []
 var _environments: Dictionary = {}
 var _sky_geometry: Array[Dictionary] = []
+var _opaque_bindings: Array[Dictionary] = []
+var _unshared_opaque: Dictionary = {}
 
 
 func bind_light(light: Light3D, group: StringName) -> void:
@@ -103,6 +105,8 @@ func bind_m01(sample: Node3D) -> Dictionary:
 		world.environment = world.environment.duplicate(true)
 		bind_environment(world.environment)
 	var owned: Dictionary = {}
+	var opaque_inputs: Dictionary = {}
+	var opaque_sources: Dictionary = {}
 	for mesh: MeshInstance3D in sample.find_children("*", "MeshInstance3D", true, false):
 		for surface in range(mesh.mesh.get_surface_count()):
 			var original := mesh.get_active_material(surface)
@@ -113,6 +117,21 @@ func bind_m01(sample: Node3D) -> Dictionary:
 					_sky_geometry.append({"mesh": mesh, "visible": mesh.visible})
 				continue
 			var group := ESTATE_LIGHTING.lighting_group(mesh)
+			var original_identity := "%d:%s"%[original.get_instance_id(),group]
+			var share_opaque: bool = original is ShaderMaterial and original.shader != null and original.shader.resource_path == "res://nest/estate/estate_opaque.gdshader" and original.next_pass == null
+			if share_opaque:
+				# Imported placements may own separate resources with identical
+				# shader inputs. Keep room ownership while sharing their GPU state.
+				var id := original.get_instance_id()
+				if not opaque_inputs.has(id):
+					var inputs: Array = [original.shader,original.resource_name,original.render_priority]
+					for property: Dictionary in original.get_property_list():
+						if str(property.name).begins_with("shader_parameter/") and property.usage & PROPERTY_USAGE_STORAGE:
+							inputs.append([property.name,original.get(property.name)])
+					opaque_inputs[id] = var_to_bytes(inputs)
+				var key := var_to_bytes([group,opaque_inputs[id]])
+				if not opaque_sources.has(key): opaque_sources[key] = original
+				original = opaque_sources[key]
 			var identity := "%d:%s"%[original.get_instance_id(),group]
 			if not owned.has(identity):
 				var material := original.duplicate() as Material
@@ -129,6 +148,8 @@ func bind_m01(sample: Node3D) -> Dictionary:
 						# This sample does not invent their operational state.
 						counts["preserved_emissive_surfaces"] += 1
 			ESTATE_LIGHTING.set_material(mesh, surface, owned[identity])
+			if share_opaque:
+				_opaque_bindings.append({"mesh":mesh,"surface":surface,"identity":original_identity,"shared":owned[identity]})
 	# Restored instance batches own shared runtime materials, separate from the
 	# hidden MeshInstance prototypes. Their daylight must follow the same switch.
 	for batch: MultiMeshInstance3D in sample.find_children("*", "MultiMeshInstance3D", true, false):
@@ -138,6 +159,21 @@ func bind_m01(sample: Node3D) -> Dictionary:
 			if material is ShaderMaterial:
 				bind_natural_material(material)
 	return counts
+
+
+func set_opaque_shared(enabled: bool) -> void:
+	# Reversible comparison keeps the exact original resource grouping and values.
+	for binding: Dictionary in _opaque_bindings:
+		var mesh := binding.mesh as MeshInstance3D
+		if not is_instance_valid(mesh) or mesh.mesh == null or binding.surface >= mesh.mesh.get_surface_count(): continue
+		var material: Material = binding.shared
+		if not enabled:
+			if not _unshared_opaque.has(binding.identity):
+				var independent := material.duplicate() as ShaderMaterial
+				_unshared_opaque[binding.identity] = independent
+				_natural_materials.append(independent)
+			material = _unshared_opaque[binding.identity]
+		ESTATE_LIGHTING.set_material(mesh,binding.surface,material)
 
 
 static func _group_scale(group: StringName, natural: float, artificial: float, room_in_use: bool) -> float:

@@ -33,13 +33,14 @@ func reaches(light: SpotLight3D, point: Vector3) -> bool:
 
 
 func run() -> void:
-	# The split SCN owns actual fixture frames and restored lighting metadata.
+	# Split lights retain original source paths, but their mesh owners may be
+	# shared prototypes or instance batches rather than direct parents.
 	var world := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(world)
-	var fixtures: Array[MeshInstance3D] = []
-	for fixture: MeshInstance3D in world.find_children("*", "MeshInstance3D", true, false):
-		var extras: Dictionary = fixture.get_meta("extras", {})
-		if not (extras.get("design_lights", []) as Array).is_empty(): fixtures.append(fixture)
+	var source_meshes := {}
+	for mesh: MeshInstance3D in world.find_children("*","MeshInstance3D",true,false):
+		if not mesh.has_meta("source_geometry_path") and mesh.has_meta("v044_path"):
+			source_meshes[str(mesh.get_meta("v044_path"))] = mesh
 	var control := CONTROL.new()
 	control.bind(world)
 	control.apply(true)
@@ -48,27 +49,28 @@ func run() -> void:
 	var rooms: Dictionary = {}
 	var central_general: Dictionary = {}
 	var fixture_count := 0
-	for fixture in fixtures:
-		var extras: Dictionary = fixture.get_meta("extras")
-		var module := str(extras.get("module", ""))
-		var label := str(extras.get("source_name", "")).to_lower()
-		var floor_number := int(extras.get("floor", 1))
-		for light: Light3D in fixture.find_children("*", "Light3D", true, false):
-			fixture_count += 1
-			var signature := [module, floor_number, label, light_signature(light)]
-			if module == "M01": accepted.append(signature)
-			if module in ["M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08"]:
-				if not rooms.has(module): rooms[module] = {"bedroom": null, "terrace": [], "fixture": null}
-				if floor_number == 1:
-					rooms[module].bedroom = light as OmniLight3D
-				else:
-					rooms[module].terrace.append(light as SpotLight3D)
-					rooms[module].fixture = fixture
-			elif module == "central" and floor_number in [1, 2, 3] and (str(light.name).begins_with("CeilingBandDiffuse") or ("circular opal ceiling diffuser" in label and light is OmniLight3D)):
-				if not central_general.has(floor_number): central_general[floor_number] = []
-				central_general[floor_number].append(light)
-			else:
-				untouched.append(signature)
+	for light: Light3D in world.find_children("*","Light3D",true,false):
+		if not CONTROL.is_ordinary_light(light,world): continue
+		fixture_count += 1
+		var group := str(CONTROL.lighting_group(light))
+		var module := "M%02d"%int(group.trim_prefix("dorm-")) if group.begins_with("dorm-") else "central" if group.begins_with("central-") else "outdoor"
+		var source := str(light.get_meta("v044_path","")).get_base_dir()
+		var label := source.get_file().to_lower()
+		var floor_number := int(group.trim_prefix("central-")) if module == "central" else 1
+		var signature := [module,floor_number,label,light_signature(light)]
+		if module == "M01": accepted.append(signature)
+		if module in ["M01","M02","M03","M04","M05","M06","M07","M08"]:
+			if not rooms.has(module): rooms[module] = {"bedroom":null,"terrace":[],"fixture":null}
+			if str(light.name).begins_with("BedroomCeiling"):
+				rooms[module].bedroom = light as OmniLight3D
+			elif light is SpotLight3D and (light.light_cull_mask & (1 << (19+int(module.trim_prefix("M"))))) != 0:
+				rooms[module].terrace.append(light)
+				rooms[module].fixture = source_meshes.get(source)
+		elif module == "central" and floor_number in [1,2,3] and (str(light.name).begins_with("CeilingBandDiffuse") or ("circular opal ceiling diffuser" in label and light is OmniLight3D)):
+			if not central_general.has(floor_number): central_general[floor_number] = []
+			central_general[floor_number].append(light)
+		else:
+			untouched.append(signature)
 	var accepted_fingerprint := JSON.stringify(accepted).sha256_text()
 	var untouched_fingerprint := JSON.stringify(untouched).sha256_text()
 	print("M01_ACCEPTED_FIXTURE_FINGERPRINT ", accepted_fingerprint)
@@ -77,7 +79,9 @@ func run() -> void:
 		return
 	if not require(not untouched.is_empty(), "Outdoor, task or decorative fixture calibration changed"):
 		return
-	if not require(fixture_count == 250 and rooms.size() == 8, "Rollout changed fixture count or omitted a bedroom module"):
+	# The preserved V044 snapshot contains 267 fixture lights plus six natural lights.
+	print("LIGHT_FIXTURE_INVENTORY count=",fixture_count," rooms=",rooms.keys()," all_lights=",world.find_children("*","Light3D",true,false).size())
+	if not require(fixture_count == 267 and rooms.size() == 8 and world.find_children("*","Light3D",true,false).size() == 273, "Rollout changed fixture count or omitted a bedroom module"):
 		return
 	var receiver_masks := 0
 	for module: String in rooms:
@@ -90,6 +94,7 @@ func run() -> void:
 		var terrace_mask := (terrace[0] as SpotLight3D).light_cull_mask
 		if not require((bedroom_mask & terrace_mask) == 0 and ((bedroom_mask | terrace_mask) & receiver_masks) == 0, "%s lighting overlaps another floor/module's receivers" % module): return
 		receiver_masks |= bedroom_mask | terrace_mask
+		if not require(terrace_fixture != null,"Terrace source geometry is missing after split placement"): return
 		var centre := terrace_fixture.get_aabb().get_center()
 		for local: Vector3 in [Vector3(centre.x, 3.15, centre.z), Vector3(-2.3, 3.65, 0.5), Vector3(2.3, 3.65, 0.5)]:
 			var count := 0

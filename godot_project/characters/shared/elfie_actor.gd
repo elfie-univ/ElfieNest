@@ -20,14 +20,6 @@ const FURNITURE_CONTACT_DISTANCE := 2.0
 
 var _furniture_motion: RefCounted
 var _appearance_payload: Dictionary = {}
-var root_motion: bool:
-	get: return _furniture_motion.root_motion if _furniture_motion != null else false
-var audition: bool:
-	get: return _furniture_motion.audition if _furniture_motion != null else false
-	set(value): _furniture_motion.audition = value
-var seated_shape_cache: Array[Shape3D]:
-	get: return _furniture_motion.seated_shape_cache
-	set(value): _furniture_motion.seated_shape_cache = value
 var furniture_cycle_command: String:
 	get: return _furniture_motion.furniture_cycle_command if _furniture_motion != null else ""
 var cycle_cancelled: bool:
@@ -35,7 +27,6 @@ var cycle_cancelled: bool:
 var cycle_error: String:
 	get: return _furniture_motion.cycle_error
 	set(value): _furniture_motion.cycle_error = value
-signal clip_terminal(key: String, accepted: bool, reason: String)
 signal precision_terminal(accepted: bool, reason: String)
 
 var elfie_id := ""
@@ -64,7 +55,6 @@ signal tactile_contact(contact: Dictionary)
 
 func _ready() -> void:
 	_furniture_motion = (load("res://runtime/actor/furniture_motion_runtime.gd") as GDScript).new(self)
-	_furniture_motion.clip_terminal.connect(func(key: String, accepted: bool, reason: String) -> void: clip_terminal.emit(key,accepted,reason))
 	_furniture_motion.precision_terminal.connect(func(accepted: bool, reason: String) -> void: precision_terminal.emit(accepted,reason))
 	collision_mask |= COLLISION_LAYERS.MOVEMENT_BOUNDARY
 	floor_snap_length = maxf(floor_snap_length, MAX_STEP_HEIGHT + 0.05)
@@ -161,7 +151,6 @@ func cancel_navigation(reason: String = "cancelled") -> bool:
 
 
 func _process(delta: float) -> void:
-	if _furniture_motion != null and _furniture_motion.process_frame(delta): return
 	if not install_preview_poses and _animation_runtime != null:
 		_animation_runtime.advance(delta)
 
@@ -639,11 +628,6 @@ func _play_animation(animation_name: String) -> void:
 
 
 func walk_precisely(target: Vector3, timeout: float = 8.0) -> void: _furniture_motion.walk_precisely(target, timeout)
-func begin_sequence(body_bottom_y: float) -> void: _furniture_motion.begin_sequence(body_bottom_y)
-func start_clip(key: String, repeats: int = 1) -> bool: return _furniture_motion.start_clip(key, repeats)
-func end_sequence() -> void: _furniture_motion.end_sequence()
-func use_seated_collision() -> bool: return _furniture_motion.use_seated_collision()
-func clear_seated_collision() -> void: _furniture_motion.clear_seated_collision()
 func cycle_available() -> bool: return _furniture_motion.cycle_available()
 func cancel_furniture_cycle(reason: String) -> void: _furniture_motion.cancel_furniture_cycle(reason)
 func play_furniture_cycle(marker: Marker3D, anchor_id: String, command_id: String, variant: String, nest: ModularNest) -> Dictionary:
