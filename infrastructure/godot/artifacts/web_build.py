@@ -22,7 +22,10 @@ from infrastructure.godot.artifacts.authority_pack import (
     build_authority_pack,
     verify_split_sources,
 )
-from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
+from infrastructure.godot.artifacts.export_boundary import (
+    export_boundary_manifest,
+    runtime_source_files,
+)
 from infrastructure.godot.artifacts.species_package_validation import (
     GodotSpeciesValidationRunner,
     SpeciesPackageValidationError,
@@ -377,10 +380,8 @@ def current_source_fingerprint() -> str:
     digest.update(b"\0")
     if not GODOT_PROJECT.is_dir():
         return digest.hexdigest()
-    for path in sorted(item for item in GODOT_PROJECT.rglob("*") if item.is_file()):
+    for path in sorted(runtime_source_files(GODOT_PROJECT)):
         relative = path.relative_to(GODOT_PROJECT)
-        if ".godot" in relative.parts or relative.suffix in {".import", ".tmp"}:
-            continue
         digest.update(relative.as_posix().encode("utf-8"))
         digest.update(b"\0")
         digest.update(path.read_bytes())

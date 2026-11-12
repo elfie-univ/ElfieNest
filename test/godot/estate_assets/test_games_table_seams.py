@@ -83,6 +83,4 @@ def test_tabletop_and_two_pedestals_have_closed_seams(relative):
                 continue
             seen.add(current)
             pending.extend(adjacency[current] - seen)
-    assert components == 4, (
-        "Tabletop, chessboard base and two pedestals must each remain complete"
-    )
+    assert components == 3, "The tabletop and its two pedestals must remain complete"

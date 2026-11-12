@@ -18,7 +18,14 @@ const room: AssetFile = {
   file: "furniture/sets/main-floor-1/central-living.scn",
   kind: "assembly",
   preview: "room",
-  size: { fileBytes: 2048, referenceBytes: 66560 },
+  size: {
+    fileBytes: 2048,
+    referenceBytes: 66560,
+    referenceFiles: [
+      { path: chair.file, title: chair.title, bytes: 65536 },
+      { path: "furniture/textures/shared.png", title: "shared.png", bytes: 1024 },
+    ],
+  },
   parts: [{
     id: "chair", component: "barrel", title: "桶形单椅", count: 2, unit: "实例",
     paths: ["left", "right"], targetPaths: ["left", "right"],
@@ -34,6 +41,17 @@ const props = {
 };
 
 describe("asset file inspector", () => {
+  it("separates reused mesh count from the number of placed parts", () => {
+    const html = renderToStaticMarkup(<AssetFilePanel {...props} entry={{
+      ...chair,
+      components: [{
+        id: "door", title: "卧室滑门", count: 8, paths: ["left", "right"],
+        size: { meshBytes: 2048, textureBytes: 0, instances: 8, meshCopies: 1 },
+      }],
+    }} />);
+    expect(html).toContain("8 处 · 共用 1 套网格");
+  });
+
   it("shows GLB subparts with mesh bytes and placement counts", () => {
     const html = renderToStaticMarkup(<AssetFilePanel {...props} entry={chair} />);
     expect(html).toContain("<h3>子部件</h3>");
@@ -57,11 +75,57 @@ describe("asset file inspector", () => {
     expect(html).toContain("×2");
     expect(html).toContain("67.0 KiB");
     expect(html).toContain("文件 2.0 KiB · 引用 65.0 KiB");
+    expect(html).toContain("引用文件明细（去重）");
+    expect(html).toContain("64.0 KiB");
+    expect(html).toContain("shared.png");
     expect(html).toContain("3.0 KiB");
     expect(html).toContain('aria-label="高亮桶形单椅"');
     expect(html).not.toContain("<h3>子部件</h3>");
     expect(html).toContain(`>${root}${room.file}</small>`);
     expect(html).toContain(`title="${root}${chair.file}"`);
     expect(html).toContain(">central-living-local.glb</small>");
+  });
+
+  it("accounts for mesh variants outside the listed subparts", () => {
+    const entry = {
+      ...chair,
+      size: {
+        fileBytes: 65536,
+        referenceBytes: 1024,
+        breakdown: {
+          componentMeshBytes: 2048,
+          otherMeshBytes: 4096,
+          variantMeshBytes: 49152,
+          embeddedTextureBytes: 0,
+          otherFileBytes: 10240,
+        },
+      },
+    };
+    const html = renderToStaticMarkup(<AssetFilePanel {...props} entry={entry} />);
+    expect(html).toContain("子部件网格（去重）");
+    expect(html).toMatch(/法线与切线变体<\/dt><dd[^>]*>48\.0 KiB<\/dd>/);
+    expect(html).not.toContain("内嵌贴图");
+  });
+
+  it("shows a volume breakdown for a GLB without subparts", () => {
+    const entry: AssetFile = {
+      ...chair,
+      components: [],
+      size: {
+        fileBytes: 65536,
+        referenceBytes: 1024,
+        breakdown: {
+          componentMeshBytes: 0,
+          otherMeshBytes: 61440,
+          variantMeshBytes: 0,
+          embeddedTextureBytes: 0,
+          otherFileBytes: 4096,
+        },
+      },
+    };
+    const html = renderToStaticMarkup(<AssetFilePanel {...props} entry={entry} />);
+    expect(html).toContain("<h3>体积明细</h3>");
+    expect(html).toMatch(/网格（去重）<\/dt><dd[^>]*>60\.0 KiB<\/dd>/);
+    expect(html).not.toContain("<h3>子部件</h3>");
   });
 });

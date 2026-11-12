@@ -63,6 +63,8 @@ var _lights_on := true
 var _observer_water: Node3D
 var _observer_optics: RefCounted
 var _opaque_render_batches: Node
+var _instance_render_batches: Node
+var _surface_render_batches: Node
 var _observer_environment: Dictionary = {}
 var _observer_lighting_preview := "live"
 var _lighting_preview_available := false
@@ -420,10 +422,19 @@ func _apply_observer_lighting_display() -> void:
 		_observer_water.bind(get_node("Generated/CompleteEstate"), $WorldEnvironment.environment, false)
 		_observer_water.set_presentation_paused(_observer_presentation_paused)
 	_observer_water.set_night(phase in ["dusk","night"] and not quiet)
+	_observer_water.set_sky_night(phase in ["dusk","night"])
 	if not is_instance_valid(_opaque_render_batches):
 		_opaque_render_batches = preload("res://nest/estate/estate_opaque_batches.gd").new()
 		get_node("Generated/CompleteEstate").add_child(_opaque_render_batches)
 		_opaque_render_batches.bind(get_node("Generated/CompleteEstate"))
+	if not is_instance_valid(_surface_render_batches):
+		_surface_render_batches = preload("res://nest/estate/estate_surface_batches.gd").new()
+		get_node("Generated/CompleteEstate").add_child(_surface_render_batches)
+		_surface_render_batches.bind(get_node("Generated/CompleteEstate"))
+	if not is_instance_valid(_instance_render_batches):
+		_instance_render_batches = preload("res://nest/estate/estate_instance_batches.gd").new()
+		get_node("Generated/CompleteEstate").add_child(_instance_render_batches)
+		_instance_render_batches.bind(get_node("Generated/CompleteEstate"))
 
 
 func add_lighting_observer_views() -> void:

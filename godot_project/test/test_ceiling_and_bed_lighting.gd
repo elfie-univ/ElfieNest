@@ -55,7 +55,7 @@ func run() -> void:
 		if module == "central" and floor_number == 3 and label.begins_with("working l3 downlight 1 "):
 			front_fixture_parts += 1
 			check(mounted_on_ceiling(estate, mesh), "The moved diffuser, rim and baffle must all remain mounted on the actual ceiling")
-		if module == "central":
+		if module == "central" and mesh.mesh != null:
 			for surface in range(mesh.mesh.get_surface_count()):
 				var original := mesh.mesh.surface_get_material(surface) as BaseMaterial3D
 				if original == null or not original.resource_name.to_lower().begins_with("trial nearly clear ice-aqua facade glass"): continue
@@ -106,9 +106,14 @@ func run() -> void:
 			check((fixture_sources.get(mesh, []) as Array).filter(func(light: Light3D) -> bool: return str(light.name).begins_with("BedroomCoveDiffuse")).is_empty(), "%s must not gain perimeter fill lights" % module)
 		if label == "games_front_play_rug":
 			patterned_rugs += 1
-			check(bool(mesh.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_COLOR), "Play rug must retain its authored patchwork colors")
 			var material := mesh.get_active_material(0) as ShaderMaterial
-			check(material != null and bool(material.get_shader_parameter("use_linear_vertex_color")), "Play rug must display the original patchwork vertex colors")
+			var pattern := material.get_shader_parameter("source_albedo_texture") as Texture2D if material != null else null
+			var weave := material.get_shader_parameter("source_normal_texture") as Texture2D if material != null else null
+			check(pattern != null and pattern.resource_path.ends_with("/central-play-rug-color.png")
+				and bool(material.get_shader_parameter("use_albedo_texture"))
+				and not bool(material.get_shader_parameter("use_linear_vertex_color")), "Play rug must render its baked patchwork colors")
+			check(weave != null and weave.resource_path.ends_with("/central-play-rug-normal.png")
+				and bool(material.get_shader_parameter("use_normal_texture")), "Play rug must retain its fine fabric normal")
 		if module in DAYLIGHT.POD_MODULES and str(extras.get("piece", "")) in ["inner_wrap", "inner_welt"]:
 			linings += 1
 			for i in range(mesh.mesh.get_surface_count()):

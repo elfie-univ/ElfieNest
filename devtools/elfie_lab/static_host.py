@@ -23,9 +23,8 @@ def mount_static_surfaces(app: FastAPI) -> None:
     """挂载 Lab 前端，并在已构建时挂载 Godot Web 导出。"""
     mount_vite_bundle(app)
     godot_web_dir = Path(__file__).parents[2] / "build" / "components" / "godot-web"
-    if godot_web_dir.is_dir():
-        app.mount(
-            "/godot-web",
-            NoStoreStaticFiles(directory=godot_web_dir, html=True),
-            name="elfie_lab_godot_web",
-        )
+    app.mount(
+        "/godot-web",
+        NoStoreStaticFiles(directory=godot_web_dir, html=True, check_dir=False),
+        name="elfie_lab_godot_web",
+    )

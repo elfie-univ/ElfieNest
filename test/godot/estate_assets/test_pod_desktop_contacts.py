@@ -1,4 +1,4 @@
-"""Freeze the accepted shared bed and the four worktop prototypes."""
+"""Freeze the four accepted worktop prototypes."""
 
 import hashlib
 import math
@@ -9,10 +9,10 @@ from pathlib import Path
 import pytest
 
 from test.godot.asset_geometry import _multiply
-from test.godot.formal_asset_geometry import NamedModel, assert_approved_source
+from test.godot.formal_asset_geometry import NamedModel
 
 ROOT = Path(__file__).resolve().parents[3]
-PROTOTYPE = ROOT / "godot_project/nest/furniture/shared/bedroom/bedroom-cabinet.glb"
+PROTOTYPE = ROOT / "godot_project/nest/furniture/shared/bedroom/bedroom-desks.glb"
 
 
 def _values(model, accessor):
@@ -88,11 +88,8 @@ def _model():
 
 @pytest.mark.parametrize("resident", "ABCD")
 def test_four_desktop_prototypes_keep_the_approved_source_geometry(resident):
-    # The accepted shared shell differs from the old merged shell. Freeze both
-    # current inputs; native measures their 32 actual scene contacts/identities.
-    assert_approved_source("furniture/shared/bedroom/bed-shared.glb")
     assert hashlib.sha256(PROTOTYPE.read_bytes()).hexdigest() == (
-        "b9d4274561da88adcca2dc4bdfb230bbcacf03aea9aa9f5de0bde6e4ea6f4773"
+        "5ba3eaa81f60ba2a077fb9e80d8068a60403eaeb37d1e9409c50c2cc9334dc6a"
     )
     model = _model()
     nodes = [

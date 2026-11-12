@@ -4,8 +4,9 @@ import argparse
 import hashlib
 import json
 import shutil
-import subprocess
+from os import walk
 from pathlib import Path
+from typing import Iterator
 
 from export_menu_assets import prepare_menu_assets
 from organize_furniture_assets import (
@@ -164,14 +165,27 @@ def nest_menu_ids(items, path=()):
             yield item["id"]
 
 
+def nest_files(*folders: str) -> Iterator[Path]:
+    """Use the same authoring directory boundary as the Godot importer."""
+    for folder in folders:
+        for directory, children, names in walk(NEST / folder):
+            if ".gdignore" in names:
+                children.clear()
+                continue
+            parent = Path(directory)
+            for name in names:
+                path = parent / name
+                if path.is_file():
+                    yield path
+
+
 def audit_nest_files(index):
     graph = index["fileGraph"]
     entries = graph["entries"]
     asset_files = {
         path.relative_to(NEST).as_posix()
-        for folder in NEST_ASSET_FOLDERS
-        for path in (NEST / folder).rglob("*")
-        if path.is_file() and path.suffix in {".glb", ".scn", ".tscn"}
+        for path in nest_files(*NEST_ASSET_FOLDERS)
+        if path.suffix in {".glb", ".scn", ".tscn"}
     }
     files = {entry["file"] for entry in entries.values()}
     assert len(files) == len(entries), "More than one entry for a formal file"
@@ -227,12 +241,11 @@ def nest_source_fingerprint():
         GODOT / "tools/static_asset_review.gd",
         GODOT / "tools/review_asset_sizes.py",
     }
-    for folder in (*NEST_ASSET_FOLDERS, "estate"):
-        sources.update(
-            path
-            for path in (NEST / folder).rglob("*")
-            if path.is_file() and path.suffix != ".md"
-        )
+    sources.update(
+        path
+        for path in nest_files(*NEST_ASSET_FOLDERS, "estate")
+        if path.suffix != ".md"
+    )
     digest = hashlib.sha256()
     for path in sorted(sources):
         digest.update(f"{path.relative_to(ROOT).as_posix()}\0{sha256(path)}\0".encode())
@@ -269,8 +282,8 @@ def publish_nest_assets(source_fingerprint=None):
     print(f"Nest Lab now serves {len(graph['entries'])} formal asset files")
 
 
-def ensure_nest_assets():
-    fingerprint = nest_source_fingerprint()
+def nest_assets_current(fingerprint=None):
+    fingerprint = fingerprint or nest_source_fingerprint()
     try:
         manifest = json.loads((WEB / "nest-assets.json").read_text())
         if (
@@ -279,24 +292,10 @@ def ensure_nest_assets():
             and (WEB / "nest-assets.html").is_file()
             and (WEB / "nest-assets.pck").stat().st_size == manifest.get("packBytes")
         ):
-            print("Nest Lab formal asset pack is up-to-date")
-            return
+            return sha256(WEB / "nest-assets.pck") == manifest.get("sha256")
     except (FileNotFoundError, json.JSONDecodeError):
         pass
-    audit_nest_files(json.loads(NEST_INDEX.read_text()))
-    subprocess.run(
-        [
-            "bash",
-            "scripts/quality/checks/godot_host.sh",
-            "res://tools/pack_nest_assets.gd",
-        ],
-        cwd=ROOT,
-        check=True,
-    )
-    assert fingerprint == nest_source_fingerprint(), (
-        "Nest sources changed during review build"
-    )
-    publish_nest_assets(fingerprint)
+    return False
 
 
 def publish(shared: bool = False, furniture: bool = False) -> None:
@@ -369,10 +368,12 @@ if __name__ == "__main__":
     mode.add_argument("--shared-candidate", action="store_true")
     mode.add_argument("--furniture-candidate", action="store_true")
     mode.add_argument("--nest-assets", action="store_true")
-    mode.add_argument("--ensure-nest-assets", action="store_true")
+    mode.add_argument("--check-nest-assets", action="store_true")
+    parser.add_argument("--web-output", type=Path, default=WEB)
     arguments = parser.parse_args()
-    if arguments.ensure_nest_assets:
-        ensure_nest_assets()
+    WEB = arguments.web_output.resolve()
+    if arguments.check_nest_assets:
+        raise SystemExit(0 if nest_assets_current() else 1)
     elif arguments.nest_assets:
         publish_nest_assets()
     else:

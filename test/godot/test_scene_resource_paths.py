@@ -244,7 +244,9 @@ def test_runtime_manifest_is_semantic_and_does_not_export_coordinates() -> None:
 
 def test_blender_authoring_sources_are_excluded_from_godot_imports() -> None:
     authoring_roots = {
-        path.parent for path in GODOT_ROOT.glob("characters/*/source/**/*.blend")
+        path.parent
+        for pattern in ("characters/*/source/**/*.blend", "nest/**/source/**/*.blend")
+        for path in GODOT_ROOT.glob(pattern)
     }
 
     missing_markers = [

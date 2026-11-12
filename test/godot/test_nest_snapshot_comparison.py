@@ -69,41 +69,26 @@ def test_water_source_preview_omits_replaced_rim_and_dormant_jet_templates():
             )
 
 
-def test_bedding_normal_variants_share_geometry_and_keep_room_and_bed_context():
+def test_shared_bed_has_one_complete_set_of_authored_geometry():
     path = ROOT / "godot_project/nest/furniture/shared/bedroom/bed-shared.glb"
     data = path.read_bytes()
     size = struct.unpack_from("<I", data, 12)[0]
     document = json.loads(data[20 : 20 + size])
-    nodes = {node["name"]: node for node in document["nodes"]}
-    variants = [
-        node for node in nodes.values() if "normal_variant_of" in node.get("extras", {})
-    ]
-    assert variants
-    for node in variants:
-        base = nodes[node["extras"]["normal_variant_of"]]
-        before = document["meshes"][base["mesh"]]["primitives"]
-        after = document["meshes"][node["mesh"]]["primitives"]
-        assert len(before) == len(after)
-        assert node["extras"]["review_visible"] is False
-        for old, new in zip(before, after):
-            assert old["indices"] == new["indices"]
-            for attribute in set(old["attributes"]) - {"NORMAL", "TANGENT"}:
-                assert old["attributes"][attribute] == new["attributes"][attribute]
-    # One room can need different normals for two placements of the same shape.
-    choices = nodes["part_00320"]["extras"]["nest_normal_variants"]["M02"]
-    assert len(set(choices.values())) > 1
-    placement = "Generated/CompleteEstate/CompleteFinal/A | Throw | botanical diagonal folded linen2"
-    chosen = nodes[
-        nodes["part_00971"]["extras"]["nest_normal_variants"]["M02"][placement]
-    ]
-    primitive = document["meshes"][chosen["mesh"]]["primitives"][0]
-    accessor = document["accessors"][primitive["attributes"]["NORMAL"]]
-    view = document["bufferViews"][accessor["bufferView"]]
-    offset = 28 + size + view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
-    normal = struct.unpack_from(
-        "<fff", data, offset + 1744 * view.get("byteStride", 12)
+    nodes = [node for node in document["nodes"] if "mesh" in node]
+    assert len(nodes) == 132
+    assert all(
+        "normal_variant_of" not in node["extras"]
+        and "nest_normal_variants" not in node["extras"]
+        for node in nodes
     )
-    assert normal == (0.5226424932479858, 0.4629787802696228, -0.7158879041671753)
+    throws = [
+        node
+        for node in nodes
+        if "botanical diagonal folded linen" in node["extras"]["source_name"]
+    ]
+    assert [node["name"] for node in throws] == ["part_00960"]
+    primitive = document["meshes"][throws[0]["mesh"]]["primitives"][0]
+    assert {"POSITION", "NORMAL", "TANGENT"} <= set(primitive["attributes"])
 
 
 def test_triangle_canonicalization_preserves_winding_and_duplicate_faces():

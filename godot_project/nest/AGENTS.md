@@ -111,10 +111,12 @@ furniture/
   自包含的组合可直接用 GLB。只给某套装用的 GLB 随套装，露台独用部件随该露台布置。
   弧形书架灯光装配引用书架 GLB，并保存独立的灯光节点。
 - `shared/` 按实际复用归档。一件家具可以是一份 GLB，同类原型也可同存一份库。
-  桌面 A–D 和共用柜体同归 `bedroom-cabinet.glb`，由四个套装直接引用。家具套装菜单只保留
-  卧室套装 A–D，不再增加桌柜 A–D 的局部 SCN 或桌面 GLB。
+  桌面 A–D 同归 `bedroom-desks.glb`，共用柜体、抽屉和灯片归 `bedroom-cabinet.glb`。
+  四个卧室套装分别引用对应桌面和同一个柜子原型。
 - Nest Lab 的「完整布置」和「家具套装」按用途导航。「家具与装饰」既能打开共享库，
   也能打开弧形书架等专用 GLB。每项指向所属目录中的同一个文件。
+  完整家具在上一级显示为一条引用，具体零件在原型页查看。独立摆放的库内家具按原型列出，
+  如同一客厅的茶几和边几。文件总大小对共享引用去重，各 GLB 显示自己的体积明细。
 - 「完整布置」直接列出卧室和主楼一至三楼的完整布置；露台保留 M01–M08 分组。
   只省去这些总装的单项导航层，套装与具体部件的菜单分组保持原样。
 
@@ -124,8 +126,10 @@ furniture/
 buildings/
 ├── building-layout.scn           放置主楼及八个小屋，接入对应的家具布局
 ├── main/
+│   ├── source/central-building.blend   主楼的 Blender 工作稿
 │   └── central-building.glb      完整主楼结构、双扇入口、固定设施、四楼到达平台
 ├── pod/
+│   ├── source/pod-building.blend       小屋原型的 Blender 工作稿
 │   └── pod-building.glb          八个小屋共用的建筑原型
 └── textures/                     建筑引用的外置贴图
 ```
@@ -158,7 +162,7 @@ courtyard/
 「庭院」是外层分类。右侧第一级固定为总览、功能区、详细部件。
 总览直接列出「庭院总装（不带罩）」和「庭院总装（带罩）」，分别对应
 `courtyard/overview/courtyard-all/courtyard-layout.scn` 与 `courtyard-covered.scn`。
-功能区直接列出地面与设施、建筑区绿化、水榭和草原总装；森林保留分组，内含森林区总装与标志大树。
+功能区直接列出地面与设施、建筑区绿化、水榭和草原总装；森林保留分组，内含森林区总装、标志大树及分叉树组、阔叶树组、针叶树组。
 详细部件继续使用三级菜单：第二级为区域，第三级为文件，另加「共享」，只存放花草和石头原型。
 树干、树枝、树叶与树冠由森林持有，其他区域引用同一份森林原型，不复制几何。
 下表路径相对于 `courtyard/`。
@@ -167,7 +171,7 @@ courtyard/
 | --- | --- | --- |
 | 地面 `ground` | `areas/ground/courtyard-ground.scn` | `parts/ground/` 下的 `shared-ground.glb`（地形、草坪、道路、广场铺装、湖畔平台及湖岸外圈）、`outdoor-lights.glb`（路灯原型）和 `courtyard-cover.glb`（庭院罩） |
 | 建筑区绿化 `building` | `areas/building/building-greenery.scn` | 原位引用共享花草库，不复制原型或公共地形 |
-| 森林 `forest` | `areas/forest/forest-layout.scn` | `parts/forest/` 下的 `tree-one.glb`（标志大树独有木结构）、`forest-wood.glb`（树干与树枝）和 `forest-foliage.glb`（树叶与树冠） |
+| 森林 `forest` | `areas/forest/forest-layout.scn` | `parts/forest/` 下的 `tree-one.glb`（分叉大树木结构）、`broadleaf-tree.glb`（阔叶树木结构）、`pine-tree.glb`（松树木结构、针叶与共享小枝）、`forest-foliage.glb`（共享阔叶与树冠）和 `forest-twigs.glb`（跨树类共享小枝） |
 | 水榭 `waterside` | `areas/waterside/waterside-layout.scn` | `parts/waterside/` 下的 `lake.glb`（湖面与睡莲）、`fountain.glb`（喷泉、水道与瀑布）和 `bench.glb` |
 | 草原 `meadow` | `areas/meadow/meadow-layout.scn` | `parts/meadow/` 下的 `picnic.glb` 和 `swing.glb` |
 | 共享 `shared` | 无独立功能区 | `parts/shared/` 下的 `plant-library.glb`（花草）和 `shore-stones.glb`（石头） |
@@ -183,8 +187,11 @@ courtyard/
   避免把完整总装误限制为某次新增的局部组件。
 - 中央花草由建筑区绿化总装持有，公共地形与铺装仍归地面总装。低矮灌木按根部位置归区，
   同株茎叶一起迁移；复用相同原型的高处树冠组件保留在所属树木中。
-- 森林总装引用 `areas/forest/forest-layout/landmark-tree.scn`。打开后可分别查看标志大树木结构、
-  树干与树枝、树叶与树冠三个 GLB 的引用。主楼楼梯平台的两根扶手端柱归
+- 森林总装引用 `forest-layout/` 下的 `branching-trees.scn`、`broadleaf-trees.scn` 和 `pine-trees.scn`。
+  分叉树组引用 `landmark-tree.scn`，并保存另一棵大树的完整枝叶；标志大树仍可独立打开。
+  专有木结构与针叶按树类归 GLB，跨类型阔叶和小枝保留唯一共享来源，不在多个 GLB 中复制。
+  松树小枝按十二种形状通过 MultiMesh 复用，保留原位置、旋转及缩放。
+  `tree_wood` 源元数据只标记原先参与树干碰撞的木结构，针叶与共享阔叶不参与该分类。主楼楼梯平台的两根扶手端柱归
   `buildings/main/central-building.glb`，复用原有栏杆立柱网格与材质；不设独立资产或森林菜单项。
 - 水榭总装的湖水与睡莲引用同一份 `parts/waterside/lake.glb`，岸石引用
   `parts/shared/shore-stones.glb`。湖畔平台的基础和装饰铺面原型保留在地面 GLB，
@@ -208,7 +215,7 @@ courtyard/
 散落景观石与岸石的原型统一归 `parts/shared/shore-stones.glb`；景观石的位置、旋转、
 材质变体由地面总装持有。地形与铺装 GLB 不再包含散落石头，石头只在引用它们的总装中出现。
 花草库按原型展示。同株的茎、叶、花瓣和花心从同一 GLB 成组预览，摆位与材质变体归使用方。
-树干和树叶库各按类型展示一个代表，林区装配可引用库内对应的剪枝和树冠变体。
+树类组件显示完整树组，形状原型预览展示代表，林区装配引用库内对应的剪枝、树冠与共享小枝变体。
 同一几何旋转后复用时，把旋转和颜色变体留在装配的摆位和材质数据里。
 
 ## 唯一拥有者与修改入口
@@ -236,8 +243,14 @@ courtyard/
   实例变体和可变状态在使用方修改。灯光策略、水流、交互、碰撞及导航沿场景引用定位对应脚本、
   shader 或烘焙输入。每个原始节点只有一个拥有者。
 - **一个原型只编辑一份上游。** 已登记的 GLB 是形状源时改该 GLB。卧室试点以对应的
-  `source/*.blend` 为形状源，GLB 与原生 SCN 按各自流程生成。派生预览和烘焙产物随源重建。
+  `source/*.blend` 为形状源，GLB 与原生 SCN 按各自流程生成。主楼和小屋的 Blender
+  工作稿从当前正式 GLB 重建；从 Blender 改形状时，先导出候选并核对材质、复用、摆位
+  和 Godot 绑定，再将已验收的形状合入正式 GLB。装配、灯光和运行行为仍由正式场景持有。
+  导出和重放用法见 [建筑编辑工具](../tools/nest_authoring/README.md)。
   重命名或移动时在同一变更里更新场景、贴图 URI、实例数据及索引引用。
+- 每个 Blender `source/` 放空的 `.gdignore`。Godot 和 Nest Lab 的资产清单、导出检查
+  均跳过该目录；创作源仍可纳入 Git。源稿、能重跑的脚本及需保留的旧版不得只存在
+  `build/`；该目录只作为可再生的导出及临时工作区。
 
 ## 导出与迁入验收
 

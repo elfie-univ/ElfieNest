@@ -2,7 +2,7 @@
 
 [ext_resource type="PackedScene" path="res://nest/furniture/bedroom/desks/a/desk_a.scn" id="1_8s0dp"]
 [ext_resource type="Shader" path="res://nest/estate/estate_opaque.gdshader" id="2_7ih0h"]
-[ext_resource type="Texture2D" path="res://nest/furniture/bedroom/textures/79cc993e5eefb3dbe55d4fe7cbc79f1c95373250794365fe7feb6d304222bace.png" id="3_4mq3t"]
+[ext_resource type="Texture2D" path="res://nest/furniture/textures/80ada63bb0d4e592810a82e3efcba97e4614eeb57600a8430603499989d104fc.png" id="3_4mq3t"]
 [ext_resource type="PackedScene" path="res://nest/furniture/bedroom/desks/b/desk_b.scn" id="4_q08l8"]
 [ext_resource type="PackedScene" path="res://nest/furniture/bedroom/desks/c/desk_c.scn" id="5_3arax"]
 [ext_resource type="PackedScene" path="res://nest/furniture/bedroom/desks/d/desk_d.scn" id="6_5yu1t"]

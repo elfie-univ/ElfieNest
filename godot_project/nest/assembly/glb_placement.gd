@@ -1,11 +1,14 @@
 @tool
 extends Node3D
 ## Bind imported GLB meshes to individual placements and instance batches.
+const RENDER_BATCHES := preload("res://nest/estate/estate_instance_batches.gd")
 
 @export var library: PackedScene
 @export_storage var source_nodes: PackedStringArray
 @export_storage var material_variants: Dictionary
 @export_storage var instance_batches: Dictionary
+@export_storage var shared_instance_buffers: Resource
+@export_storage var meshless_anchors: PackedInt32Array
 
 static var cached_libraries: Dictionary = {}
 
@@ -20,6 +23,14 @@ func library_changed() -> void:
 	cached_libraries.erase(library.resource_path)
 	call_deferred("bind_meshes")
 
+func instance_buffer(data: Dictionary) -> PackedFloat32Array:
+	if data.has("buffer"):
+		return data.buffer
+	var index: int = data.get("buffer_index", -1)
+	assert(shared_instance_buffers != null, "Missing instance buffer pool")
+	assert(index >= 0 and index < shared_instance_buffers.buffers.size(), "Missing instance buffer")
+	return shared_instance_buffers.buffers[index]
+
 func bind_meshes() -> bool:
 	if library == null or source_nodes.size() != get_child_count():
 		return false
@@ -30,12 +41,25 @@ func bind_meshes() -> bool:
 		if imported.is_empty(): return false
 		cached_libraries[path] = {"modified": modified, "meshes": imported}
 	var meshes: Dictionary = cached_libraries[path].meshes
+	# Initial assembly has no batch owner; hot rebinding must restore original
+	# layers before replacing mesh/material/MultiMesh resources on existing nodes.
+	RENDER_BATCHES.restore_before_write(self, true)
 	var context := get_parent()
 	while context != null and not context.has_meta("estate_module"):
 		context = context.get_parent()
 	var module := str(context.get_meta("estate_module")) if context != null else ""
 	for index: int in source_nodes.size():
 		var target := get_child(index)
+		if index in meshless_anchors:
+			if not target is MeshInstance3D or not source_nodes[index].is_empty(): return false
+			target.mesh = null
+			continue
+		var group_key := "instances:" + source_nodes[index]
+		if meshes.has(group_key):
+			if not target is MeshInstance3D: return false
+			target.mesh = null
+			preload("res://nest/assembly/mesh_instance_groups.gd").populate(target, meshes[group_key], material_variants.get(index, []))
+			continue
 		var mesh := select_mesh(meshes, source_nodes[index], str(target.get_meta("v044_path", "")), module)
 		if mesh == null:
 			push_error("Missing GLB node %s in %s" % [source_nodes[index], path])
@@ -47,7 +71,7 @@ func bind_meshes() -> bool:
 				target.set_surface_override_material(surface, materials[surface])
 		elif target is MultiMeshInstance3D and instance_batches.has(index):
 			var data: Dictionary = instance_batches[index]
-			var buffer: PackedFloat32Array = data.buffer
+			var buffer := instance_buffer(data)
 			if data.transform_format not in [MultiMesh.TRANSFORM_2D, MultiMesh.TRANSFORM_3D]: return false
 			var stride := 12 if data.transform_format == MultiMesh.TRANSFORM_3D else 8
 			if data.use_colors: stride += 4
@@ -65,6 +89,7 @@ func bind_meshes() -> bool:
 				# Compatibility packs custom/color values to 16 bits. Validate the
 				# canonical input above; GPU readback is not a source-data checksum.
 				batch.buffer = buffer
+			batch.set_meta("nest_instance_buffer", buffer)
 			target.multimesh = batch
 		else:
 			return false
@@ -83,6 +108,9 @@ func import_meshes(_path: String) -> Dictionary:
 	var meshes := {}
 	for node: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		if node.mesh != null:
+			if node.has_meta("nest_normal_delta"):
+				meshes["normal:" + str(node.name)] = {"base": str(node.get_meta("extras").normal_variant_of), "delta": node.get_meta("nest_normal_delta"), "extras": node.get_meta("extras")}
+				continue
 			if not restore_materials(node):
 				model.free()
 				return {}
@@ -94,6 +122,9 @@ func import_meshes(_path: String) -> Dictionary:
 			if extras.has("nest_render_partition"):
 				node.mesh.set_meta("nest_render_partition", extras.nest_render_partition)
 			meshes[str(node.name)] = node.mesh
+	for node: Node3D in model.find_children("*", "Node3D", true, false):
+		if node.get_meta("extras", {}).get("nest_instance_group", false):
+			meshes["instances:" + str(node.name)] = preload("res://nest/assembly/mesh_instance_groups.gd").collect(node)
 	model.free()
 	return meshes
 
@@ -102,7 +133,16 @@ static func select_mesh(meshes: Dictionary, source: String, placement: String, m
 	if mesh == null: return null
 	var variants: Dictionary = mesh.get_meta("nest_normal_variants", {})
 	var room: Dictionary = variants.get(module, {})
-	return meshes.get(str(room[placement])) if room.has(placement) else mesh
+	if not room.has(placement): return mesh
+	var name := str(room[placement])
+	if meshes.has(name): return meshes[name]
+	var descriptor: Dictionary = meshes.get("normal:" + name, {})
+	if descriptor.is_empty(): return null
+	var restored := preload("res://nest/assembly/normal_variant_meshes.gd").restore(meshes[descriptor.base], descriptor.delta)
+	restored.set_meta("nest_source_extras", descriptor.extras.duplicate(true))
+	restored.set_meta("nest_source_library", mesh.get_meta("nest_source_library", ""))
+	meshes[name] = restored
+	return restored
 
 static func restore_materials(node: MeshInstance3D) -> bool:
 	# glTF cannot express every native material setting. Keep the small set of

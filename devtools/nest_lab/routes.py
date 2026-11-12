@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from subprocess import SubprocessError
 from typing import Dict, List, Optional, Union
 
 from fastapi import APIRouter, HTTPException
@@ -15,6 +16,7 @@ from devtools.nest_lab.models import (
     LabEnvironmentState,
     NestLabConflictError,
 )
+from devtools.nest_lab.preview_build import ensure_preview_bundle
 from devtools.nest_lab.world import NestLabWorld
 
 WorldResponse = Dict[str, Union[bool, int, str]]
@@ -25,6 +27,17 @@ EventResponse = Dict[str, Union[str, int]]
 def build_router(world: NestLabWorld) -> APIRouter:
     """Build routes bound to one disposable Lab world."""
     router = APIRouter(prefix="/api")
+
+    @router.post("/preview/prepare")
+    def prepare_preview() -> dict[str, bool]:
+        try:
+            ensure_preview_bundle()
+        except (RuntimeError, OSError, SubprocessError) as error:
+            raise HTTPException(
+                status_code=503,
+                detail="预览更新失败，已保留上一套资源；请检查服务日志后重试。",
+            ) from error
+        return {"ready": True}
 
     @router.get("/environment", response_model=LabEnvironmentState)
     def environment() -> LabEnvironmentState:

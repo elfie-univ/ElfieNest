@@ -38,6 +38,7 @@ static func verify(tree:SceneTree)->Dictionary:
 			for slot:int in binding.source_nodes.size():
 				var node:GeometryInstance3D=binding.get_child(slot)
 				var source:=str(binding.source_nodes[slot])
+				var placement_path:=str(node.get_meta("v044_path",""))
 				if binding.library.resource_path==GROUND and source in ["part_00000","terrain_forest","terrain_meadow","terrain_waterside"]:
 					if str(node.get_meta("ground_region",""))!=area:
 						scene.free()
@@ -54,7 +55,7 @@ static func verify(tree:SceneTree)->Dictionary:
 				var plants:bool=library.ends_with("/plant-library.glb")
 				var stone:bool=library.ends_with("/shore-stones.glb")
 				var fixture:bool=library.ends_with("/outdoor-lights.glb")
-				var shrub:bool=(library.ends_with("/forest-foliage.glb") and source in ["part_00006","part_00007","part_00008"]) or (library.ends_with("/forest-wood.glb") and source=="part_00033")
+				var shrub:bool=(library.ends_with("/forest-foliage.glb") and source in ["part_00006","part_00007","part_00008"]) or ((library.ends_with("/forest-wood.glb") or library.ends_with("/forest-twigs.glb")) and source=="part_00033")
 				var ground_foliage:bool=library.ends_with("/forest-foliage.glb") and source=="part_00009"
 				if not (plants or stone or fixture or shrub or ground_foliage):continue
 				var mesh:Mesh=node.mesh if node is MeshInstance3D else node.multimesh.mesh
@@ -101,7 +102,7 @@ static func verify(tree:SceneTree)->Dictionary:
 						for i:int in polygon.size():near=minf(near,p.distance_to(Geometry2D.get_closest_point_to_segment(p,polygon[i],polygon[(i+1)%polygon.size()])))
 						if near>.0001:
 							scene.free()
-							return {"error":"A plant, shrub, stone or fixture belongs to another geographic region","area":area,"expected":expected,"position":str(p)}
+							return {"error":"A plant, shrub, stone or fixture belongs to another geographic region","area":area,"expected":expected,"position":str(p),"source":source,"library":library,"path":placement_path}
 					if shrub:
 						var key:=var_to_bytes(pose).hex_encode().sha256_text()
 						if shrub_owners.has(key) and shrub_owners[key]!=area:
@@ -116,10 +117,8 @@ static func verify(tree:SceneTree)->Dictionary:
 		totals[area]=checked
 		scene.free()
 	if stone_count!=149:return {"error":"A stone instance was lost or duplicated","stones":stone_count}
-	if shore_shrub.size()!=8 or shore_shrub_owners.keys()!=["waterside"]:
-		return {"error":"The shore shrub is split between functional assemblies","shoots":shore_shrub.size(),"owners":shore_shrub_owners.keys()}
-	for components:Dictionary in shore_shrub.values():
-		if components.size()!=4:return {"error":"A shore shrub shoot lost its wood or foliage"}
+	if not shore_shrub.is_empty():
+		return {"error":"The former shore shrub must be replaced with herbaceous plants"}
 	return {"error":"","geographically_checked_instances":totals,"stone_instances":stone_count,"ground_parts":4,"low_shrub_roots":shrub_owners.size(),"ground_foliage_instances":ground_foliage_count}
 
 func run()->void:

@@ -186,6 +186,26 @@ def test_capture_patch_revision_invalidates_existing_runtime(
     assert current_source_fingerprint() != old_fingerprint
 
 
+def test_web_fingerprint_ignores_blender_sources(tmp_path: Path, monkeypatch) -> None:
+    project = tmp_path / "godot_project"
+    building = project / "nest/buildings/main"
+    building.mkdir(parents=True)
+    model = building / "central-building.glb"
+    model.write_bytes(b"runtime model")
+    monkeypatch.setattr(web_build, "GODOT_PROJECT", project)
+    before = current_source_fingerprint()
+
+    source = building / "source"
+    source.mkdir()
+    (source / ".gdignore").touch()
+    (source / "central-building.blend").write_bytes(b"editable model")
+    (source / "draft.glb").write_bytes(b"Blender exchange file")
+    assert current_source_fingerprint() == before
+
+    model.write_bytes(b"edited runtime model")
+    assert current_source_fingerprint() != before
+
+
 def test_web_export_imports_before_species_validation_and_publishes_after_it(
     tmp_path: Path,
     monkeypatch,

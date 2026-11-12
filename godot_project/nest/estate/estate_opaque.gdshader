@@ -13,11 +13,14 @@ uniform bool use_authored_reflection = false;
 uniform float natural_light_scale : hint_range(0.0, 1.0) = 1.0;
 uniform bool use_albedo_texture = false;
 uniform bool use_normal_texture = false;
+uniform bool use_local_albedo_coordinates = false;
 uniform sampler2D source_albedo_texture : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D source_normal_texture : hint_normal, filter_linear_mipmap_anisotropic;
 uniform float source_normal_scale = 1.0;
+uniform vec2 source_albedo_uv_scale = vec2(1.0);
 uniform vec3 source_uv_scale = vec3(1.0);
 uniform vec3 source_uv_offset = vec3(0.0);
+varying vec2 local_albedo_coordinates;
 
 vec3 to_linear(vec3 color) {
 	return mix(color / 12.92, pow((color + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), color));
@@ -25,6 +28,10 @@ vec3 to_linear(vec3 color) {
 
 vec3 to_srgb(vec3 color) {
 	return mix(color * 12.92, 1.055 * pow(max(color, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), color));
+}
+
+void vertex() {
+	local_albedo_coordinates = VERTEX.zx;
 }
 
 void fragment() {
@@ -46,7 +53,10 @@ void fragment() {
 	ALBEDO = source_albedo.rgb;
 	vec2 source_uv = UV * source_uv_scale.xy + source_uv_offset.xy;
 	if (use_albedo_texture) {
-		ALBEDO *= texture(source_albedo_texture, source_uv).rgb;
+		vec2 albedo_uv = use_local_albedo_coordinates
+			? fract(local_albedo_coordinates * source_albedo_uv_scale)
+			: source_uv;
+		ALBEDO *= texture(source_albedo_texture, albedo_uv).rgb;
 	}
 	if (use_normal_texture) {
 		NORMAL_MAP = texture(source_normal_texture, source_uv).rgb;

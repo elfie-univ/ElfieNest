@@ -15,6 +15,9 @@ body:has(.nest-monitor) { overflow: hidden; background: #dce4e5; }
 .nest-asset-details h3 { margin: 0 0 4px; font-size: 12px; color: #415e4c; }
 .nest-asset-details p { margin: 4px 0 0; }
 .nest-asset-total { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+.nest-asset-breakdown { margin: 0; }
+.nest-asset-breakdown div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.nest-asset-breakdown dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .nest-asset-details section { margin-top: 8px; padding-top: 8px; border-top: 1px solid #bfd1c5; }
 .nest-asset-details small { font-size: 11px; color: #465f51; overflow-wrap: anywhere; }
 .nest-asset-path { display: block; font-family: ui-monospace, monospace; }

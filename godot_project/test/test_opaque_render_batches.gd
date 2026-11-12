@@ -70,14 +70,28 @@ func run() -> void:
 	var controlled: Node = load(SCRIPT).new(); lit.add_child(controlled); controlled.bind(lit)
 	check(controlled.groups.is_empty() and near.layers==1 and far.layers==1,"Different potential local-light sets must not be combined")
 	lit.free()
-	check_material_sharing()
+	check_shared_mesh()
+	check_material_sharing("res://nest/estate/estate_opaque.gdshader")
+	check_material_sharing("res://nest/estate/m01_sheen.gdshader")
 	print("OPAQUE_BATCHES failures=",failures)
 	quit(0 if failures==0 else 1)
 
-func check_material_sharing() -> void:
+func check_shared_mesh() -> void:
+	var world := Node3D.new(); root.add_child(world)
+	var first := part(world,0.0,StandardMaterial3D.new())
+	var second := MeshInstance3D.new(); second.mesh = first.mesh; world.add_child(second)
+	var batcher: Node = load(SCRIPT).new(); world.add_child(batcher); batcher.bind(world)
+	check(batcher.groups.size()==1,"Shared mesh instances must form one compatible batch")
+	var connections := first.mesh.changed.get_connections().filter(func(connection: Dictionary) -> bool: return connection.callable.get_object()==batcher)
+	check(connections.size()==1,"A shared resource must have exactly one invalidation connection per batch")
+	first.mesh.emit_changed()
+	check(first.layers==1 and second.layers==1 and not batcher.groups[0].draw.visible,"Changing a shared mesh must restore every original instance")
+	world.free()
+
+func check_material_sharing(shader_path: String) -> void:
 	var world := Node3D.new(); root.add_child(world)
 	var source := ShaderMaterial.new()
-	source.shader = load("res://nest/estate/estate_opaque.gdshader")
+	source.shader = load(shader_path)
 	source.resource_name = "Shared opaque fixture"
 	source.set_shader_parameter("source_albedo",Color(0.2,0.4,0.1))
 	var first := part(world,0.0,source)

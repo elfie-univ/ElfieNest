@@ -3,13 +3,19 @@ extends RefCounted
 ## Callers bind owned sample resources and supply the reviewed daylight level.
 
 const ESTATE_LIGHTING := preload("res://nest/estate/estate_lighting.gd")
+const RENDER_BATCHES := preload("res://nest/estate/estate_instance_batches.gd")
 const REFLECTION_SKY := preload("res://nest/estate/estate_reflection_sky.gdshader")
+const COURTYARD_COVER := "res://nest/courtyard/parts/ground/courtyard-cover.glb"
+const COURTYARD_NIGHT := preload("res://nest/estate/courtyard_cover_night.gdshader")
+# Project the original sky from the ring-road eye point onto both cover surfaces.
+const COURTYARD_SKY_ORIGIN := Vector3(0.0, 3.4, 22.0)
 const NIGHT_NATURAL_SCALE := ESTATE_LIGHTING.DAYLIGHT.NIGHT_NATURAL_SCALE
 var _lights: Dictionary = {}
 var _emission: Dictionary = {}
 var _natural_materials: Array[ShaderMaterial] = []
 var _environments: Dictionary = {}
 var _sky_geometry: Array[Dictionary] = []
+var _courtyard_cover: Array[Dictionary] = []
 var _opaque_bindings: Array[Dictionary] = []
 var _unshared_opaque: Dictionary = {}
 
@@ -44,6 +50,7 @@ func apply_sample(daylight: float, room_in_use: bool = true, ordinary_enabled: b
 
 func apply_environment(daylight: float, lights_on: bool, room_in_use: bool = true, quiet_mode: bool = false, occupied: PackedStringArray = PackedStringArray(), usage_known: bool = false) -> void:
 	var level := clampf(daylight, 0.0, 1.0)
+	var night := is_zero_approx(level)
 	var natural := lerpf(NIGHT_NATURAL_SCALE, 1.0, level)
 	# Production consumes Nest's explicit ordinary-light state, including overrides.
 	var artificial := 1.0 if lights_on else 0.0
@@ -66,24 +73,29 @@ func apply_environment(daylight: float, lights_on: bool, room_in_use: bool = tru
 		material.set_shader_parameter("natural_light_scale", natural)
 	for sky: Dictionary in _sky_geometry:
 		(sky["mesh"] as MeshInstance3D).visible = bool(sky["visible"]) and level > 0.0
+	for binding: Dictionary in _courtyard_cover:
+		var mesh := binding.mesh as MeshInstance3D
+		var material: Material = binding.night if night else binding.day
+		if mesh.material_override != material:
+			mesh.material_override = material
 	for binding: Dictionary in _environments.values():
 		var environment := binding["environment"] as Environment
 		# Preserve the authored daytime environment diffuse, separately from
 		# mounted fixtures. Night must not inherit daytime environment lighting.
-		environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED if is_zero_approx(level) else int(binding["ambient_source"]) as Environment.AmbientSource
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED if night else int(binding["ambient_source"]) as Environment.AmbientSource
 		environment.ambient_light_energy = float(binding["ambient"]) * level
-		environment.background_color = Color(0.015, 0.025, 0.05) if is_zero_approx(level) else ((binding["background"] as Color).srgb_to_linear() * natural).linear_to_srgb()
+		environment.background_color = Color(0.015, 0.025, 0.05) if night else ((binding["background"] as Color).srgb_to_linear() * natural).linear_to_srgb()
 		# Compatibility uses this multiplier both in panorama generation and
 		# reflection sampling. Keep the total radiance scale equal to natural.
 		var sky_energy := float(binding["sky"]) * sqrt(natural)
 		if environment.sky != null:
 			var sky_material := environment.sky.sky_material as ShaderMaterial
 			if sky_material != null and sky_material.shader == REFLECTION_SKY:
-				var night := is_zero_approx(level)
 				environment.background_mode = Environment.BG_SKY if night else int(binding["background_mode"]) as Environment.BGMode
+				var backdrop_night := 1.0 if night else 0.0
 				var night_amount: Variant = sky_material.get_shader_parameter("night_amount")
-				if night_amount == null or not is_equal_approx(float(night_amount), 1.0 if night else 0.0):
-					sky_material.set_shader_parameter("night_amount", 1.0 if night else 0.0)
+				if night_amount == null or not is_equal_approx(float(night_amount), backdrop_night):
+					sky_material.set_shader_parameter("night_amount", backdrop_night)
 				# Night already has its own dim background color. Do not apply
 				# the old studio-panorama attenuation to it a second time.
 				if sky_material.get_shader_parameter("environment_color") != environment.background_color:
@@ -93,7 +105,21 @@ func apply_environment(daylight: float, lights_on: bool, room_in_use: bool = tru
 			environment.background_energy_multiplier = sky_energy
 
 
+func _bind_courtyard_cover(mesh: MeshInstance3D, projection_origin: Vector3) -> bool:
+	var source := mesh.get_active_material(0)
+	if source == null or not ESTATE_LIGHTING.DAYLIGHT._is_background(source.resource_name.to_lower()):
+		return false
+	var material := ShaderMaterial.new()
+	material.shader = COURTYARD_NIGHT
+	material.set_shader_parameter("dome", source.resource_name.ends_with(" dome"))
+	material.set_shader_parameter("projection_origin", projection_origin)
+	# Preserve any authored surface overrides for the exact daytime appearance.
+	_courtyard_cover.append({"mesh": mesh, "day": mesh.material_override, "night": material})
+	return true
+
+
 func bind_m01(sample: Node3D) -> Dictionary:
+	RENDER_BATCHES.restore_before_write(sample, true)
 	var counts := {"room_lights": 0, "natural_lights": 0, "ordinary_surfaces": 0, "natural_surfaces": 0, "preserved_emissive_surfaces": 0}
 	for light: Light3D in sample.find_children("*", "Light3D", true, false):
 		var natural := light is DirectionalLight3D and not ESTATE_LIGHTING.is_ordinary_light(light, sample)
@@ -107,7 +133,12 @@ func bind_m01(sample: Node3D) -> Dictionary:
 	var owned: Dictionary = {}
 	var opaque_inputs: Dictionary = {}
 	var opaque_sources: Dictionary = {}
+	var sky_origin := sample.to_global(COURTYARD_SKY_ORIGIN)
 	for mesh: MeshInstance3D in sample.find_children("*", "MeshInstance3D", true, false):
+		if mesh.mesh == null:
+			continue
+		if mesh.mesh.get_meta("nest_source_library", "") == COURTYARD_COVER and _bind_courtyard_cover(mesh, sky_origin):
+			continue
 		for surface in range(mesh.mesh.get_surface_count()):
 			var original := mesh.get_active_material(surface)
 			if original == null:
@@ -118,10 +149,11 @@ func bind_m01(sample: Node3D) -> Dictionary:
 				continue
 			var group := ESTATE_LIGHTING.lighting_group(mesh)
 			var original_identity := "%d:%s"%[original.get_instance_id(),group]
-			var share_opaque: bool = original is ShaderMaterial and original.shader != null and original.shader.resource_path == "res://nest/estate/estate_opaque.gdshader" and original.next_pass == null
+			var share_opaque: bool = original is ShaderMaterial and original.shader != null and original.shader.resource_path in ["res://nest/estate/estate_opaque.gdshader", "res://nest/estate/m01_sheen.gdshader"] and original.next_pass == null
 			if share_opaque:
 				# Imported placements may own separate resources with identical
-				# shader inputs. Keep room ownership while sharing their GPU state.
+				# shader inputs, including the original fabric sheen. Keep room
+				# ownership while sharing their GPU state; never replace the shader.
 				var id := original.get_instance_id()
 				if not opaque_inputs.has(id):
 					var inputs: Array = [original.shader,original.resource_name,original.render_priority]
@@ -166,6 +198,7 @@ func set_opaque_shared(enabled: bool) -> void:
 	for binding: Dictionary in _opaque_bindings:
 		var mesh := binding.mesh as MeshInstance3D
 		if not is_instance_valid(mesh) or mesh.mesh == null or binding.surface >= mesh.mesh.get_surface_count(): continue
+		RENDER_BATCHES.restore_before_write(mesh)
 		var material: Material = binding.shared
 		if not enabled:
 			if not _unshared_opaque.has(binding.identity):

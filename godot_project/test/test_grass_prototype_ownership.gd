@@ -54,9 +54,9 @@ func run() -> void:
 			quit(1)
 			return
 		count += int(result.references)
-	if count != 38:
+	if count != 44:
 		push_error("The regional grass reference count changed")
 		quit(1)
 		return
-	print("SHARED_GRASS_PROTOTYPE_AND_38_REGIONAL_REFERENCES_OK")
+	print("SHARED_GRASS_PROTOTYPE_AND_44_REGIONAL_REFERENCES_OK")
 	quit(0)

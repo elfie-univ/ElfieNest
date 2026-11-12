@@ -76,6 +76,14 @@ func run() -> void:
 	if not _require(candidate.get_node_or_null("LowFountainFan")==null,"Rejected fan light geometry still exists"):return
 	var lake := candidate.get("lake") as MeshInstance3D
 	var lake_material := lake.get_active_material(0) as ShaderMaterial
+	if not _require(lake_material.get_shader_parameter("night_reflection") == 1.0, "Night lake must receive its sky independently of extinguished room ambient light"): return
+	candidate.set_night(false)
+	if not _require(lake_material.get_shader_parameter("night_reflection") == 0.0, "Night sky reflection must not alter daytime water"): return
+	candidate.set_sky_night(true)
+	candidate.set("_on_screen", true)
+	candidate._process(0.1)
+	if not _require(lake_material.get_shader_parameter("night_reflection") == 1.0 and lake_material.get_shader_parameter("accent_strength") == 0.0, "Quiet night must retain sky reflections with show lighting off"): return
+	candidate.sample(0.55, true)
 	if not _require(float(lake_material.get_shader_parameter("accent_strength"))>0.0 and float(lake_material.get_shader_parameter("accent_strength"))<0.2,"Evening lake accent is absent or overwhelms the water"):return
 	if not _require(not lake_material.shader.code.contains("night_band_strength"),"Rejected lake stripe shader remains"):return
 	var rings: Array = candidate.get("fountain_rings")

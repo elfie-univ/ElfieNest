@@ -29,13 +29,28 @@ scattered stones.
 
 Under **Courtyard → Functional areas**, ground and facilities, central building
 greenery, waterside and meadow open their assemblies directly. Forest retains a
-group for its full assembly and landmark tree. Central greenery reuses the plant
+group for its full assembly, landmark tree, and complete branching, broadleaf and pine tree groups. Central greenery reuses the plant
 library in place. The waterside assembly holds fountain instances, particles,
 timers and animated materials, referencing one fountain GLB.
+
+Meadow and waterside flowerbeds use flowers and grass, with herbaceous infill
+covering the former woody understorey patches. Shared tree twigs belong to
+`courtyard/parts/forest/forest-twigs.glb`; tree assemblies reuse that source, while
+these two flowerbed assemblies have no tree-library references.
+
+Tree groups reference `tree-one.glb`, `broadleaf-tree.glb` and `pine-tree.glb`
+through their complete SCN assemblies. Pine needles and twelve reusable twig
+profiles belong to the pine GLB; shared broadleaf foliage and cross-class twigs
+remain single sources. The forest preserves authored foliage counts and placement
+buffers. Wood carries an explicit collision marker, so needles in the same GLB do
+not become trunk colliders. Tree mesh reduction is a geometric approximation.
 
 In the single-asset preview, drag with the left mouse button to orbit, drag with
 the right button to pan, and use the wheel to zoom. Reset restores the asset's
 center and initial framing.
+
+In **File and references**, shared GLB subparts show both placement and mesh
+counts. Select a row to highlight the placements in the model.
 
 
 All seating actions use the shared direct seated landing for both species: wait clear of the chair, turn out toward a clear boarding direction, approach, tuck the six-joint tail, turn on the floor, hop into the seated pose, turn toward the desk, then exit with a separate landing curve. Desktop collision silhouettes are baked into the spatial resource; first-use body collision preparation yields between input batches and poses while the menu shows its preparation status. Repeated playback reuses collision poses for the same body; changing the body invalidates that cache. Day/night controls preserve authored light availability, so a daytime export does not disable bedroom ceilings at night. Static seats use their own contact and approach frames without a chair rotation. The former climb, stand-on-seat and sit/stand clip chain has been removed. Sleep actions offer back, left-side and right-side variants; each selects a bed and restores the cloth and attached bedding layers after completion or cancellation.
@@ -58,8 +73,12 @@ inputs alone and does not replace the complete bake.
 
 They can reuse the underlying libraries and the same Godot Web Runtime, but they
 must not depend on end-user auth, `ElfieNestEngine` or production data to start.
-When launching an experiment page, the Runtime is auto-checked; it is
-re-exported only when missing or when the Godot source has changed.
+Opening, refreshing or switching either Nest preview checks both bundles before
+loading the Godot renderer. Changes to a formal GLB, component scene or complete
+scene invalidate the source digest. Replacements are built and verified together
+in a temporary directory before publication; a failed build keeps the previous
+pair available. Unchanged inputs reuse the existing bundles. Saving a source file
+does not reload an already open renderer; refresh the page to apply the update.
 
 The Elfie Lab and Nest Lab browser shells share the React + TypeScript + Vite
 project in `devtools/web/`. The frontend artifact is generated only into

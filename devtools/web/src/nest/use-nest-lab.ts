@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
 import { requestJson } from "../api/http";
+import { prepareNestPreview } from "./prepare-preview";
 import {
   actorsSchema,
   environmentSchema, type NestEnvironment,
@@ -96,16 +97,24 @@ export function useNestLab(): Readonly<{
 
   useEffect(() => {
     live.current = true;
-    void refresh().catch((reason: unknown) => {
+    const controller = new AbortController();
+    let interval: number | undefined;
+    void (async () => {
+      await prepareNestPreview(controller.signal);
+      if (controller.signal.aborted) return;
+      await refresh();
+      if (controller.signal.aborted) return;
+      interval = window.setInterval(() => {
+        void refresh().catch((reason: unknown) => {
+          if (live.current) setError(reason instanceof Error ? reason.message : "刷新失败");
+        });
+      }, 1_500);
+    })().catch((reason: unknown) => {
       if (live.current) setError(reason instanceof Error ? reason.message : "初始化失败");
     });
-    const interval = window.setInterval(() => {
-      void refresh().catch((reason: unknown) => {
-        if (live.current) setError(reason instanceof Error ? reason.message : "刷新失败");
-      });
-    }, 1_500);
     return () => {
       live.current = false;
+      controller.abort();
       window.clearInterval(interval);
     };
   }, [refresh]);

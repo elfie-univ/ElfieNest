@@ -30,12 +30,35 @@ def test_all_regional_grass_references_and_preview_use_shared_plants():
     for area in ("forest", "meadow", "waterside"):
         entry = index["fileGraph"]["entries"][f"view:{area}-layout"]
         plants = next(p for p in entry["parts"] if p["id"] == "source:plant-library")
-        leaves = next(p for p in entry["parts"] if p["id"] == "source:forest-foliage")
+        leaves = next(
+            (p for p in entry["parts"] if p["id"] == "source:forest-foliage"), None
+        )
         grass = [p for p in plants["paths"] if grass_path(p)]
-        assert grass, area
-        assert not any(grass_path(p) for p in leaves["paths"]), area
+        assert len(grass) == {"forest": 24, "meadow": 11, "waterside": 9}[area], area
+
+        def dependency_ids(key):
+            found = set()
+            for part in index["fileGraph"]["entries"][key].get("parts", []):
+                found.add(part["id"])
+                found.update(dependency_ids(part["id"]))
+            return found
+
+        dependencies = dependency_ids(f"view:{area}-layout")
+        if area == "forest":
+            assert "source:forest-foliage" in dependencies
+        else:
+            assert leaves is None
+            assert not dependencies.intersection(
+                {
+                    "source:forest-foliage",
+                    "source:broadleaf-tree",
+                    "source:pine-tree",
+                    "source:forest-twigs",
+                }
+            )
+        assert not any(grass_path(p) for p in (leaves or {}).get("paths", [])), area
         references.extend(grass)
-    assert len(references) == len(set(references)) == 38
+    assert len(references) == len(set(references)) == 44
     previews = index["previews"]
     assert any(
         grass_path(p) for row in previews["source:plant-library"]["groups"] for p in row

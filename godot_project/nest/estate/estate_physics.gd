@@ -60,7 +60,7 @@ func build(estate: Node3D, authoring: bool = false) -> void:
 	var garden_frame: MeshInstance3D
 	var garden_glass: MeshInstance3D
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
-		if mesh.mesh == null or mesh.has_meta("source_geometry_path") or is_instancing_template(mesh):
+		if (mesh.mesh == null and not mesh.has_meta("estate_authored_convex")) or mesh.has_meta("source_geometry_path") or is_instancing_template(mesh):
 			continue
 		var e := mesh.get_meta("extras", {}) as Dictionary
 		var module := str(e.get("module", ""))
@@ -268,6 +268,18 @@ func _add_mesh(mesh: MeshInstance3D, concave: bool, parent: Node3D = null) -> St
 	if _spatial_data!=null:
 		assert(_spatial_data.mesh_shapes.has(source_key),"Compiled collider is missing: "+source_key)
 		return _add_mesh_body(mesh,mirrored,_spatial_data.mesh_shapes[source_key],parent)
+	if mesh.has_meta("estate_authored_convex"):
+		# Retain the approved furniture hull when its render parts are instanced.
+		var hull := mesh.get_meta("estate_authored_convex") as ConvexPolygonShape3D
+		assert(hull != null and not concave and not mirrored)
+		_captured_mesh_shapes[source_key] = hull
+		return _add_mesh_body(mesh, mirrored, hull, parent)
+	if mesh.get_meta("estate_compound_convex", false):
+		assert(not concave)
+		var hull := compound_convex_shape(mesh, mirrored)
+		assert(hull != null, "Could not bake the compound furniture collider")
+		_captured_mesh_shapes[source_key] = hull
+		return _add_mesh_body(mesh, mirrored, hull, parent)
 	# Visible joinery may trim an overhang or close a rail. Keep the exact
 	# imported movement/occlusion surface used by the approved stair route.
 	var physical_mesh := mesh.get_meta("estate_stair_collision_mesh",mesh.mesh) as Mesh
@@ -337,6 +349,31 @@ func _add_mesh_body(mesh: MeshInstance3D,mirrored: bool,shape: Shape3D,parent: N
 	body.add_child(collision)
 	collider_count += 1
 	return body
+
+
+static func compound_convex_shape(anchor: MeshInstance3D, mirrored: bool) -> ConvexPolygonShape3D:
+	# One furniture placement owns a hull derived from its visible mesh siblings.
+	# Bake it in the anchor's frame so repeated parts need no separate colliders.
+	var vertices := PackedVector3Array()
+	var to_anchor := anchor.transform.affine_inverse()
+	for child in anchor.get_parent().get_children():
+		var part := child as MeshInstance3D
+		if part == null or part.mesh == null: continue
+		var transform := to_anchor * part.transform
+		for surface in part.mesh.get_surface_count():
+			var points: PackedVector3Array = part.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+			for i in points.size():
+				var point := transform * points[i]
+				if mirrored: point.x = -point.x
+				points[i] = point
+			vertices.append_array(points)
+	if vertices.is_empty(): return null
+	var data := []
+	data.resize(Mesh.ARRAY_MAX)
+	data[Mesh.ARRAY_VERTEX] = vertices
+	var geometry := ArrayMesh.new()
+	geometry.add_surface_from_arrays(Mesh.PRIMITIVE_POINTS, data)
+	return geometry.create_convex_shape(true, false)
 
 
 static func collision_faces(mesh: Mesh) -> PackedVector3Array:

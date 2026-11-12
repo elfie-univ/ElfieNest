@@ -7,6 +7,7 @@ var layers: Array[Dictionary] = []
 var _points: PackedVector3Array
 var _cells: Dictionary = {}
 var _last: Mesh
+var _last_points := PackedVector3Array()
 
 static func attach(estate: Node) -> void:
 	var beds: Dictionary = {}
@@ -31,6 +32,32 @@ static func attach(estate: Node) -> void:
 		binding._cells.clear()
 		binding._points.clear()
 		binding.sample()
+
+static func attach_bed(estate: Node, active: MeshInstance3D) -> void:
+	# Split assets already contain fitted bedding. Bind only the active bed,
+	# retaining the exact authored offsets and original resources at rest.
+	if active.has_meta("estate_bedding_layers"):
+		var existing: RefCounted = active.get_meta("estate_bedding_layers")
+		existing.rest = active.mesh
+		return
+	var binding: RefCounted = (load("res://nest/estate/estate_bedding_layers.gd") as Script).new()
+	binding._bind(active)
+	var target: Dictionary = active.get_meta("extras", {})
+	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
+		var e: Dictionary = mesh.get_meta("extras", {})
+		if e.get("piece") not in ["throw", "bed_cover_seam"]: continue
+		if e.get("module") == target.get("module") and e.get("resident") == target.get("resident"):
+			binding._add(mesh, e.get("piece") == "throw", true)
+	binding._cells.clear()
+	binding._points.clear()
+	binding._last = active.mesh
+	active.set_meta("estate_bedding_layers", binding)
+
+func restore() -> void:
+	for layer: Dictionary in layers:
+		if layer["rest"] != null: layer["mesh"].mesh = layer["rest"]
+	_last = null
+	_last_points.clear()
 
 func _bind(value: MeshInstance3D) -> void:
 	cloth = value
@@ -78,7 +105,7 @@ func _support(point: Vector3) -> Dictionary:
 			closest = i
 	return {"ids": Vector3i(closest,closest,closest), "weights": Vector3(1,0,0)}
 
-func _add(mesh: MeshInstance3D, white: bool) -> void:
+func _add(mesh: MeshInstance3D, white: bool, preserve_authored: bool = false) -> void:
 	if mesh.has_meta("estate_bedding_bound"): return
 	mesh.set_meta("estate_bedding_bound", true)
 	var frame := cloth.global_transform.affine_inverse()*mesh.global_transform
@@ -97,16 +124,18 @@ func _add(mesh: MeshInstance3D, white: bool) -> void:
 			var blend: Vector3 = support["weights"]
 			var base := _points[corners.x]*blend.x+_points[corners.y]*blend.y+_points[corners.z]*blend.z
 			var small_fold := (local.y-source.get_aabb().position.y)*0.025 if white else 0.0
-			point.y = base.y+(0.006+small_fold if white else 0.001)
+			if not preserve_authored: point.y = base.y+(0.006+small_fold if white else 0.001)
 			ids.append(corners)
 			weights.append(blend)
 			offsets.append(point-base)
 		surfaces.append({"arrays": arrays, "ids": ids, "weights": weights, "offsets": offsets, "material": source.surface_get_material(surface)})
-	layers.append({"mesh": mesh, "surfaces": surfaces, "inverse": frame.affine_inverse(), "rest": null, "dynamic": ArrayMesh.new()})
+	layers.append({"mesh": mesh, "surfaces": surfaces, "inverse": frame.affine_inverse(), "rest": source if preserve_authored else null, "dynamic": ArrayMesh.new()})
 
-func sample() -> void:
+func sample(points: PackedVector3Array = PackedVector3Array()) -> void:
 	if cloth.mesh == rest and _last == rest: return
-	var points: PackedVector3Array = cloth.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	# The animation supplies its CPU vertices; avoid a WebGL buffer readback.
+	if points.is_empty(): points = cloth.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	if _last == cloth.mesh and _last_points == points: return
 	for layer: Dictionary in layers:
 		var mesh: MeshInstance3D = layer["mesh"]
 		if cloth.mesh == rest and layer["rest"] != null:
@@ -132,6 +161,7 @@ func sample() -> void:
 		mesh.mesh = result
 		if cloth.mesh == rest: layer["rest"] = result
 	_last = cloth.mesh
+	_last_points = points
 
 static func _normals(points: PackedVector3Array, indices: PackedInt32Array) -> PackedVector3Array:
 	var normals := PackedVector3Array()

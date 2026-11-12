@@ -90,8 +90,10 @@ func bind(estate: Node3D) -> void:
 		source.node.add_child(draw)
 		var group := {"sources":candidate.sources,"draw":draw,"valid":true,"active":false}
 		groups.append(group)
+		var invalidator := invalidate.bind(group)
 		for item: Dictionary in candidate.sources:
-			item.mesh.changed.connect(invalidate.bind(group))
+			if not item.mesh.changed.is_connected(invalidator):
+				item.mesh.changed.connect(invalidator)
 		activate(group,true)
 	_material_keys.clear()
 	print("OPAQUE_RENDER_BATCHES groups=",groups.size()," replaced=",groups.reduce(func(total: int, group: Dictionary) -> int: return total+group.sources.size(),0))

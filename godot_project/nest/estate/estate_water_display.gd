@@ -19,6 +19,7 @@ var _waterfall_material: ShaderMaterial
 var _waterfall_splash: CPUParticles3D
 var _waterfall_bounds := AABB()
 var night_enabled := false
+var _sky_night := false
 var _manage_environment := true
 var _seconds := 0.0
 @export_enum("auto", "random", "fixed") var fountain_programme := "auto"
@@ -426,6 +427,7 @@ func sample(seconds: float, night: bool) -> void:
 	lake_material.set_shader_parameter("show_time", lake_seconds)
 	lake_material.set_shader_parameter("accent_color",Vector3(color.r,color.g,color.b))
 	lake_material.set_shader_parameter("accent_strength",0.15 if night else 0.0)
+	lake_material.set_shader_parameter("night_reflection", 1.0 if night else 0.0)
 	# Light only the original fountain water, never a free-standing beam.
 	for material: ShaderMaterial in fountain_materials:
 		material.set_shader_parameter("presentation_time", fountain_seconds)
@@ -485,7 +487,13 @@ func sample(seconds: float, night: bool) -> void:
 
 func set_night(value: bool) -> void:
 	night_enabled = value
+	_sky_night = value
 	sample(presentation_seconds(), night_enabled)
+
+func set_sky_night(value: bool) -> void:
+	_sky_night = value
+	if is_instance_valid(lake):
+		(lake.get_active_material(0) as ShaderMaterial).set_shader_parameter("night_reflection", 1.0 if value else 0.0)
 
 
 func presentation_seconds() -> float:
@@ -535,3 +543,4 @@ func _process(_delta: float) -> void:
 	if not _on_screen or _paused: return
 	_seconds = presentation_seconds()
 	sample(_seconds, night_enabled)
+	set_sky_night(_sky_night)

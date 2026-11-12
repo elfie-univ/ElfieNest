@@ -31,10 +31,6 @@ func setup(nest: ModularNest, characters: Node3D) -> void:
 		+ " if (d.type === 'camera' || d.type === 'catalog') window.__nestLabQueue.push(d);"
 		+ " }); })()"
 	)
-	if bool(JavaScriptBridge.eval("['batching','compare'].includes(new URLSearchParams(parent.location.search).get('render_probe'))")):
-		var probe := preload("res://runtime/lab/estate_render_probe.gd").new()
-		add_child(probe)
-		probe.call_deferred("run",nest,characters)
 
 
 func process_frame() -> void:

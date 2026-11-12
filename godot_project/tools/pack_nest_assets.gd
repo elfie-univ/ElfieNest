@@ -31,6 +31,7 @@ script = ExtResource("1")
 var pack := PCKPacker.new()
 var packed: Dictionary = {}
 var source_hashes: Dictionary = {}
+var script_preload := RegEx.create_from_string('\\bpreload\\s*\\(\\s*"(res://[^"\\r\\n]+)"\\s*\\)')
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -70,6 +71,11 @@ func dependencies(source: String) -> PackedStringArray:
 	if source == NEST + "assembly/estate_runtime.gd": files.append(NEST + "assembly/runtime-bindings.json")
 	for dependency: String in ResourceLoader.get_dependencies(source):
 		files.append(dependency.get_slice("::", 2) if dependency.contains("::") else dependency)
+	if source.get_extension() == "gd":
+		# ResourceLoader does not enumerate these imports from source scripts.
+		# The review pack loads without the editor's source tree on the Web.
+		for found: RegExMatch in script_preload.search_all(FileAccess.get_file_as_string(source)):
+			files.append(found.get_string(1))
 	if source.get_extension() in ["gdshader", "gdshaderinc"]:
 		for line: String in FileAccess.get_file_as_string(source).split("\n"):
 			if not line.strip_edges().begins_with("#include "): continue
@@ -162,12 +168,17 @@ func run() -> void:
 		if entry.kind != "source" and not verify_scene_links(path, entry, entries): return
 		if not add_resource(path): return
 		previews[id].merge({"path": path, "source": entry.kind == "source", "focus": entry.get("focus", [])}, true)
+	# The controller is stored under a different path in this pack.
+	for path: String in dependencies(CONTROLLER_PATH):
+		if not add_resource(path): return
 	if not (add_generated("res://project.godot", review_project_settings())
 		and add_generated("res://review.tscn", REVIEW_SCENE)
 		and add_generated("res://.godot/global_script_class_cache.cfg", "list=[]\n")
 		and add_file("res://.godot/uid_cache.bin", "res://.godot/uid_cache.bin")
 		and add_generated(BASE + "menu.json", JSON.stringify(entries.keys()))
 		and add_generated(BASE + "asset-previews.json", JSON.stringify(previews))
+		and add_resource("res://nest/assembly/mesh_instance_groups.gd")
+		and add_resource("res://nest/assembly/normal_variant_meshes.gd")
 		and add_file("res://review.gd", CONTROLLER_PATH)
 		and require(pack.flush() == OK, "Cannot finish formal asset pack")): return
 
@@ -183,7 +194,7 @@ func run() -> void:
 			var expected := 0
 			for group: Array in groups:
 				expected += group.size()
-			if not require(geometry[id] == expected, "Prototype preview count differs for " + id): return
+			if not require(viewer.visible_geometry(true) == expected, "Prototype preview count differs for " + id): return
 	viewer.free()
 	var report := {
 		"assets": geometry,

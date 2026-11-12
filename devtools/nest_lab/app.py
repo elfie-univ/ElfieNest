@@ -94,9 +94,12 @@ def create_app(
 
     @app.get("/api/godot-web")
     def godot_web_status() -> Dict[str, Union[bool, str]]:
+        ready = (
+            Path(__file__).parents[2] / "build/components/godot-web/elfienest.html"
+        ).is_file()
         return {
-            "ready": bundle_ready,
-            "entry_url": "/godot-web/elfienest.html" if bundle_ready else "",
+            "ready": ready,
+            "entry_url": "/godot-web/elfienest.html" if ready else "",
             "build_command": "./developer.sh build-godot-web",
         }
 

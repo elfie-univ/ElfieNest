@@ -32,7 +32,7 @@ static func build(estate: Node3D, cached: Resource, physics: Node3D) -> void:
 		if mesh == null: continue
 		var library := str(mesh.get_meta("nest_source_library", "")).get_file()
 		var group := ""
-		if library == "forest-wood.glb": group = GROUPS[1]
+		if library in ["broadleaf-tree.glb", "pine-tree.glb"] and bool(mesh.get_meta("nest_source_extras", {}).get("tree_wood", false)): group = GROUPS[1]
 		elif library == "shore-stones.glb": group = GROUPS[2]
 		elif node is MeshInstance3D:
 			var source: String = activity.source_name(node)
@@ -54,7 +54,7 @@ static func build(estate: Node3D, cached: Resource, physics: Node3D) -> void:
 			# Renderer readback is not authoring data (dummy/headless returns identity).
 			var data: Dictionary = node.get_parent().instance_batches[node.get_index()]
 			assert(data.transform_format == MultiMesh.TRANSFORM_3D)
-			var buffer: PackedFloat32Array = data.buffer
+			var buffer: PackedFloat32Array = node.get_parent().instance_buffer(data)
 			var stride := 12 + (4 if data.use_colors else 0) + (4 if data.use_custom_data else 0)
 			assert(buffer.size() == data.instance_count * stride)
 			for index: int in data.instance_count:

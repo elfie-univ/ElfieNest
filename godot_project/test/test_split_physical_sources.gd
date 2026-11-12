@@ -25,15 +25,24 @@ func run() -> void:
 	tree.multimesh = MultiMesh.new()
 	tree.multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	tree.multimesh.mesh = BoxMesh.new()
-	tree.multimesh.mesh.set_meta("nest_source_library", "res://nest/courtyard/parts/forest/forest-wood.glb")
+	tree.multimesh.mesh.set_meta("nest_source_library", "res://nest/courtyard/parts/forest/pine-tree.glb")
+	tree.multimesh.mesh.set_meta("nest_source_extras", {"tree_wood": true})
 	tree.multimesh.instance_count = 2
 	# Deliberately leave renderer transforms at identity; only canonical data is valid.
 	placements.instance_batches[0] = {"transform_format": MultiMesh.TRANSFORM_3D, "instance_count": 2, "use_colors": false, "use_custom_data": false, "buffer": PackedFloat32Array([1,0,0,10,0,1,0,0,0,0,1,-10, 1,0,0,-10,0,1,0,0,0,0,1,10])}
 	placements.add_child(tree)
+	var needles := MultiMeshInstance3D.new()
+	needles.multimesh = MultiMesh.new()
+	needles.multimesh.mesh = BoxMesh.new()
+	needles.multimesh.mesh.set_meta("nest_source_library", "res://nest/courtyard/parts/forest/pine-tree.glb")
+	needles.multimesh.mesh.set_meta("nest_source_extras", {"source_name": "Pine needles"})
+	needles.multimesh.instance_count = 1
+	estate.add_child(needles)
 	var physics := preload("res://nest/estate/estate_physics.gd").new()
 	root.add_child(physics)
 	preload("res://nest/assembly/physical_sources.gd").build(estate, null, physics)
 	var body := estate.get_node("LandscapePhysics/GardenCollision_TreeTrunks") as StaticBody3D
+	if not require(body.get_child_count() == 2, "Both pine wood instances must retain collision sources"): return
 	var first := body.get_child(0) as CollisionShape3D
 	var second := body.get_child(1) as CollisionShape3D
 	if not require(first.shape == second.shape, "Landscape instances must share collision geometry"): return

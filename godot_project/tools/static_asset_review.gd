@@ -2,6 +2,10 @@ extends Node3D
 ## Formal static asset review. Scene changes never reach live Nest authority.
 
 const BASE := "res://v044-review/"
+const RENDER_BATCHES := preload("res://nest/estate/estate_instance_batches.gd")
+const SURFACE_BATCHES := preload("res://nest/estate/estate_surface_batches.gd")
+const BED_LIBRARY := "res://nest/furniture/shared/bedroom/bed-shared.glb"
+const BED_LINING_LAYER := 1 << 19
 const DIRECTIONS := Vector3(1.0, 0.65, 1.2)
 var ids: Array
 var previews: Dictionary = {}
@@ -85,6 +89,13 @@ func show_scene(id: String, preserve_camera: bool = false, focus_paths: Array = 
 	var env := current.find_children("*", "WorldEnvironment", true, false)
 	if not full and env.is_empty(): add_child(ambient)
 	light.visible = not full and base_id != "environment"
+	# The bed's thin emissive rim needs coverage samples at its opaque edge.
+	var bed := path == BED_LIBRARY
+	get_viewport().msaa_3d = Viewport.MSAA_4X if bed else Viewport.MSAA_DISABLED
+	light.light_cull_mask = 0xfffff
+	calibrate_building_preview(path)
+	if bed and not prepare_bed_lining(): return -1
+	if bed and not join_bed_surfaces("part_00000", "part_00032"): return -1
 	# Frame the garden itself in the isolated asset view. Keep the sky shell
 	# in the environment asset and full-scene assembly preview.
 	if base_id in ["courtyard-layout", "meadow-layout"]:
@@ -106,19 +117,111 @@ func show_scene(id: String, preserve_camera: bool = false, focus_paths: Array = 
 	if not preserve_camera: reset()
 	return visible_geometry()
 
+func prepare_bed_lining() -> bool:
+	var lining := current.find_child("part_00096", true, false) as MeshInstance3D
+	if not join_bed_surfaces("part_00096", "part_00128"): return false
+
+	# Keep the single-sided shading and bring the deep green back with a
+	# softer key on the lining. The shell and both emitters use the studio key.
+	lining.layers = BED_LINING_LAYER
+	light.light_cull_mask &= ~BED_LINING_LAYER
+	var fill := DirectionalLight3D.new()
+	fill.light_energy = 0.055
+	fill.light_cull_mask = BED_LINING_LAYER
+	current.add_child(fill)
+	fill.global_transform = light.global_transform
+	return true
+
+func join_bed_surfaces(first_name: String, second_name: String) -> bool:
+	var first := current.find_child(first_name, true, false) as MeshInstance3D
+	var second := current.find_child(second_name, true, false) as MeshInstance3D
+	if first == null or second == null or not first.global_transform.is_equal_approx(second.global_transform):
+		return false
+	var material := first.get_active_material(0)
+	if material == null or material != second.get_active_material(0) or second.mesh.get_surface_count() != 1:
+		return false
+	var joined := SURFACE_BATCHES.join([{"mesh": first.mesh}, {"mesh": second.mesh}])
+	if joined == null: return false
+	joined.surface_set_material(0, material)
+	if first.mesh.get_surface_count() > 1:
+		# Keep the shell's second surface, which uses its own material.
+		var surfaces: Array = joined.get("_surfaces")
+		var remaining: Array = first.mesh.get("_surfaces")
+		surfaces.append_array(remaining.slice(1))
+		var combined := ArrayMesh.new()
+		combined.set("_surfaces", surfaces)
+		combined.custom_aabb = first.mesh.get_aabb().merge(second.mesh.get_aabb())
+		joined = combined
+	first.mesh = joined
+	first.set_meta("source_geometry_paths", [first.get_meta("v044_path"), second.get_meta("v044_path")])
+	second.free()
+	return true
+
+func matches_geometry_path(mesh: GeometryInstance3D, wanted: Dictionary) -> bool:
+	if wanted.has(mesh.get_meta("v044_path", "")) or wanted.has(mesh.get_meta("source_geometry_path", "")):
+		return true
+	for path: String in mesh.get_meta("source_geometry_paths", []):
+		if wanted.has(path): return true
+	return false
+
+func calibrate_building_preview(path: String) -> void:
+	var main := path == "res://nest/buildings/main/central-building.glb"
+	light.light_energy = 0.45 if main else 1.25
+	var environment := ambient.environment
+	environment.ambient_light_energy = 0.35 if main else 0.7
+	environment.tonemap_mode = Environment.TONE_MAPPER_ACES if main else Environment.TONE_MAPPER_LINEAR
+	environment.tonemap_exposure = 0.88 if main else 1.0
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY if main else Environment.REFLECTION_SOURCE_BG
+	environment.sky = null
+	if not main: return
+	var studio := ProceduralSkyMaterial.new()
+	studio.sky_top_color = Color(0.5, 0.65, 0.8)
+	studio.sky_horizon_color = Color(0.85, 0.86, 0.84)
+	studio.ground_horizon_color = studio.sky_horizon_color
+	studio.ground_bottom_color = Color(0.25, 0.27, 0.24)
+	studio.sky_energy_multiplier = 0.5
+	studio.ground_energy_multiplier = 0.5
+	studio.sun_angle_max = 0.0
+	environment.sky = Sky.new()
+	environment.sky.sky_material = studio
+	# The GLB carries the exchange material; the assembly owns the authored
+	# transmission shader. Reuse that exact resource without instantiating a world.
+	var assembly := load("res://nest/buildings/building-layout.scn") as PackedScene
+	var state := assembly.get_state()
+	var glass: ShaderMaterial
+	for node: int in state.get_node_count():
+		for property: int in state.get_node_property_count(node):
+			if state.get_node_property_name(node, property) != &"material_variants": continue
+			var variants: Dictionary = state.get_node_property_value(node, property)
+			for surfaces: Array in variants.values():
+				for material: Material in surfaces:
+					if material is ShaderMaterial and material.shader == preload("res://nest/estate/estate_glass.gdshader"):
+						glass = material
+	if glass == null:
+		push_error("Main building preview cannot resolve its authored skylight material")
+		return
+	for mesh: MeshInstance3D in current.find_children("*", "MeshInstance3D", true, false):
+		if mesh.get_meta("extras", {}).get("source_name") == "Central integrated shallow skylight":
+			mesh.set_surface_override_material(0, glass)
+			mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
 func prepare_library(preview: Dictionary) -> bool:
 	var parts := {}
 	for mesh: MeshInstance3D in current.find_children("*", "MeshInstance3D", true, false):
 		if not preload("res://nest/assembly/glb_placement.gd").restore_materials(mesh): return false
-		var extras: Dictionary = mesh.get_meta("extras", {})
+		if preview.get("vertex_colors", false): apply_vertex_colors(mesh)
+	for part: Node3D in current.find_children("*", "Node3D", true, false):
+		var extras: Dictionary = part.get_meta("extras", {})
 		var path := str(extras.get("v044_path", ""))
 		if not path.is_empty():
-			mesh.set_meta("v044_path", path)
-			parts[path] = mesh
+			part.set_meta("v044_path", path)
+			parts[path] = part
 			if extras.has("review_visible"):
-				mesh.visible = bool(extras.review_visible)
-			if preview.get("vertex_colors", false):
-				apply_vertex_colors(mesh)
+				part.visible = bool(extras.review_visible)
+	# Collect first: batching frees the imported leaf children.
+	for part: Node3D in parts.values():
+		if part.get_meta("extras", {}).get("nest_instance_group", false):
+			preload("res://nest/assembly/mesh_instance_groups.gd").prepare_preview(part)
 	var groups: Array = preview.get("groups", [])
 	if groups.is_empty(): return not parts.is_empty()
 	var front: bool = preview.get("front_row", false)
@@ -129,7 +232,7 @@ func prepare_library(preview: Dictionary) -> bool:
 		var group := Node3D.new()
 		current.add_child(group)
 		for path: String in paths:
-			var mesh: MeshInstance3D = parts.get(path)
+			var mesh: Node3D = parts.get(path)
 			if mesh == null: return false
 			mesh.reparent(group, true)
 			shown[path] = true
@@ -137,9 +240,11 @@ func prepare_library(preview: Dictionary) -> bool:
 			var facing := (group.get_child(0) as Node3D).basis.z
 			group.rotate_y(-atan2(facing.x, facing.z))
 		var bounds: AABB
-		for mesh: MeshInstance3D in group.get_children():
+		var first := true
+		for mesh: GeometryInstance3D in group.find_children("*", "GeometryInstance3D", true, false):
 			var box := mesh.global_transform * mesh.get_aabb()
-			bounds = box if mesh.get_index() == 0 else bounds.merge(box)
+			bounds = box if first else bounds.merge(box)
+			first = false
 		rows.append({"node": group, "bounds": bounds})
 	if front:
 		rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.bounds.size.y < b.bounds.size.y)
@@ -173,8 +278,10 @@ func apply_vertex_colors(instance: MeshInstance3D) -> void:
 
 func clear_inspection() -> void:
 	for node: GeometryInstance3D in original_overlays:
+		RENDER_BATCHES.restore_before_write(node)
 		node.material_overlay = original_overlays[node]
 	for node: GeometryInstance3D in original_overrides:
+		RENDER_BATCHES.restore_before_write(node)
 		node.material_override = original_overrides[node]
 	for node: GeometryInstance3D in original_visibility:
 		node.visible = original_visibility[node]
@@ -188,6 +295,9 @@ func inspect_parts(paths: Array, solo: bool) -> int:
 	var was_solo := inspecting_solo
 	clear_inspection()
 	if not is_instance_valid(current): return 0
+	# Restore before selection resolves layers/paths, not after hidden sources have
+	# already been filtered out. Inspection owns this preview until the next bind.
+	RENDER_BATCHES.restore_before_write(current, true)
 	var selected := {}
 	var wanted := {}
 	for path: String in paths:
@@ -200,7 +310,7 @@ func inspect_parts(paths: Array, solo: bool) -> int:
 	var geometry := current.find_children("*", "GeometryInstance3D", true, false)
 	var matched := {}
 	for mesh: GeometryInstance3D in geometry:
-		if selected.has(mesh) or wanted.has(mesh.get_meta("v044_path", "")) or wanted.has(mesh.get_meta("source_geometry_path", "")):
+		if selected.has(mesh) or matches_geometry_path(mesh, wanted):
 			if mesh.is_visible_in_tree() and mesh.layers != 0:
 				if mesh is MeshInstance3D and mesh.mesh == null: continue
 				if mesh is MultiMeshInstance3D and mesh.multimesh == null: continue
@@ -228,6 +338,7 @@ func inspect_parts(paths: Array, solo: bool) -> int:
 	return matched.size()
 
 func isolate_geometry(paths: Array) -> void:
+	RENDER_BATCHES.restore_before_write(current, true)
 	var keep := {}
 	var ancestors := {}
 	var wanted := {}
@@ -238,7 +349,8 @@ func isolate_geometry(paths: Array) -> void:
 		var part := current.get_node_or_null(NodePath(path)) as Node3D
 		if part != null and current.is_ancestor_of(part): parts.append(part)
 	for mesh: GeometryInstance3D in geometry:
-		if wanted.has(mesh.get_meta("v044_path", "")): parts.append(mesh)
+		if matches_geometry_path(mesh, wanted):
+			parts.append(mesh)
 	for part: Node3D in parts:
 		if part is GeometryInstance3D: keep[part] = true
 		for mesh: GeometryInstance3D in part.find_children("*", "GeometryInstance3D", true, false):
@@ -271,14 +383,23 @@ func freeze_water() -> void:
 			if shader_name in ["estate_water.gdshader", "estate_shallow_water.gdshader", "estate_water_flow.gdshader"]:
 				material.set_shader_parameter("presentation_time", 0.0)
 
-func visible_geometry() -> int:
+func visible_geometry(count_prototypes := false) -> int:
 	var count := 0
+	var instance_owners := {}
 	for item: GeometryInstance3D in current.find_children("*", "GeometryInstance3D", true, false):
 		if not item.is_visible_in_tree(): continue
 		if item.layers == 0: continue
 		if item is MeshInstance3D and item.mesh == null: continue
 		if item is MultiMeshInstance3D and item.multimesh == null: continue
-		count += 1
+		if item.has_meta("nest_instance_owner"):
+			var owner_id: int = item.get_meta("nest_instance_owner")
+			if instance_owners.has(owner_id): continue
+			instance_owners[owner_id] = true
+		if count_prototypes:
+			var paths: Array = item.get_meta("source_geometry_paths", [])
+			count += maxi(1, paths.size())
+		else:
+			count += 1
 	return count
 
 func reset() -> void:

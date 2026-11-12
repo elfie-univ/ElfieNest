@@ -1,4 +1,5 @@
 extends Node3D
+const RENDER_BATCHES := preload("res://nest/estate/estate_instance_batches.gd")
 
 var camera: Camera3D
 var target := Vector3.ZERO
@@ -136,10 +137,13 @@ func _update_camera() -> void:
 	camera.make_current()
 
 func _clear_selection() -> void:
-	if is_instance_valid(selected_mesh): selected_mesh.material_overlay = null
+	if is_instance_valid(selected_mesh):
+		RENDER_BATCHES.restore_before_write(selected_mesh)
+		selected_mesh.material_overlay = null
 	selected_mesh = null
 
 func _pick_bed(screen_position: Vector2) -> void:
+	RENDER_BATCHES.restore_before_write(single_bed, true)
 	var origin := camera.project_ray_origin(screen_position)
 	var direction := camera.project_ray_normal(screen_position)
 	var closest := INF

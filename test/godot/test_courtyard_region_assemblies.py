@@ -11,7 +11,7 @@ from test.godot.test_lotus_bay import inside_polygon, point_segment
 NEST = Path(__file__).resolve().parents[2] / "godot_project/nest"
 
 
-def test_functional_area_menu_opens_totals_directly_except_the_two_forest_views():
+def test_functional_area_menu_opens_totals_and_complete_tree_classes():
     index = json.loads((NEST / "assembly/asset-index.json").read_text())
     courtyard = next(
         row for row in index["fileGraph"]["categories"] if row["id"] == "courtyard"
@@ -29,6 +29,9 @@ def test_functional_area_menu_opens_totals_directly_except_the_two_forest_views(
             assert [child["id"] for child in row["children"]] == [
                 "view:forest-layout",
                 "view:tree-one",
+                "view:branching-trees",
+                "view:broadleaf-trees",
+                "view:pine-trees",
             ]
         else:
             assert "children" not in row

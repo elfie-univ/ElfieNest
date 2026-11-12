@@ -10,8 +10,20 @@ type FileLink = {
   targetPaths?: string[];
 };
 
-type FileSize = { fileBytes: number; referenceBytes: number };
-type ComponentSize = { meshBytes: number; textureBytes: number; instances: number };
+type FileBreakdown = {
+  componentMeshBytes: number;
+  otherMeshBytes: number;
+  variantMeshBytes: number;
+  embeddedTextureBytes: number;
+  otherFileBytes: number;
+};
+type FileSize = {
+  fileBytes: number;
+  referenceBytes: number;
+  breakdown?: FileBreakdown;
+  referenceFiles?: { path: string; title: string; bytes: number }[];
+};
+type ComponentSize = { meshBytes: number; textureBytes: number; instances: number; meshCopies?: number };
 type Component = {
   id: string;
   title: string;
@@ -52,15 +64,38 @@ type Row = {
   open: () => void;
 };
 
-function formatBytes(bytes: number) {
+function formatBytes(bytes: number, precision = 2) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KiB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(2)} MiB`;
-  return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(precision)} MiB`;
+  return `${(bytes / 1024 ** 3).toFixed(precision)} GiB`;
 }
 
 function sizeLabel(size: FileSize | ComponentSize) {
-  return formatBytes("meshBytes" in size ? size.meshBytes + size.textureBytes : size.fileBytes + size.referenceBytes);
+  if ("meshBytes" in size) return formatBytes(size.meshBytes + size.textureBytes);
+  return formatBytes(size.fileBytes + size.referenceBytes, size.breakdown ? 3 : 2);
+}
+
+function fileBreakdown(size: FileSize) {
+  if (!size.breakdown) return null;
+  const { componentMeshBytes, otherMeshBytes, variantMeshBytes, embeddedTextureBytes, otherFileBytes } = size.breakdown;
+  const rows = [
+    { label: "子部件网格（去重）", bytes: componentMeshBytes },
+    { label: componentMeshBytes ? "其他网格" : "网格（去重）", bytes: otherMeshBytes },
+    { label: "法线与切线变体", bytes: variantMeshBytes },
+    { label: "内嵌贴图", bytes: embeddedTextureBytes },
+    { label: "文件结构与其余数据", bytes: otherFileBytes },
+    { label: "外置贴图", bytes: size.referenceBytes },
+  ];
+  return <section aria-label="体积明细">
+    <h3>体积明细</h3>
+    <dl className="nest-asset-breakdown">
+      {rows.filter(row => row.bytes > 0).map(({ label, bytes }) => <div key={label}>
+        <dt>{label}</dt>
+        <dd title={`${bytes.toLocaleString()} B`}>{formatBytes(bytes, 3)}</dd>
+      </div>)}
+    </dl>
+  </section>;
 }
 
 export function AssetFilePanel({
@@ -112,7 +147,7 @@ export function AssetFilePanel({
           ? formatBytes(size.meshBytes)
           : size && sizeLabel(size);
         const breakdown = !isSource && size && "meshBytes" in size
-          ? `网格 ${formatBytes(size.meshBytes)} · 贴图 ${formatBytes(size.textureBytes)}`
+          ? `单件 · 网格 ${formatBytes(size.meshBytes)} · 贴图 ${formatBytes(size.textureBytes)}`
           : undefined;
         return <li key={row.key} className={openOnClick && paths?.length ? "nest-asset-reference" : undefined}>
           <button
@@ -151,14 +186,20 @@ export function AssetFilePanel({
     </section>;
   }
 
-  const components = entry.components?.map(part => ({
-    key: part.id,
-    title: part.title,
-    quantity: `${part.size?.instances ?? part.count} 个`,
-    paths: part.paths,
-    size: part.size,
-    open: () => inspect(part.id, part.prototypePaths ?? part.paths, true),
-  }));
+  const components = entry.components?.map(part => {
+    const instances = part.size?.instances ?? part.count;
+    const copies = part.size?.meshCopies;
+    return {
+      key: part.id,
+      title: part.title,
+      quantity: copies !== undefined && copies < instances
+        ? `${instances} 处 · 共用 ${copies} 套网格`
+        : `${instances} 个`,
+      paths: part.paths,
+      size: part.size,
+      open: () => inspect(part.id, part.prototypePaths ?? part.paths, true),
+    };
+  });
   const members = links(entry.members?.map(id => ({ id, count: 0, unit: "" })), "member");
 
   return <aside
@@ -174,10 +215,23 @@ export function AssetFilePanel({
       <h2>{entry.title}</h2>
       <small className="nest-asset-path">{root + entry.file}</small>
       {entry.size && <>
-        <p className="nest-asset-total"><span>总大小</span><strong>{sizeLabel(entry.size)}</strong></p>
+        <p className="nest-asset-total">
+          <span>总大小</span>
+          <strong title={`${(entry.size.fileBytes + entry.size.referenceBytes).toLocaleString()} B`}>{sizeLabel(entry.size)}</strong>
+        </p>
         {entry.size.referenceBytes > 0 && <p><small>文件 {formatBytes(entry.size.fileBytes)} · {isSource ? "外置贴图" : "引用"} {formatBytes(entry.size.referenceBytes)}</small></p>}
       </>}
     </header>
+    {entry.size && fileBreakdown(entry.size)}
+    {!!entry.size?.referenceFiles?.length && <details>
+      <summary>{isSource ? "外置贴图明细" : "引用文件明细（去重）"}</summary>
+      <dl className="nest-asset-breakdown">
+        {entry.size.referenceFiles.map(({ path, title, bytes }) => <div key={path}>
+          <dt className="nest-asset-path" title={root + path}>{title}</dt>
+          <dd title={`${bytes.toLocaleString()} B`}>{formatBytes(bytes, 3)}</dd>
+        </div>)}
+      </dl>
+    </details>}
     {isSource ? section("子部件", components ?? members) : section("引用", links(entry.parts, "ref"), true)}
     {!isSource && section("分区查看", members)}
     {section("被引用", links(entry.usedBy, "use"))}

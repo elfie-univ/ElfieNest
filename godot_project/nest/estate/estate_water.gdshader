@@ -13,6 +13,7 @@ uniform float detail_amplitude = 0.0;
 uniform float wave_speed = 0.22;
 uniform vec3 accent_color = vec3(0.0);
 uniform float accent_strength = 0.0;
+uniform float night_reflection : hint_range(0.0, 1.0) = 0.0;
 uniform bool fountain_waves = false;
 uniform vec3 fountain_center;
 uniform float pool_radius = 5.0;
@@ -49,6 +50,21 @@ void fragment() {
 	}
 	ALBEDO = source_albedo.rgb;
 	EMISSION = accent_color * accent_strength * 0.12;
+	if (night_reflection > 0.0) {
+		// Local sky radiance remains available when room ambient light is off.
+		// Reflect the same navy zenith / lighter horizon as the courtyard sky;
+		// perturbed normals move the reflection without displacing the lake.
+		vec3 reflected = normalize(mat3(INV_VIEW_MATRIX) * reflect(-VIEW, NORMAL));
+		float horizon = pow(1.0 - max(reflected.y, 0.0), 4.0);
+		vec3 sky = mix(vec3(0.045, 0.075, 0.15), vec3(0.16, 0.205, 0.29), horizon);
+		RADIANCE = vec4(sky, night_reflection);
+		IRRADIANCE = vec4(vec3(0.045, 0.075, 0.15) * 0.18, night_reflection);
+		// The night display needs readable reflected sky even with all local
+		// lamps off. Keep this view-dependent fill on the water surface only;
+		// it does not illuminate nearby objects or change daytime material.
+		float grazing = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 5.0);
+		EMISSION += sky * night_reflection * mix(0.30, 0.60, grazing);
+	}
     if (fountain_waves) {
         vec2 p = world_water_position.xz-fountain_center.xz;
         float radius = length(p);

@@ -35,10 +35,18 @@ func _ready() -> void:
 		node.set_meta("extras", extras)
 		if not original.begins_with("@") and not original.is_empty(): node.name = original
 	restore_lighting(data.lighting)
+	if OS.has_feature("web"):
+		apply_web_shadow_budget()
 	set_meta("runtime_bindings", restored_controls.duplicate())
 	var ready: bool = restored_controls.lights == find_children("*", "Light3D", true, false).size() and restored_controls.emission == data.lighting.emission.size()
 	set_meta("split_runtime_ready", ready)
 	if not ready: push_error("Incomplete split lighting/emission bindings")
+
+func apply_web_shadow_budget() -> void:
+	# Native-authored SCNs do not carry the old Web-only startup adjustment.
+	for sun: DirectionalLight3D in find_children("*", "DirectionalLight3D", true, false):
+		if sun.shadow_enabled:
+			LIVE_LIGHTING.DAYLIGHT._apply_web_shadow_budget(sun)
 
 func ownership_extras(group: String, previous: Dictionary) -> Dictionary:
 	var e:=previous.duplicate(true)
@@ -84,7 +92,7 @@ func restore_lighting(controls: Dictionary) -> void:
 	# Render partitions are disposable draw instances of the same source surface.
 	# They must start from its restored state, not the frozen imported day state.
 	for chunk: MeshInstance3D in find_children("*", "MeshInstance3D", true, false):
-		if not chunk.has_meta("source_geometry_path"): continue
+		if not chunk.has_meta("source_surface"): continue
 		var source := chunk.get_parent().get_parent() as MeshInstance3D
 		var surface := int(chunk.get_meta("source_surface"))
 		LIVE_LIGHTING.set_material(chunk, 0, source.get_active_material(surface))

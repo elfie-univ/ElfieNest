@@ -1,8 +1,14 @@
 extends SceneTree
 
 const SAMPLE := preload("res://nest/estate/estate_lighting_sample.gd")
+const PLACEMENT := preload("res://nest/assembly/glb_placement.gd")
+const COVER_LIBRARY := "res://nest/courtyard/parts/ground/courtyard-cover.glb"
+const COVERED_COURTYARD := "res://nest/courtyard/overview/courtyard-all/courtyard-covered.scn"
 
 func _initialize() -> void:
+	call_deferred("_run")
+
+func _run() -> void:
 	var nest := load("res://nest/nest.tscn") as PackedScene
 	var state := nest.get_state()
 	var environment: Environment
@@ -54,5 +60,75 @@ func _initialize() -> void:
 			push_error("Reflection repair must preserve exposure")
 			quit(1)
 			return
+	var courtyard := (load(COVERED_COURTYARD) as PackedScene).instantiate() as Node3D
+	var cover: Node3D
+	for placement: Node3D in courtyard.find_children("*", "Node3D", true, false):
+		if placement.get_script() == PLACEMENT and placement.library.resource_path == COVER_LIBRARY:
+			cover = placement
+			break
+	if cover == null:
+		courtyard.free()
+		push_error("The covered courtyard has no placement for its cover")
+		quit(1)
+		return
+	cover.get_parent().remove_child(cover)
+	courtyard.free()
+	var world := WorldEnvironment.new()
+	world.environment = environment
+	var fixture := Node3D.new()
+	fixture.add_child(cover)
+	fixture.add_child(world)
+	root.add_child(fixture)
+	var error: String = await _check_courtyard_cover(fixture, world)
+	fixture.queue_free()
+	await process_frame
+	if not error.is_empty():
+		push_error(error)
+		quit(1)
+		return
 	print("PASS reflection environment follows visible day/night background without extra tint or double dimming")
+	print("PASS one courtyard cover retains its geometry, changes to the night sky material, and restores its day textures")
 	quit(0)
+
+
+func _check_courtyard_cover(courtyard: Node3D, world: WorldEnvironment) -> String:
+	var inner: Array[Dictionary] = []
+	var shell: MeshInstance3D
+	for mesh: MeshInstance3D in courtyard.find_children("*", "MeshInstance3D", true, false):
+		if mesh.mesh == null or mesh.mesh.get_meta("nest_source_library", "") != COVER_LIBRARY:
+			continue
+		var material := mesh.get_active_material(0) as BaseMaterial3D
+		if material != null and material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+			shell = mesh
+			continue
+		var daytime: Array[Material] = []
+		for surface: int in mesh.mesh.get_surface_count():
+			daytime.append(mesh.get_active_material(surface))
+		inner.append({"node": mesh, "geometry": mesh.mesh, "daytime": daytime})
+	if inner.size() != 2 or shell == null or not shell.is_visible_in_tree():
+		return "The covered courtyard must use one cover with an inner wall, an inner dome, and a clear shell"
+
+	var optics := SAMPLE.new()
+	optics.bind_m01(courtyard)
+	for phase: Array in [[1.0, false], [0.0, false], [0.0, true], [1.0, false]]:
+		var daylight := float(phase[0])
+		var night := is_zero_approx(daylight)
+		optics.apply_environment(daylight, night, true, phase[1])
+		await process_frame
+		for binding: Dictionary in inner:
+			var mesh := binding.node as MeshInstance3D
+			if not mesh.is_visible_in_tree() or mesh.mesh != binding.geometry:
+				return "The same inner cover geometry must stay visible in every phase"
+			for surface: int in mesh.mesh.get_surface_count():
+				var material := mesh.get_active_material(surface)
+				if night:
+					if not material is ShaderMaterial or material.shader.resource_path != "res://nest/estate/courtyard_cover_night.gdshader":
+						return "Night must draw the sky on the existing cover surfaces"
+				elif material != binding.daytime[surface]:
+					return "Returning to daylight must restore each original textured cover material"
+		if not shell.is_visible_in_tree():
+			return "The clear outer shell must stay visible in every phase"
+		var sky := world.environment.sky.sky_material as ShaderMaterial
+		if not is_equal_approx(float(sky.get_shader_parameter("night_amount")), 1.0 if night else 0.0):
+			return "The distant sky outside the cover must follow the same day and night phases"
+	return ""

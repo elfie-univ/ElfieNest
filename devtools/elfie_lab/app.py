@@ -195,11 +195,10 @@ def create_app(
 
         @app.get("/api/godot-web")
         def godot_web_status() -> dict[str, object]:
+            ready = godot_web_entry.is_file()
             return {
-                "ready": unified_godot_web_ready,
-                "entry_url": "/godot-web/elfienest.html"
-                if unified_godot_web_ready
-                else "",
+                "ready": ready,
+                "entry_url": "/godot-web/elfienest.html" if ready else "",
                 "build_command": "./developer.sh build-godot-web",
             }
 

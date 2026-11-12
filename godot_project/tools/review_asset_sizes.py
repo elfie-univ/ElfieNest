@@ -19,6 +19,10 @@ def merged_ranges(ranges):
     return tuple(merged)
 
 
+def range_bytes(ranges):
+    return sum(end - start for _, start, end in merged_ranges(ranges))
+
+
 def texture_indices(material):
     for name, value in material.items():
         if not isinstance(value, dict):
@@ -43,8 +47,6 @@ def glb_resources(path, components, file_bytes):
         if "uri" in image and not image["uri"].startswith("data:")
     }
     dependencies = set(external.values())
-    if not components:
-        return dependencies
 
     def view_range(index):
         view = document["bufferViews"][index]
@@ -85,13 +87,38 @@ def glb_resources(path, components, file_bytes):
 
     groups = defaultdict(list)
     component_ids = {component["id"] for component in components}
+    source_meshes = defaultdict(set)
     for index, node in enumerate(nodes):
-        key = node.get("extras", {}).get("component_id")
-        if key in component_ids and "mesh" not in node and node.get("children"):
+        extras = node.get("extras", {})
+        key = extras.get("component_id")
+        if (
+            key in component_ids
+            and "mesh" not in node
+            and node.get("children")
+            and not extras.get("nest_instance_group")
+        ):
             groups[key].append(set(meshes_below(index)))
+        if extras.get("v044_path"):
+            source_meshes[extras["v044_path"]].update(meshes_below(index))
 
+    listed = set()
     for component in components:
         instances = groups[component["id"]]
+        if "instanceSize" in component:
+            # One placement may have multiple meshes (door, lining, and light).
+            # Read the declared placements from existing paths without
+            # restructuring or duplicating the library's runtime mesh nodes.
+            width = component["instanceSize"]
+            paths = component["paths"]
+            assert type(width) is int and width > 0, component["id"]
+            assert len(paths) == len(set(paths)) == width * component["count"], (
+                component["id"]
+            )
+            assert all(path in source_meshes for path in paths), component["id"]
+            instances = [
+                set().union(*(source_meshes[path] for path in paths[i : i + width]))
+                for i in range(0, len(paths), width)
+            ]
         if not instances:
             continue  # Older exports have selection paths but no authored group nodes.
         geometry = {
@@ -101,6 +128,7 @@ def glb_resources(path, components, file_bytes):
         geometry_ranges = merged_ranges(
             {span for layout in geometry for span in layout}
         )
+        listed.update(geometry_ranges)
         textures = set().union(
             *(mesh_images(mesh) for meshes in instances for mesh in meshes)
         )
@@ -125,7 +153,32 @@ def glb_resources(path, components, file_bytes):
             "instances": len(instances),
             "meshCopies": len(geometry),
         }
-    return dependencies
+    ordinary = {
+        span
+        for node in nodes
+        if "mesh" in node and "normal_variant_of" not in node.get("extras", {})
+        for span in mesh_ranges(node["mesh"])
+    }
+    variants = {
+        span
+        for node in nodes
+        if "mesh" in node and "normal_variant_of" in node.get("extras", {})
+        for span in mesh_ranges(node["mesh"])
+    }
+    embedded = {
+        view_range(image["bufferView"]) for image in images if "bufferView" in image
+    }
+    listed_bytes = range_bytes(listed)
+    ordinary_bytes = range_bytes(listed | ordinary)
+    mesh_bytes = range_bytes(listed | ordinary | variants)
+    payload_bytes = range_bytes(listed | ordinary | variants | embedded)
+    return dependencies, {
+        "componentMeshBytes": listed_bytes,
+        "otherMeshBytes": ordinary_bytes - listed_bytes,
+        "variantMeshBytes": mesh_bytes - ordinary_bytes,
+        "embeddedTextureBytes": payload_bytes - mesh_bytes,
+        "otherFileBytes": file_bytes(path) - payload_bytes,
+    }
 
 
 def add_asset_sizes(entries, assets):
@@ -137,14 +190,19 @@ def add_asset_sizes(entries, assets):
         return path.stat().st_size
 
     files = {key: (assets / entry["file"]).resolve() for key, entry in entries.items()}
+    file_titles = {files[key]: entry["title"] for key, entry in entries.items()}
     resources = {}
+    breakdowns = {}
     for key, entry in entries.items():
         path = files[key]
         resources[key] = {path}
         if path.suffix == ".glb":
-            resources[key].update(
-                glb_resources(path, entry.get("components", []), file_bytes)
+            textures, breakdown = glb_resources(
+                path, entry.get("components", []), file_bytes
             )
+            resources[key].update(textures)
+            if breakdown:
+                breakdowns[key] = breakdown
 
     for key, entry in entries.items():
         found = set()
@@ -163,3 +221,14 @@ def add_asset_sizes(entries, assets):
             "fileBytes": file_bytes(files[key]),
             "referenceBytes": sum(file_bytes(path) for path in included),
         }
+        if included:
+            entry["size"]["referenceFiles"] = [
+                {
+                    "path": path.relative_to(assets).as_posix(),
+                    "title": file_titles.get(path, path.name),
+                    "bytes": file_bytes(path),
+                }
+                for path in sorted(included, key=lambda path: (-file_bytes(path), path))
+            ]
+        if key in breakdowns:
+            entry["size"]["breakdown"] = breakdowns[key]

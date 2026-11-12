@@ -5,7 +5,7 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	if not check_glb_materials() or not check_bedding_normals():
+	if not check_glb_materials() or not check_shared_bedding():
 		quit(1)
 		return
 	var estate := (load("res://nest/assembly/estate.tscn") as PackedScene).instantiate() as Node3D
@@ -42,25 +42,32 @@ func check_glb_materials() -> bool:
 	print("NEST_GLB_MATERIAL_CHECK ok=",ok," transparency=",material.transparency," depth=",material.depth_draw_mode," specular=",material.metallic_specular)
 	return ok
 
-func check_bedding_normals() -> bool:
-	var binder := preload("res://nest/assembly/glb_placement.gd").new()
-	var path := "res://nest/furniture/shared/bedroom/bed-shared.glb"
-	binder.library = load(path)
-	var meshes: Dictionary = binder.import_meshes(path)
-	binder.free()
-	var selected := preload("res://nest/assembly/glb_placement.gd").select_mesh(meshes,"part_00971","Generated/CompleteEstate/CompleteFinal/A | Throw | botanical diagonal folded linen2","M02")
-	var ok: bool = selected != null and selected != meshes["part_00971"] and selected.resource_path.begins_with(path + "::")
-	if ok:
-		var arrays := selected.surface_get_arrays(0)
-		var positions: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-		var source := Vector3(0.522642493,0.462978780,-0.715887904)
-		var found := false
-		for index: int in positions.size():
-			if positions[index].distance_to(Vector3(-0.306658387,0.369095266,0.624402046)) < 0.000001:
-				found = true
-				ok = ok and normals[index].angle_to(source) < 0.0002
-		ok = ok and found
-	if not ok: push_error("Room-specific bedding normals were not restored from the unique GLB")
-	print("NEST_BEDDING_NORMAL_CHECK ok=",ok)
+func check_shared_bedding() -> bool:
+	var model_path := "res://nest/furniture/shared/bedroom/bed-shared.glb"
+	var local_parts := {}
+	var desktop_ids := {}
+	var ok := true
+	for set_id: String in ["a", "b", "c", "d"]:
+		var scene_path := "res://nest/furniture/sets/bedroom/bedroom-set-%s.scn" % set_id
+		var bedroom := (load(scene_path) as PackedScene).instantiate() as Node3D
+		root.add_child(bedroom)
+		var bed := bedroom.get_node("bed-shared")
+		var desktop := bedroom.get_node("desk-%s-local" % set_id)
+		var shell := bed.get_child(0) as MeshInstance3D
+		var inverse := shell.transform.affine_inverse()
+		ok = ok and bed.library.resource_path == model_path and bed.source_nodes.size() == 132
+		desktop_ids[desktop.source_nodes[0]] = true
+		for i: int in bed.source_nodes.size():
+			var part := bed.get_child(i) as MeshInstance3D
+			var key: String = bed.source_nodes[i]
+			var local := inverse * part.transform
+			if set_id == "a":
+				local_parts[key] = [part.mesh, local]
+			else:
+				ok = ok and local_parts.has(key) and part.mesh == local_parts[key][0]
+				ok = ok and local.is_equal_approx(local_parts[key][1])
+		bedroom.free()
+	ok = ok and local_parts.size() == 132 and desktop_ids.size() == 4
+	if not ok: push_error("A–D must place the same complete bed with distinct desktops")
+	print("NEST_SHARED_BEDDING_CHECK ok=",ok)
 	return ok

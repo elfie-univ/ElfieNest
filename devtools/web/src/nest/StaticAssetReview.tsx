@@ -3,6 +3,7 @@ import { assetLeaves, type AssetItem } from "./asset-catalog";
 import { AssetBrowserToolbar } from "./AssetBrowserToolbar";
 import { AssetFilePanel, type AssetFileGraph } from "./AssetFilePanel";
 import { modeUrl } from "./preview-mode";
+import { prepareNestPreview } from "./prepare-preview";
 
 const CHANNEL = "nest-v044-review";
 const REVIEW_URL = "/godot-web/nest-assets";
@@ -17,7 +18,7 @@ type Inspection = { file: string; part: string; paths: string[]; solo: boolean }
 export function StaticAssetReview() {
   const frame = useRef<HTMLIFrameElement>(null);
   const reviewCount = useRef(0);
-  const [packFailed, setPackFailed] = useState(false);
+  const [packError, setPackError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [selected, select] = useState<AssetItem>();
   const [fileGraph, setFileGraph] = useState<AssetFileGraph>();
@@ -49,8 +50,9 @@ export function StaticAssetReview() {
     const controller = new AbortController();
     void (async () => {
       try {
+        await prepareNestPreview(controller.signal);
         const response = await fetch(`${REVIEW_URL}.json`, { signal: controller.signal });
-        if (!response.ok) throw new Error("Missing Nest asset manifest");
+        if (!response.ok) throw new Error("预览资源缺失，请刷新重试。");
         const manifest: { assets?: number; fileGraph?: AssetFileGraph } = await response.json();
         const graph = manifest.fileGraph;
         const items = graph?.categories?.flatMap(category => assetLeaves(category.children)) ?? [];
@@ -58,14 +60,14 @@ export function StaticAssetReview() {
         if (graph?.root !== "res://nest/" || !count || count !== manifest.assets ||
             items.length !== count || new Set(items.map(item => item.id)).size !== count ||
             items.some(item => !Object.hasOwn(graph.entries, item.id))) {
-          throw new Error("Invalid Nest asset manifest");
+          throw new Error("预览资源校验失败，请刷新重试。");
         }
         if (controller.signal.aborted) return;
         reviewCount.current = count;
         select(items.find(item => item.id === "source:chair") ?? items[0]!);
         setFileGraph(graph);
-      } catch {
-        if (!controller.signal.aborted) setPackFailed(true);
+      } catch (reason) {
+        if (!controller.signal.aborted) setPackError(reason instanceof Error ? reason.message : "预览更新失败，请刷新重试。");
       }
     })();
     function receive(event: MessageEvent) {
@@ -128,7 +130,7 @@ export function StaticAssetReview() {
     <section className="nest-monitor-stage" aria-label="Nest 资产预览">
       {fileGraph
         ? <iframe ref={frame} src={`${REVIEW_URL}.html`} title="Nest 资产预览" onLoad={() => send("hello")} />
-        : <div className="nest-monitor-placeholder">{packFailed ? "Nest 正式资产预览包未就绪" : "加载中…"}</div>}
+        : <div className="nest-monitor-placeholder">{packError ?? "正在准备预览…"}</div>}
       {failedId === selection && <div className="nest-monitor-placeholder" role="alert">预览加载失败</div>}
     </section>
     <div className="nest-pilot-modes" role="group" aria-label="预览模式">
