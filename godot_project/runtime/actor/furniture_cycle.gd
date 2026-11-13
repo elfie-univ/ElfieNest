@@ -1,5 +1,6 @@
 extends Node
 ## Production-owned approved furniture motion. The Lab only submits a semantic target.
+const RENDER_BATCHES := preload("res://nest/rendering/estate_instance_batches.gd")
 var actor: ElfieActor
 var stage := ""
 var sleep: Node3D
@@ -42,13 +43,21 @@ func _sleep(marker: Marker3D, anchor_id: String, variant: String, nest: ModularN
 	if not is_instance_valid(source) or not nest.get_node("Generated/CompleteEstate").is_ancestor_of(source):
 		return _result("failed", "bed_source_unavailable")
 	var e := source.get_meta("extras", {}) as Dictionary
+	var bedding: Array[MeshInstance3D] = []
 	for mesh: MeshInstance3D in nest.get_node("Generated/CompleteEstate").find_children("*","MeshInstance3D",true,false):
 		var extras := mesh.get_meta("extras", {}) as Dictionary
-		if extras.get("module") == e.get("module") and extras.get("resident") == e.get("resident") and extras.get("piece") == "bed_cover": _cloth = mesh
+		if extras.get("module") != e.get("module") or extras.get("resident") != e.get("resident"): continue
+		if extras.get("piece") in ["bed_cover", "throw", "bed_cover_seam"]: bedding.append(mesh)
+		if extras.get("piece") == "bed_cover": _cloth = mesh
 	if _cloth == null: return _result("failed", "authored_duvet_unavailable")
 	var error := actor.enter_furniture(marker,anchor_id)
 	if not error.is_empty(): return _result("failed",error)
+	# Release all authored layers before the first cloth replacement/attachment.
+	# Exit restoration uses these same unbatched nodes throughout the sleep cycle.
+	for mesh: MeshInstance3D in bedding: RENDER_BATCHES.restore_before_write(mesh)
 	_cloth_mesh = _cloth.mesh
+	_cloth.mesh = preload("res://nest/rendering/estate_surface.gd").duvet_rest(_cloth_mesh)
+	preload("res://nest/furniture/shared/bedroom/estate_bedding_layers.gd").attach_bed(nest.get_node("Generated/CompleteEstate"),_cloth)
 	sleep = preload("res://runtime/actor/sleep_cycle.gd").new()
 	add_child(sleep)
 	sleep.mode = "back" if variant == "sleep-back" else ("side-left" if variant == "sleep-left" else "side-right")
@@ -58,6 +67,8 @@ func _sleep(marker: Marker3D, anchor_id: String, variant: String, nest: ModularN
 	if bool(nest.get_meta("lab_action_preview", false)):
 		seconds = clampf(float(actor.get_meta("preview_sleep_start", 1.5)), 1.5, 15.5)
 		actor.remove_meta("preview_sleep_start")
+	var start_seconds := seconds
+	var started_usec := Time.get_ticks_usec()
 	var last := ""
 	while seconds < 16.0:
 		sleep.sample_bedding(seconds)
@@ -66,7 +77,7 @@ func _sleep(marker: Marker3D, anchor_id: String, variant: String, nest: ModularN
 			_stage(last)
 		await get_tree().process_frame
 		if not _available(): return _failure("sleep_cancelled")
-		seconds += get_process_delta_time()
+		seconds = start_seconds + float(Time.get_ticks_usec()-started_usec)/1000000.0 * Engine.time_scale
 	sleep.sample_bedding(16.0)
 	if not actor.leave_furniture(): return _result("failed","bed_exit_blocked")
 	_stage("leave_and_lay_back")
@@ -75,5 +86,5 @@ func _sleep(marker: Marker3D, anchor_id: String, variant: String, nest: ModularN
 func _exit_tree() -> void:
 	if is_instance_valid(_cloth) and _cloth_mesh != null:
 		_cloth.mesh = _cloth_mesh
-		if _cloth.has_meta("estate_bedding_layers"): _cloth.get_meta("estate_bedding_layers").sample()
+		if _cloth.has_meta("estate_bedding_layers"): _cloth.get_meta("estate_bedding_layers").restore()
 	if is_instance_valid(actor): actor.remove_meta("furniture_cycle_stage")

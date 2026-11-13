@@ -18,6 +18,12 @@ func run() -> void:
 	await process_frame
 	await physics_frame
 	await physics_frame
+	var configured := nest.apply_world_config({"nest_id":"furniture-world-regression","bed_count":32,"world_revision":1})
+	if not require(configured.get("accepted", false), "Furniture world configuration must be accepted"): return
+	# Nest rebuild installs geometry; callers explicitly load navigation before actions.
+	if not require(nest.bake_navigation(), "Furniture checks need production navigation"): return
+	if not require(await nest.wait_for_navigation_sync(), "Furniture navigation did not synchronize"): return
+	if not require(nest.validate_navigation_anchors(), "Furniture approaches must be aligned and reachable"): return
 	var estate := nest.get_node("Generated/CompleteEstate")
 	for body: StaticBody3D in nest._estate_physics.find_children("*", "StaticBody3D", true, false):
 		var source := str(body.get_meta("source_node", ""))

@@ -18,7 +18,7 @@ func _run() -> void:
 	visual.scale = Vector3.ONE * 0.7
 	var skeleton := Skeleton3D.new()
 	visual.add_child(skeleton)
-	for part: String in ["Hips", "Spine2", "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg"]:
+	for part: String in ["Hips", "Spine2", "Head", "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg"]:
 		skeleton.add_bone("mixamorig_" + part)
 		skeleton.set_bone_pose_scale(skeleton.get_bone_count() - 1, Vector3(1.0, 1.1, 1.0))
 	var player := AnimationPlayer.new()
@@ -42,6 +42,27 @@ func _run() -> void:
 	runtime.play_expression("wave")
 	runtime.play("walking")
 	_require(player.current_animation == "walking", "Walking must interrupt expression")
+
+	var head := skeleton.find_bone("mixamorig_Head")
+	var neutral := Quaternion(Vector3.UP,0.1)
+	skeleton.set_bone_pose_rotation(head,neutral)
+	for gesture: String in ["nod_head","shake_head"]:
+		_require(runtime.play_expression(gesture),"Head gesture was rejected: "+gesture)
+		runtime.advance(0.12)
+		var axis := Vector3.RIGHT if gesture == "nod_head" else Vector3.UP
+		var expected := neutral*Quaternion(axis,-0.22 if gesture == "nod_head" else -0.24)
+		_require(skeleton.get_bone_pose_rotation(head).is_equal_approx(expected),"Head gesture did not overlay its first key")
+		runtime.advance(0.12)
+		runtime.advance(0.2)
+		_require(skeleton.get_bone_pose_rotation(head).is_equal_approx(neutral),"Head gesture left a residual rotation")
+	_require(runtime.play_expression("nod_head"),"Repeat nod failed")
+	runtime.advance(0.1)
+	_require(runtime.play_expression("shake_head"),"Gesture replacement failed")
+	runtime.advance(0.1)
+	runtime.play("walking")
+	_require(skeleton.get_bone_pose_rotation(head).is_equal_approx(neutral),"Walking did not cancel the head overlay")
+	runtime.advance(0.1)
+	_require(skeleton.get_bone_pose_rotation(head).is_equal_approx(neutral),"Cancelled gesture resumed")
 
 	var body_before := actor.transform
 	var old_heading := visual.global_basis
@@ -103,6 +124,15 @@ func _test_actor_wiring() -> void:
 	visual.add_child(skeleton)
 	for part: String in ["Hips", "Spine2", "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg"]:
 		skeleton.add_bone("mixamorig_" + part)
+	# Sitting also poses the forearms and hands for desktop clearance.
+	for side: String in ["Left", "Right"]:
+		var forearm := skeleton.get_bone_count()
+		skeleton.add_bone("mixamorig_" + side + "ForeArm")
+		skeleton.set_bone_pose_position(forearm, Vector3(-0.3 if side == "Left" else 0.3, 0.5, 0.0))
+		var hand := skeleton.get_bone_count()
+		skeleton.add_bone("mixamorig_" + side + "Hand")
+		skeleton.set_bone_parent(hand, forearm)
+		skeleton.set_bone_pose_position(hand, Vector3(0.0, 0.0, 0.2))
 	var collision := CollisionShape3D.new()
 	collision.name = "CollisionShape3D"
 	collision.shape = CapsuleShape3D.new()

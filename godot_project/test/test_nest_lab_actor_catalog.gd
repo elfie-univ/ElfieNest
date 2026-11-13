@@ -33,7 +33,7 @@ func run() -> void:
 	if not require(catalog.scene_actions.filter(func(item: Dictionary) -> bool: return str(item.id).begins_with("door-")).size() == 10, "Retain all ten door actions"): return
 	if not require(catalog.actors.size() == 1, "Actor catalog disappeared"): return
 	var actor: Dictionary = catalog.actors[0]
-	if not require(actor.animations.size() == ActorAnimationRuntime.SHARED_ANIMATIONS.size(), "Retain every shared actor animation"): return
+	if not require(actor.animations.size() == ActorAnimationRuntime.SHARED_ANIMATIONS.size()+2 and actor.animations.has("nod_head") and actor.animations.has("shake_head"), "Retain every shared actor animation"): return
 	if not require(actor.demonstrations.size() == 7 and actor.demonstrations.all(func(item: Dictionary) -> bool: return item.available), "Retain all seven reachable demonstrations: " + JSON.stringify(actor.demonstrations)): return
 	print("PASS: ten doors, ",actor.animations.size()," animations and seven reachable actor demonstrations")
 	nest.queue_free()

@@ -39,6 +39,13 @@ const LOOPING_ANIMATIONS := {"idle": true, "walking": true, "running": true}
 const CLIP_BLEND_SECONDS := 0.22
 const POSTURE_BLEND_SECONDS := 0.65
 const TURN_RESPONSE := 12.0
+const HEAD_GESTURES := {
+	"nod_head": {"axis": Vector3.RIGHT, "angles": [-0.22, 0.12, 0.0]},
+	"shake_head": {"axis": Vector3.UP, "angles": [-0.24, 0.24, 0.0]},
+}
+const HEAD_KEY_SECONDS := 0.12
+const EYELIDS := preload("res://runtime/actor/actor_eyelids.gd")
+const FOOT_CONTACT := preload("res://runtime/actor/furniture_contact.gd")
 
 var _actor: CharacterBody3D
 var _visual_root: Node3D
@@ -53,6 +60,11 @@ var _transition_visual_to := Transform3D.IDENTITY
 var _transition_elapsed := POSTURE_BLEND_SECONDS
 var _breath_phase := 0.0
 var _heading_target := Quaternion.IDENTITY
+var _head_gesture: Dictionary = {}
+var _eyelids := EYELIDS.new()
+var _frozen_floor_active := false
+var _frozen_floor_sampled := false
+var _frozen_floor_offset := Vector3.ZERO
 
 
 func setup(
@@ -77,6 +89,7 @@ func setup(
 	if install_preview_poses:
 		animation_sources.merge(PREVIEW_POSES)
 	_install_animations(animation_sources)
+	_eyelids.bind(visual_root)
 
 
 func play(animation_name: String) -> void:
@@ -93,6 +106,10 @@ func play(animation_name: String) -> void:
 
 
 func cancel_expression() -> void:
+	_clear_frozen_floor()
+	_eyelids.reset()
+	_restore_head_base()
+	_head_gesture.clear()
 	_expression_animation = ""
 	_actor.remove_meta("runtime_expression")
 
@@ -118,6 +135,7 @@ func capture_visual_pose() -> Dictionary:
 
 func standing_visual_transform() -> Transform3D:
 	var result := _visual_root.transform
+	result.origin -= _frozen_floor_offset
 	if _posture.is_empty() and _transition_elapsed < POSTURE_BLEND_SECONDS:
 		result = _transition_visual_to
 	result.basis = Basis(_heading_target).scaled(result.basis.get_scale())
@@ -127,6 +145,9 @@ func standing_visual_transform() -> Transform3D:
 func transition_from(source: Dictionary, posture: String = "") -> void:
 	# The caller has already resolved the physical contact/exit. Interpolate only
 	# its visual child and bone poses, including when an earlier blend is interrupted.
+	_clear_frozen_floor()
+	if posture != "sleeping":
+		_eyelids.reset()
 	_posture = posture
 	_breath_phase = 0.0
 	_posture_target.assign(capture_visual_pose()["bones"])
@@ -140,6 +161,8 @@ func transition_from(source: Dictionary, posture: String = "") -> void:
 
 
 func reset_procedural_pose() -> void:
+	_clear_frozen_floor()
+	_eyelids.reset()
 	# Remove the last breathing sample before the caller samples an exit clip.
 	for pose: Dictionary in _posture_target:
 		var skeleton := pose["skeleton"] as Skeleton3D
@@ -151,19 +174,39 @@ func reset_procedural_pose() -> void:
 	_transition_elapsed = POSTURE_BLEND_SECONDS
 
 
+func begin_sleep_eyes(owner: Node) -> void:
+	_eyelids.acquire(owner)
+
+
+func sample_sleep_eyes(owner: Node, amount: float) -> void:
+	_eyelids.sample(owner, amount)
+
+
+func end_sleep_eyes(owner: Node) -> void:
+	_eyelids.release(owner)
+
+
 func smooth_heading(previous_global_basis: Basis) -> void:
 	if _posture.is_empty() and _transition_elapsed >= POSTURE_BLEND_SECONDS:
 		_visual_root.global_basis = previous_global_basis
 
 
 func advance(delta: float) -> void:
+	_restore_head_base()
+	if _frozen_floor_active and _transition_elapsed < POSTURE_BLEND_SECONDS:
+		# The blend replaces the visual transform; sample its changing feet only
+		# during that transition, then retain the final offset for the held pose.
+		_remove_frozen_floor_offset()
 	var step := maxf(delta, 0.0)
 	if _posture.is_empty():
 		if _transition_elapsed < POSTURE_BLEND_SECONDS:
 			# Untracked bones must start from the exit pose, not the preceding
 			# interpolated frame, or an interrupted posture would accumulate drift.
 			_apply_bone_blend(_posture_target, 1.0)
-		_animation_player.advance(step)
+		# Manual advance ignores playback_active; preserve the sampled frozen pose
+		# until play() explicitly resumes playback for a replacement or exit.
+		if _animation_player.playback_active:
+			_animation_player.advance(step)
 	var blending := _transition_elapsed < POSTURE_BLEND_SECONDS
 	var weight := 1.0
 	if blending:
@@ -183,6 +226,70 @@ func advance(delta: float) -> void:
 		)
 	if _transition_elapsed >= POSTURE_BLEND_SECONDS:
 		_transition_source.clear()
+	_advance_head_gesture(step)
+	_apply_frozen_floor()
+
+
+func _remove_frozen_floor_offset() -> void:
+	_visual_root.position -= _frozen_floor_offset
+	_frozen_floor_offset = Vector3.ZERO
+	_frozen_floor_sampled = false
+
+
+func _clear_frozen_floor() -> void:
+	_remove_frozen_floor_offset()
+	_frozen_floor_active = false
+
+
+func _apply_frozen_floor() -> void:
+	if not _frozen_floor_active or _frozen_floor_sampled:
+		return
+	var sole := FOOT_CONTACT.sole_y(_actor as ElfieActor)
+	if not is_finite(sole):
+		return
+	# Actor origin is the standing contact plane. Move only the visual child;
+	# keep every authored bone pose and the collision/navigation body intact.
+	var before := _visual_root.position
+	_visual_root.global_position.y += _actor.global_position.y - sole
+	_frozen_floor_offset = _visual_root.position - before
+	_frozen_floor_sampled = true
+
+
+func supports_head_gestures() -> bool:
+	var skeleton := _find_preview_skeleton()
+	return skeleton != null and _head_bone(skeleton) >= 0
+
+
+func _head_bone(skeleton: Skeleton3D) -> int:
+	var bone := skeleton.find_bone("mixamorig_Head")
+	return bone if bone >= 0 else skeleton.find_bone("mixamorig:Head")
+
+
+func _restore_head_base() -> void:
+	if not _head_gesture.is_empty():
+		var skeleton: Skeleton3D = _head_gesture["skeleton"]
+		skeleton.set_bone_pose_rotation(_head_gesture["bone"], _head_gesture["base"])
+
+
+func _advance_head_gesture(delta: float) -> void:
+	if _head_gesture.is_empty():
+		return
+	var skeleton: Skeleton3D = _head_gesture["skeleton"]
+	var bone: int = _head_gesture["bone"]
+	# Sample the live clip first; never accumulate the previous frame's overlay.
+	_head_gesture["base"] = skeleton.get_bone_pose_rotation(bone)
+	var elapsed: float = _head_gesture["elapsed"] + delta
+	_head_gesture["elapsed"] = elapsed
+	var gesture: Dictionary = HEAD_GESTURES[_expression_animation]
+	var angles: Array = gesture["angles"]
+	if elapsed >= angles.size() * HEAD_KEY_SECONDS:
+		cancel_expression()
+		play("idle")
+		return
+	var index := int(elapsed / HEAD_KEY_SECONDS)
+	var previous := 0.0 if index == 0 else float(angles[index - 1])
+	var angle := lerpf(previous, float(angles[index]), fmod(elapsed, HEAD_KEY_SECONDS) / HEAD_KEY_SECONDS)
+	skeleton.set_bone_pose_rotation(bone, (_head_gesture["base"] as Quaternion) * Quaternion(gesture["axis"], angle))
 
 
 func _apply_bone_blend(targets: Array, weight: float) -> void:
@@ -216,6 +323,17 @@ func _apply_breathing(weight: float) -> void:
 
 
 func play_expression(expression: String) -> bool:
+	if HEAD_GESTURES.has(expression):
+		if not supports_head_gestures():
+			return false
+		cancel_expression()
+		play("idle")
+		var skeleton := _find_preview_skeleton()
+		var bone := _head_bone(skeleton)
+		_head_gesture = {"skeleton": skeleton, "bone": bone, "base": skeleton.get_bone_pose_rotation(bone), "elapsed": 0.0}
+		_expression_animation = expression
+		_actor.set_meta("runtime_expression", expression)
+		return true
 	var animation_name := expression
 	if expression == "happy":
 		animation_name = "twist_dance"
@@ -233,7 +351,13 @@ func play_expression(expression: String) -> bool:
 	_actor.set_meta("runtime_expression", expression)
 	_expression_animation = animation_name
 	if PREVIEW_POSE_FRAME_RATIOS.has(animation_name) and animation_name != "pose_waving":
-		return _play_frozen_pose(animation_name)
+		var played := _play_frozen_pose(animation_name)
+		if played and _posture.is_empty() and _transition_elapsed < POSTURE_BLEND_SECONDS:
+			# An exit blend must converge to this new held pose, not its old idle.
+			_posture_target.assign(capture_visual_pose()["bones"])
+		_frozen_floor_active = played and _actor is ElfieActor
+		_apply_frozen_floor()
+		return played
 	play(animation_name)
 	return true
 
@@ -289,6 +413,8 @@ func _install_animations(animation_sources: Dictionary) -> void:
 
 
 func reset_preview_pose() -> void:
+	_clear_frozen_floor()
+	_eyelids.reset()
 	if _preview_tween != null and _preview_tween.is_valid():
 		_preview_tween.kill()
 	var pose_scales: Array[Array] = []

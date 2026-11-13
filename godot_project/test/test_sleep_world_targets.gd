@@ -46,7 +46,11 @@ func run() -> void:
 			actor.set_physics_process(false)
 			check(actor.enter_furniture(marker,item[1]).is_empty(),"Could not enter "+str(item))
 			var cycle := SLEEP.new(); cycle.mode = mode; root.add_child(cycle)
-			var started := Time.get_ticks_usec(); cycle.bind(actor,cloth,null); cycle.set_process(false)
+			var started := Time.get_ticks_usec()
+			cloth.mesh = preload("res://nest/rendering/estate_surface.gd").duvet_rest(cloth.mesh)
+			preload("res://nest/furniture/shared/bedroom/estate_bedding_layers.gd").attach_bed(nest.get_node("Generated/CompleteEstate"),cloth)
+			check(not cloth.get_meta("estate_bedding_layers").layers.is_empty(), "Active bed has no following layers: "+str(item))
+			cycle.bind(actor,cloth,null); cycle.set_process(false)
 			var preparation_us := Time.get_ticks_usec()-started
 			var toward_room := marker.global_position-cloth.to_global(cycle.source_duvet_mesh.get_aabb().get_center())
 			toward_room.y = 0.0
@@ -60,7 +64,7 @@ func run() -> void:
 			for seconds: float in [2.0,2.8,4.0,4.6,7.3,13.0,14.5,15.5]: cycle.sample_bedding(seconds)
 			print("SLEEP_POSE ",JSON.stringify({"species":item[0],"bed":item[1],"mode":mode,"head":head,"hips":hips,"prepare_us":preparation_us,"sample_us":(Time.get_ticks_usec()-started_sample)/8.0}))
 			cycle.free(); actor.free(); cloth.mesh = original
-			if cloth.has_meta("estate_bedding_layers"): cloth.get_meta("estate_bedding_layers").sample()
+			if cloth.has_meta("estate_bedding_layers"): cloth.get_meta("estate_bedding_layers").restore()
 	nest.free()
 	print("SLEEP_WORLD_TARGETS beds=32 poses=15 failures=",failures)
 	quit(1 if failures else 0)

@@ -41,6 +41,17 @@ const LIBRARIES := [
 	"res://nest/courtyard/parts/shared/plant-library.glb",
 	"res://nest/courtyard/parts/forest/pine-tree.glb",
 ]
+const STATIC_OPAQUE_LIBRARIES := [
+	"res://nest/buildings/main/central-building.glb",
+	"res://nest/buildings/pod/pod-building.glb",
+	"res://nest/courtyard/parts/ground/outdoor-lights.glb",
+	"res://nest/courtyard/parts/shared/shore-stones.glb",
+	"res://nest/furniture/shared/bedroom/bedroom-cabinet.glb",
+	"res://nest/furniture/shared/bedroom/bedroom-desks.glb",
+	"res://nest/furniture/shared/bedroom/bedroom-lamps.glb",
+	"res://nest/furniture/shared/bedroom/bedroom-rug.glb",
+	"res://nest/furniture/shared/main/main-frames.glb",
+]
 # Both geometry types inherit gi_lightmap_texel_scale. Do not also copy the
 # deprecated gi_lightmap_scale alias, which quantizes the same underlying value.
 const FLAGS := OPAQUE.FLAGS + ["gi_lightmap_texel_scale", "physics_interpolation_mode"]
@@ -115,7 +126,15 @@ static func material_allowed(material: Material) -> bool:
 func allowed(node: GeometryInstance3D) -> bool:
 	var mesh := source_mesh(node) as ArrayMesh
 	if mesh == null or mesh.get_surface_count() != 1 or mesh.get_blend_shape_count() != 0: return false
-	if str(mesh.get_meta("nest_source_library", "")) not in LIBRARIES: return false
+	var library := str(mesh.get_meta("nest_source_library", ""))
+	var material := source_material(node)
+	if library in STATIC_OPAQUE_LIBRARIES:
+		# Keep movable leaves, render partitions and ordered transparency independent.
+		if node.has_meta("source_surface"): return false
+		if mesh.get_meta("nest_source_extras", {}).get("door_leaf", false) or node.get_meta("extras", {}).get("door_leaf", false): return false
+		if material is BaseMaterial3D and material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED: return false
+	elif library not in LIBRARIES:
+		return false
 	if mesh.resource_name.to_lower().contains("movingbedduvet"): return false
 	if node.name.to_lower().contains("movingbedduvet"): return false
 	if node.has_meta("estate_instance_batch") or node.get_script() != null: return false
@@ -138,7 +157,7 @@ func allowed(node: GeometryInstance3D) -> bool:
 		var multi: MultiMesh = node.multimesh
 		if multi.transform_format != MultiMesh.TRANSFORM_3D or multi.instance_count == 0: return false
 		if multi.visible_instance_count == 0 or multi.custom_aabb != AABB(): return false
-	return material_allowed(source_material(node))
+	return material_allowed(material)
 
 static func _pairing_owner(node: Node) -> bool:
 	return (node is ReflectionProbe or node is VoxelGI or node is LightmapGI or node is Decal
@@ -512,12 +531,21 @@ func unchanged(item: Dictionary, active: bool, check_flags: bool = false) -> boo
 
 func activate(group: Dictionary, value: bool) -> void:
 	if not is_instance_valid(group.draw): value = false
+	var was_active: bool = group.active
 	group.active = value
 	if is_instance_valid(group.draw): group.draw.visible = value
 	for item: Dictionary in group.sources:
 		if not is_instance_valid(item.node): continue
-		if value: item.node.layers = 0
-		elif item.node.layers == 0: item.node.layers = item.layers
+		var node := item.node as GeometryInstance3D
+		if value:
+			node.layers = 0
+			# Layer zero skips drawing, but leaves the instance in the renderer's
+			# spatial index. Remove it from that index while the batch owns its draw.
+			# Keep the Node3D visible for source selection and physics.
+			RenderingServer.instance_set_visible(node.get_instance(), false)
+		elif was_active:
+			if node.layers == 0: node.layers = item.layers
+			RenderingServer.instance_set_visible(node.get_instance(), node.is_visible_in_tree())
 
 func invalidate(group: Dictionary) -> void:
 	if not group.valid: return

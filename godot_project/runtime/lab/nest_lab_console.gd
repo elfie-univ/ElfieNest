@@ -185,6 +185,9 @@ func catalog() -> Dictionary:
 		var animations: Array[String] = []
 		for name: String in ActorAnimationRuntime.SHARED_ANIMATIONS:
 			if player.has_animation(name): animations.append(name)
+		if actor._animation_runtime.supports_head_gestures():
+			for name: String in ActorAnimationRuntime.HEAD_GESTURES:
+				animations.append(name)
 		actors.append({"actor_id": actor.elfie_id, "animations": animations,
 			"demonstrations": _demonstrations.catalog(actor.elfie_id) if _demonstrations != null else [],
 			"demonstration_state": str(_demonstrations.states.get(actor.elfie_id,"")) if _demonstrations != null else "",

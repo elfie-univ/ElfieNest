@@ -28,6 +28,16 @@ func run() -> void:
 				if not require(actual.has(key) and actual[key].size()==expected[key].size(),"Skin cache lost visible vertices"): return
 				for index in range(expected[key].size()):
 					if not require((actual[key][index] as Vector3).distance_to(expected[key][index])<0.00002,"Skin cache changed the physical body"): return
+		var expected_hulls := HULLS.regions(actor,true)
+		var reduced := false
+		for shape: ConvexPolygonShape3D in HULLS.shapes(actor,true):
+			var expected := {}
+			for point: Vector3 in expected_hulls[str(shape.get_meta("body_region"))]: expected[point] = true
+			var actual := {}
+			for point: Vector3 in shape.points: actual[point] = true
+			if not require(actual==expected,"Collision input reduction changed its exact point set"): return
+			reduced = reduced or shape.points.size() < expected_hulls[str(shape.get_meta("body_region"))].size()
+		if not require(reduced,"Collision preparation still resubmits duplicate skinned seam vertices"): return
 		if not require(actor.has_meta("seated_skin_sampler"),"Seating still reclassifies every vertex on every pose"): return
 		if not require(actor.get_meta("seated_skin_sampler").build_count==1,"Geometry classification must be reused across poses"): return
 		actor.free()

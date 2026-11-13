@@ -20,7 +20,11 @@ static func is_placement(node: Node) -> bool:
 static func canonical_batch(batch: MultiMeshInstance3D) -> Dictionary:
 	var placement := batch.get_parent()
 	if not is_placement(placement): return {}
-	return placement.instance_batches.get(batch.get_index(), {})
+	var data: Dictionary = placement.instance_batches.get(batch.get_index(), {})
+	if data.is_empty() or data.has("buffer"): return data
+	var resolved := data.duplicate()
+	resolved["buffer"] = placement.instance_buffer(data)
+	return resolved
 
 static func instance_transform(batch: MultiMeshInstance3D, index: int) -> Transform3D:
 	var data := canonical_batch(batch)
@@ -78,7 +82,23 @@ static func batch_error(estate: Node) -> String:
 		if not expected.has(path): unexpected.append(path)
 	missing.sort()
 	unexpected.sort()
-	var observed_batches := estate.find_children("*", "MultiMeshInstance3D", true, false).size()
+	var observed_batches := 0
+	for node: MultiMeshInstance3D in estate.find_children("*", "MultiMeshInstance3D", true, false):
+		if is_placement(node.get_parent()):
+			observed_batches += 1
+			continue
+		if node.get_meta("estate_instance_batch", false): continue
+		if node.has_meta("nest_instance_owner"):
+			var source := node.get_parent().get_parent() as Node3D
+			if source.get_instance_id() != node.get_meta("nest_instance_owner") or not is_placement(source.get_parent()):
+				return "Missing owner for nested GLB instance batch: " + str(node.get_path())
+			var mesh: MultiMesh = node.multimesh
+			var input: PackedFloat32Array = mesh.get_meta("nest_instance_buffer", PackedFloat32Array())
+			if mesh.mesh == null or mesh.transform_format != MultiMesh.TRANSFORM_3D or input.size() != 12 * mesh.instance_count:
+				return "Invalid nested GLB instance batch: " + str(node.get_path())
+			continue
+		if node.name == &"ReusedFountainDrops" or node.name == &"ArrivalMotes": continue
+		return "Unclassified instance batch: " + str(node.get_path())
 	var diagnostic := "placements=%d libraries=%d expected_libraries=%d batches=%d observed_batches=%d instances=%d missing=%s unexpected=%s" % [placement_count, libraries.size(), expected.size(), batches, observed_batches, instances, JSON.stringify(missing), JSON.stringify(unexpected)]
 	print("SPLIT_CANONICAL ", diagnostic)
 	if expected.is_empty() or not missing.is_empty() or not unexpected.is_empty() or batches == 0 or instances == 0:

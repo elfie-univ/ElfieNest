@@ -23,6 +23,7 @@ static func _sample(actor: ElfieActor, hips: bool) -> Dictionary:
 	skeleton.force_update_all_bone_transforms()
 	var lowest := INF
 	var selected := PackedVector3Array()
+	var threshold := 0.6 if hips else 0.8
 	for instance: MeshInstance3D in actor.find_children("*", "MeshInstance3D", true, false):
 		if instance.skin == null or instance.mesh == null: continue
 		var skin := instance.skin
@@ -42,17 +43,17 @@ static func _sample(actor: ElfieActor, hips: bool) -> Dictionary:
 			var weights := arrays[Mesh.ARRAY_WEIGHTS] as PackedFloat32Array
 			var stride := 8 if instance.mesh.surface_get_format(surface) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS else 4
 			for vertex in range(vertices.size()):
-				var foot_weight := 0.0
+				var begin := vertex * stride
+				var end := mini(begin + stride, weights.size())
+				var contact_weight := 0.0
+				for index in range(begin, end):
+					if feet[bones[index]]: contact_weight += weights[index]
+				if contact_weight <= threshold: continue
 				var point := Vector3.ZERO
-				for influence in range(stride):
-					var index := vertex * stride + influence
-					if index >= weights.size(): break
-					var bind := bones[index]
-					point += (matrices[bind] * vertices[vertex]) * weights[index]
-					if feet[bind]: foot_weight += weights[index]
-				if foot_weight > (0.6 if hips else 0.8):
-					lowest = minf(lowest, point.y)
-					selected.append(point)
+				for index in range(begin, end):
+					point += (matrices[bones[index]] * vertices[vertex]) * weights[index]
+				lowest = minf(lowest, point.y)
+				selected.append(point)
 	if not is_finite(lowest): return {}
 	var contact := Vector3.ZERO
 	var count := 0

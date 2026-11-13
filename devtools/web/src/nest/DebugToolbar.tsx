@@ -32,6 +32,7 @@ const stageLabels: Readonly<Record<string, string>> = {
   prepare_seat: "准备坐姿", wait_outside_chair: "等待椅子转出", tail_tuck: "收拢尾巴", turn_on_floor: "转身对准座位", direct_seated_hop: "跃起落座", direct_seated_exit: "离座落地", chair_turn_out: "空椅转出", approach_seat: "接近座位", step_up: "登上座位", turn_left_90: "转身", sit_down: "坐下", seated_idle: "坐姿待机", chair_turn_to_desk: "转回桌前", chair_turn_to_exit: "转向出口", stand_up: "起身", jump_down: "下座", leave_seat: "离开座位", sit_on_bed_edge: "坐床沿", lie_down: "躺下", pull_original_duvet: "拉被", covered_breathing: "盖被呼吸", fold_duvet_down: "掀被", sit_up: "坐起", leave_and_lay_back: "下床回铺",
 };
 const animationLabels: Readonly<Record<string, string>> = {
+  nod_head: "点头", shake_head: "摇头",
   idle: "待机", walking: "走路（原地）", running: "跑步（原地）", jump: "跳跃", twist_dance: "跳舞",
   pose_thinking: "思考", pose_victory: "胜利", pose_thumbs_up: "点赞", pose_hands_on_hips: "叉腰",
   pose_waving: "挥手", left_strafe: "向左侧移", right_strafe: "向右侧移",
@@ -52,6 +53,14 @@ export function actionLocationGroups(targets: readonly NestTarget[], action: str
   return [...groups].map(([label,options]) => ({label, options}));
 }
 
+export function animationActionGroups(clips: readonly string[]) {
+  return [
+    {label:"基础", keys:["idle","walking","running","jump","twist_dance"]},
+    {label:"方向", keys:["left_strafe","right_strafe","left_strafe_walking","right_strafe_walking","left_turn","right_turn","left_turn_90","right_turn_90"]},
+    {label:"姿态", keys:["pose_waving","pose_thinking","pose_victory","pose_thumbs_up","pose_hands_on_hips","nod_head","shake_head"]},
+  ].map(group => ({label:group.label, options:group.keys.filter(key => clips.includes(key)).map(key => ({value:`clip:${key}`,label:animationLabels[key] ?? key}))})).filter(group => group.options.length);
+}
+
 export function DebugToolbar(props: Props) {
   const {actorId, actors, targets, catalog, ready, busy, run, selectActor} = props;
   const [category, setCategory] = useState<"elfie" | "scene" | "demo">("elfie");
@@ -63,11 +72,7 @@ export function DebugToolbar(props: Props) {
   const clips = actor?.animations ?? [];
   const demonstrations = actor?.demonstrations ?? [];
   const demoGroups = [...new Set(demonstrations.map(item=>item.group))].map(label=>({label,options:demonstrations.filter(item=>item.group===label).map(item=>({value:item.id,label:item.available ? item.label : `${item.label}（路线未连通）`,disabled:!item.available}))}));
-  const animationGroups = [
-    {label:"基础", keys:["idle","walking","running","jump","twist_dance"]},
-    {label:"方向", keys:["left_strafe","right_strafe","left_strafe_walking","right_strafe_walking","left_turn","right_turn","left_turn_90","right_turn_90"]},
-    {label:"姿态", keys:["pose_waving","pose_thinking","pose_victory","pose_thumbs_up","pose_hands_on_hips"]},
-  ].map(group => ({label:group.label, options:group.keys.filter(key => clips.includes(key)).map(key => ({value:`clip:${key}`,label:animationLabels[key] ?? key}))})).filter(group => group.options.length);
+  const animationGroups = animationActionGroups(clips);
   const needsLocation = selection !== "" && !selection.startsWith("clip:");
   function chooseAction(value:string) {
     setSelection(value); setLocation("");

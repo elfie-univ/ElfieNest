@@ -158,6 +158,18 @@ func test_mesh_and_selection() -> void:
 		check(not group.active and f.sources[0].layers == 257, "Selecting any source restores the complete group")
 	f.estate.free()
 
+func test_repeated_estate_parts() -> void:
+	var f := fixture()
+	var mesh: ArrayMesh = f.mesh
+	mesh.set_meta("nest_source_library", "res://nest/buildings/pod/pod-building.glb")
+	f.helper.bind(f.estate)
+	check(f.helper.groups.size() == 1, "Static shared pod geometry should instance together")
+	f.helper.clear()
+	mesh.set_meta("nest_source_extras", {"door_leaf": true})
+	f.helper.bind(f.estate)
+	check(f.helper.groups.is_empty(), "Moving door leaves retain independent draws")
+	f.estate.free()
+
 func test_lod_scale_compensation() -> void:
 	# 4.7 GLES uses max(global basis column lengths) * lod_bias, not buffer scale.
 	# Test the actual generated draw; no Dummy renderer LOD/buffer readback.
@@ -762,6 +774,7 @@ func run() -> void:
 	test_native_properties()
 	test_cleanup_lifecycle()
 	test_mesh_and_selection()
+	test_repeated_estate_parts()
 	test_lod_scale_compensation()
 	test_rejections()
 	test_invalidations()

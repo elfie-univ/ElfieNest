@@ -94,6 +94,10 @@ semantic commands and records Runtime facts. Both Labs use the same Godot Web
 export as the real desktop run; each just provides an isolated web shell, data
 root and local protocol entry.
 
+In Nest Lab, **Elfie actions → Pose** includes nod and shake head for supported
+characters. These short gestures return to the live idle pose and can be interrupted
+by movement. The existing back, left-side and right-side sleep cycles remain available.
+
 Local ports are layered by convention: the real App uses `8000` / `8765`, while
 Developer Tools exposes one HTTP port at `127.0.0.1:9001`. Running any default
 Developer Tool command again safely restarts the current workspace instance; the

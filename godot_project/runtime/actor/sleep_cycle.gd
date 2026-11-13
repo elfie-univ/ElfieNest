@@ -27,11 +27,13 @@ var _elapsed := 7.0
 var _walk_direction := Vector3.ZERO
 var _bedside_sign := -1.0
 var grip_report: Dictionary = {}
+var _eye_runtime: RefCounted
 
 func bind(body: ElfieActor, duvet: MeshInstance3D, owner: Node3D) -> void:
 	_body = body
 	_owner = owner
 	_visual = body.get_node("VisualRoot")
+	_bind_eyes(body)
 	body.get("_animation_runtime").advance(1.0)
 	# This explicit local preview owns its visual clock only.
 	body.set_process(false)
@@ -69,7 +71,19 @@ func bind_actor(body: ElfieActor) -> String:
 	_body = body
 	_visual = body.get_node("VisualRoot")
 	_hips = skeleton
+	_bind_eyes(body)
 	return ""
+
+func _bind_eyes(body: ElfieActor) -> void:
+	if _eye_runtime != null:
+		_eye_runtime.end_sleep_eyes(self)
+	_eye_runtime = body.get("_animation_runtime")
+	_eye_runtime.begin_sleep_eyes(self)
+
+func _exit_tree() -> void:
+	if _eye_runtime != null:
+		_eye_runtime.end_sleep_eyes(self)
+		_eye_runtime = null
 
 func _restore_neutral() -> void:
 	for index in range(_neutral.size()):
@@ -199,6 +213,9 @@ func _settle_tail() -> void:
 
 func sample_bedding(seconds: float) -> void:
 	var t := fposmod(seconds,CYCLE)
+	if _eye_runtime != null:
+		var closure := smoothstep(5.0, 5.5, t) * (1.0 - smoothstep(12.0, 12.4, t))
+		_eye_runtime.sample_sleep_eyes(self, closure)
 	var sleeping: Dictionary = _poses[mode]
 	var cover := 0.0
 	var opened := 0.0
@@ -260,7 +277,7 @@ func sample_bedding(seconds: float) -> void:
 	_reach_duvet(grip)
 	_duvet.commit()
 	if blanket.has_meta("estate_bedding_layers"):
-		blanket.get_meta("estate_bedding_layers").sample()
+		blanket.get_meta("estate_bedding_layers").sample(_duvet.points())
 
 func _walk(distance: float, seconds: float) -> void:
 	_apply_snapshot(_standing)

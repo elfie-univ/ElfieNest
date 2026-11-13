@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { DebugToolbar, actionRequest, actionLocationGroups, previewActorAction } from "./DebugToolbar";
+import { DebugToolbar, animationActionGroups, actionRequest, actionLocationGroups, previewActorAction } from "./DebugToolbar";
 import { CameraSelectors, ObservationToolbar } from "./ObservationToolbar";
 import { EnvironmentToolbar } from "./EnvironmentToolbar";
 import { actorOptions } from "./ActorPicker";
@@ -19,6 +19,12 @@ const catalog = previewCatalogSchema.parse({
 });
 
 describe("Nest Lab cascade", () => {
+  it("offers available head gestures through the existing actor action request", () => {
+    const items = animationActionGroups(["nod_head", "shake_head"]).flatMap(group => group.options);
+    expect(items).toEqual([{value:"clip:nod_head",label:"点头"},{value:"clip:shake_head",label:"摇头"}]);
+    expect(animationActionGroups(["idle"]).flatMap(group => group.options).map(item => item.value)).toEqual(["clip:idle"]);
+    expect(actionRequest("animation","actor","nod_head",undefined)).toEqual({actor_id:"actor",action:"animation",animation:"nod_head"});
+  });
   it("allows inspecting a ready scene before the resident runtime is configured", () => {
     const html = renderToStaticMarkup(<ObservationToolbar catalog={catalog} actors={[]} actorId="" selectActor={() => {}} manageActors={() => {}} ready={false} send={() => {}} />);
     const reset = html.match(/<button\b[^>]*aria-label="复位"[^>]*>/)?.[0];

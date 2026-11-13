@@ -3,14 +3,14 @@ extends RefCounted
 ## No guessed radius reduction. Tail is excluded by the approved F01 exception.
 
 
-static func regions(actor: ElfieActor, include_tail: bool = false) -> Dictionary:
+static func regions(actor: ElfieActor, include_tail: bool = false, unique_only: bool = false) -> Dictionary:
 	if include_tail:
 		var sampler: RefCounted = actor.get_meta("seated_skin_sampler") if actor.has_meta("seated_skin_sampler") else null
 		if sampler == null:
 			sampler = preload("res://runtime/actor/seated_skin_sampler.gd").new()
 			actor.set_meta("seated_skin_sampler",sampler)
 		if not sampler.valid(actor): sampler.build(actor,Callable(load("res://runtime/actor/furniture_seated_collision.gd"),"_region"))
-		return sampler.sample(actor)
+		return sampler.sample(actor,unique_only)
 	var skeleton := actor._furniture_hips()["skeleton"] as Skeleton3D
 	skeleton.force_update_all_bone_transforms()
 	var groups: Dictionary = {}
@@ -56,7 +56,7 @@ static func regions(actor: ElfieActor, include_tail: bool = false) -> Dictionary
 
 
 static func shapes(actor: ElfieActor, include_tail: bool = false) -> Array[Shape3D]:
-	var groups := regions(actor, include_tail)
+	var groups := regions(actor, include_tail, include_tail)
 	var result: Array[Shape3D] = []
 	for key: String in groups:
 		var points := PackedVector3Array(groups[key])

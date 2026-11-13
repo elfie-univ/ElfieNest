@@ -393,7 +393,7 @@
     "nest/rendering/estate_daylight.gd": "6663f0bbe11b06b60caff0ee45e1c2ddfc89220c164d259361d4b99c82149938",
     "nest/rendering/estate_event_effects.gd": "8dcdc9080e963b04ab08f5a798b61d47e83cf21ff56fb299a9f98af6bcf93d00",
     "nest/rendering/estate_glass.gdshader": "e491a327efb12591bda139597e0c67c4886616614461c274d5510ac63f9b0daa",
-    "nest/rendering/estate_instance_batches.gd": "1c4f8e2168308eba61c1a9fdc58f824529e7f925e3a26b5e27ae9adde0643729",
+    "nest/rendering/estate_instance_batches.gd": "38e4a7be040dabc8e104a2091d9dd8081491e0d2e47f20a03f305a77bcd14aac",
     "nest/rendering/estate_iridescence.gdshaderinc": "b4a1f9983099c255fd356be19895fada88a1e6762ac4e96d31ee3e5c655a354d",
     "nest/rendering/estate_lighting.gd": "c1f4256986bc3c30f3b457ab2b686af784dad6ea06499195bbda3f24af77dd68",
     "nest/rendering/estate_lighting_sample.gd": "8dc86e0acad1130c9d096010be4af2c0e286b0b7285a8770032300ca9a3081d8",
@@ -413,5 +413,5 @@
     "nest/spatial/estate_semantics.gd": "c36d67c711f8ffa028ebf99f6bb1f0176a5ec851c15b58ee6915444d40df563f",
     "nest/spatial/estate_spatial_data.gd": "b1d1b3392c8e21df393674e01c6314874c16e1ddd1a6f2a758b893c74abf057d"
   },
-  "source_tree": "2edc11789b82f5cefbcad8d82740066dc6d73416ec96a34aa4f6cf80921b18a8"
+  "source_tree": "ddd5d311cee3949f1f8906538374202c4d32ef484aae4efab3420f64607b3e1c"
 }

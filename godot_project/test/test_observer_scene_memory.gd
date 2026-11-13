@@ -16,7 +16,8 @@ func run() -> void:
 	print("OBSERVER_MEMORY bytes=",bytes)
 	if not require(bytes<1600000000,"Complete observer must stay below 1.6 GB of scene allocations"):return
 	var estate := nest.get_node("Generated/CompleteEstate") as Node3D
-	if not require(preload("res://test/split_estate_test_support.gd").batch_error(estate).is_empty(),"Every landscape group and instance must remain present"):return
+	var batch_error := preload("res://test/split_estate_test_support.gd").batch_error(estate)
+	if not require(batch_error.is_empty(), batch_error): return
 	if not require(estate.find_children("*","MeshInstance3D",true,false).size()>=9000,"Complete building and furniture geometry must remain present"):return
 	if not require(nest._anchor_markers.size()==137 and nest._estate_physics.collider_count>0 and nest._estate_physics._doors.size()==10,"Complete interaction and physics must remain present"):return
 	if not require(nest.bake_navigation() and await nest.wait_for_navigation_sync() and nest.validate_navigation_anchors(),"Every anchor must retain its complete route to the courtyard"):return

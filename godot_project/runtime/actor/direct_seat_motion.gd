@@ -94,35 +94,40 @@ func bind(body: ElfieActor, contact: Transform3D, entry: Transform3D, profile: R
 		exit_shapes.assign(cached.outgoing)
 		seated_shapes.assign(pose_shapes.back())
 	else:
-		for index in range(17):
-			sample(float(index) / 16.0)
-			var shapes: Array[Shape3D] = _shape_builder.call(actor, true)
-			pose_shapes.append(shapes)
-			# Restore the displayed pose before yielding. Web must keep rendering and
-			# handling input while the real skinned collision poses are prepared.
-			actor.global_transform = original_frame
-			(actor.get_node("VisualRoot") as Node3D).transform = original_visual
-			_apply(original_pose)
-			await actor.get_tree().process_frame
-			if not actor.cycle_available():
-				actor.set_physics_process(true)
-				actor.set_process(true)
-				player.play("idle", 0.0)
-				return "cancelled"
+		# Target a quarter of the observed frame time, bounded at 8–100 ms.
+		# A native hull call completes atomically before the budget is checked.
+		# Yielding after every pose otherwise adds 34 full garden renders.
+		var budget_us := clampi(int(250000.0/maxf(Engine.get_frames_per_second(),1.0)),8000,100000)
+		var slice_started := Time.get_ticks_usec()
+		var unique_poses := {}
+		for animation: Animation in [TRAVEL, EXIT]:
+			var samples := pose_shapes if animation == TRAVEL else exit_shapes
+			for index in range(17):
+				var t := smoothstep(0.0, 1.0, float(index) / 16.0)
+				var weights := _pose_weights(animation, t)
+				if not unique_poses.has(weights):
+					# Hulls are in actor coordinates. Translation along the arc only
+					# enters the subsequent world-space overlap and sweep queries.
+					actor.global_transform = start_frame
+					(actor.get_node("VisualRoot") as Node3D).transform = standing_visual
+					_apply_body_pose(weights)
+					_apply_tail()
+					unique_poses[weights] = _shape_builder.call(actor, true)
+				samples.append(unique_poses[weights])
+				if Time.get_ticks_usec() - slice_started >= budget_us:
+					# Only the original visible pose may cross a rendered frame.
+					actor.global_transform = original_frame
+					(actor.get_node("VisualRoot") as Node3D).transform = original_visual
+					_apply(original_pose)
+					await actor.get_tree().process_frame
+					slice_started = Time.get_ticks_usec()
+					if not actor.cycle_available():
+						actor.set_physics_process(true)
+						actor.set_process(true)
+						player.play("idle", 0.0)
+						return "cancelled"
 		seated_shapes.assign(pose_shapes.back())
-		for index in range(17):
-			sample_exit(float(index) / 16.0)
-			var shapes: Array[Shape3D] = _shape_builder.call(actor, true)
-			exit_shapes.append(shapes)
-			actor.global_transform = original_frame
-			(actor.get_node("VisualRoot") as Node3D).transform = original_visual
-			_apply(original_pose)
-			await actor.get_tree().process_frame
-			if not actor.cycle_available():
-				actor.set_physics_process(true)
-				actor.set_process(true)
-				player.play("idle", 0.0)
-				return "cancelled"
+		print("DIRECT_SEAT_HULLS unique=", unique_poses.size(), " samples=", pose_shapes.size() + exit_shapes.size())
 		actor.set_meta("seated_pose_cache",{"key":cache_key,"incoming":pose_shapes.duplicate(),"outgoing":exit_shapes.duplicate()})
 	tail_weight = 0.0
 	_saved_shape = actor._collision_shape.shape
@@ -208,15 +213,7 @@ func _sample(animation: Animation, amount: float, leaving: bool) -> void:
 	var travel := animation.position_track_interpolate(0, t)
 	travel.x = clampf(travel.x, 0.0, 1.0)
 	travel.y = maxf(travel.y, 0.0)
-	var crouch := clampf(float(animation.value_track_interpolate(1, t)), 0.0, 1.0)
-	var fold := clampf(float(animation.value_track_interpolate(2, t)), 0.0, 1.0)
-	tail_pose.set("seated_weight", fold)
-	for i in range(standing.size()):
-		var a := standing[i]
-		var b := sitting[i]
-		var pose := a.interpolate_with(b, fold).interpolate_with(crouching[i], crouch)
-		skeleton.set_bone_pose_position(i, pose.origin)
-		skeleton.set_bone_pose_rotation(i, pose.basis.orthonormalized().get_rotation_quaternion())
+	_apply_body_pose(_pose_weights(animation, t))
 	var from := end_frame.origin if leaving else start_frame.origin
 	var to := start_frame.origin if leaving else end_frame.origin
 	# Keep the pelvis forward of a narrow chair back while airborne. The
@@ -226,6 +223,20 @@ func _sample(animation: Animation, amount: float, leaving: bool) -> void:
 	var clearance := minf(travel.y * arc_clearance,remaining)
 	actor.global_transform = Transform3D(start_frame.basis, from.lerp(to, travel.x) + Vector3.UP * travel.y * rise_scale + start_frame.basis.z * clearance)
 	_apply_tail()
+
+static func _pose_weights(animation: Animation, t: float) -> Array[float]:
+	return [
+		clampf(float(animation.value_track_interpolate(1, t)), 0.0, 1.0),
+		clampf(float(animation.value_track_interpolate(2, t)), 0.0, 1.0)]
+
+func _apply_body_pose(weights: Array[float]) -> void:
+	var crouch := weights[0]
+	var fold := weights[1]
+	tail_pose.set("seated_weight", fold)
+	for i in range(standing.size()):
+		var pose := standing[i].interpolate_with(sitting[i], fold).interpolate_with(crouching[i], crouch)
+		skeleton.set_bone_pose_position(i, pose.origin)
+		skeleton.set_bone_pose_rotation(i, pose.basis.orthonormalized().get_rotation_quaternion())
 
 func clear_path(previous: Transform3D, next: Transform3D, amount: float, leaving: bool = false) -> bool:
 	last_obstacle = ""

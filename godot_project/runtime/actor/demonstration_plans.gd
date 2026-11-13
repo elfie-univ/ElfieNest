@@ -17,12 +17,7 @@ static func points(nest: ModularNest, id: String, bed: String) -> PackedVector3A
    for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
     var name := str(mesh.get_meta("extras", {}).get("source_name", mesh.name))
     if id == "forest" and name == "FOREST TRAIL smooth gravel main loop and return spur":
-     var paths: Array = mesh.get_meta("extras", {}).get("forest_trail_paths", [])
-     if paths.is_empty(): return result
-     var path: Array = paths[0]
-     for index in range(0, path.size(), maxi(1, int(path.size() / 16))):
-      var p: Array = path[index]
-      result.append(mesh.to_global(Vector3(float(p[0]),float(p[1]),float(p[2]))))
+     result = forest_path(mesh)
      break
     if (id == "ring" and name == "ROAD REF • ring continuous warm-grey stone bed") or (id == "lake" and name == "CY R003 circular waterfront platform closed foundation"):
      var bounds := mesh.global_transform * mesh.get_aabb()
@@ -43,6 +38,45 @@ static func points(nest: ModularNest, id: String, bed: String) -> PackedVector3A
   if marker == null: return PackedVector3Array()
   result.append(marker.global_position)
  return navigable(nest, result)
+
+static func forest_path(mesh: MeshInstance3D) -> PackedVector3Array:
+ # The formal trail is an open paved band with two entrances and a return
+ # spur. Follow its actual connected triangles, not retired authoring extras
+ # or a straight chord across the woodland. Navigation then supplies clearance.
+ if mesh.has_meta("demonstration_forest_path"):
+  return mesh.get_meta("demonstration_forest_path")
+ var graph := AStar3D.new()
+ var ids := {}
+ var middle := mesh.get_aabb().get_center().x
+ var entrances := [-1, -1]
+ var south := [-INF, -INF]
+ var faces := mesh.mesh.get_faces()
+ for face in range(0, faces.size(), 3):
+  var vertices := PackedInt64Array()
+  for offset in range(3):
+   var p: Vector3 = faces[face + offset]
+   var key := p.snapped(Vector3.ONE * 0.001)
+   if not ids.has(key):
+    var id := ids.size()
+    ids[key] = id
+    graph.add_point(id, mesh.to_global(p))
+    var side := 0 if p.x < middle else 1
+    if p.z > south[side]:
+     south[side] = p.z
+     entrances[side] = id
+   vertices.append(ids[key])
+  for edge in range(3):
+   var a := vertices[edge]
+   var b := vertices[(edge + 1) % 3]
+   if a != b and not graph.are_points_connected(a, b): graph.connect_points(a, b)
+ var result := PackedVector3Array()
+ if entrances[0] >= 0 and entrances[1] >= 0:
+  var path := graph.get_point_path(entrances[0], entrances[1])
+  for index in range(path.size()):
+   if result.is_empty() or result[-1].distance_to(path[index]) >= 1.0 or index == path.size()-1:
+    result.append(path[index])
+ mesh.set_meta("demonstration_forest_path", result)
+ return result
 
 static func navigable(nest: ModularNest, points_to_check: PackedVector3Array) -> PackedVector3Array:
  var map := nest.get_world_3d().navigation_map

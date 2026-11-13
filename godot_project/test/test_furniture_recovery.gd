@@ -32,6 +32,16 @@ func run() -> void:
 		assert(absf((contact-pelvis).dot(actor.global_basis.x.normalized())) < 0.001,"Low skin band shifted the seat sideways")
 		for pose: String in ["pose_thinking", "pose_victory", "pose_thumbs_up", "pose_hands_on_hips"]:
 			assert(actor.play_runtime_expression(pose), "Lost expression " + pose)
+			var sample := player.current_animation_position
+			var rotations: Array[Quaternion] = []
+			for bone in range(skeleton.get_bone_count()):
+				rotations.append(skeleton.get_bone_pose_rotation(bone))
+			for tick in range(120):
+				actor._process(player.get_animation(pose).length / 60.0)
+			assert(player.current_animation == pose and not player.playback_active, "Frozen expression expired: " + species + " " + pose)
+			assert(is_equal_approx(player.current_animation_position, sample), "Frozen sample drifted: " + pose)
+			for bone in range(skeleton.get_bone_count()):
+				assert(skeleton.get_bone_pose_rotation(bone).is_equal_approx(rotations[bone]), "Frozen bone drifted: " + pose)
 		assert(actor.play_runtime_expression("idle"))
 		assert(player.current_animation == "idle" and player.playback_active, "Stop must leave a frozen expression")
 		actor.free()
