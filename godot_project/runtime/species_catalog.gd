@@ -51,7 +51,11 @@ static func discover_package_ids() -> Array[String]:
 		var entry := directory.get_next()
 		if entry.is_empty():
 			break
-		if directory.current_is_dir() and entry not in ["shared", "animation", "tools"]:
+		if (
+			directory.current_is_dir()
+			and entry not in ["shared", "animation", "tools"]
+			and not FileAccess.file_exists("res://characters/%s/.gdignore" % entry)
+		):
 			package_ids.append(entry)
 	directory.list_dir_end()
 	package_ids.sort()
