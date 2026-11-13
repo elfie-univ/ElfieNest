@@ -67,15 +67,14 @@ def test_waterfall_has_no_exposed_footing_fins_or_soil(path):
 
 
 APPROVED_WATERSIDE = {
-    GROUND: "fa9104e82e46d3e35442ec75947f1f9d80ac07285a22244297a03784357c9fe7",
-    FOUNTAIN: "fcc71e5930ff223b97bb059337d9c6d810a9dee965a254d62f9e502591dccff3",
+    GROUND: "cd71590be73617d07cecf4526ab91a2b379721ab119f88c315c27acf9c5be198",
+    FOUNTAIN: "dce0e9c308821c7e25ae82b3c77311035c4278b8077268e4366b20b662873831",
     LAKE: "1c1b342d9968d1e0395d8a6f1984050acce8d82a4f1c6eb92c9a73835f32772e",
 }
 
 
 def _approved_waterside():
-    # Old merged earth boxes are not the approved split shore topology. These
-    # frozen inputs plus native world contacts protect that approved visual work.
+    # Protect the optimized 5a215035 inputs and the shore contacts below.
     for relative, digest in APPROVED_WATERSIDE.items():
         assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == digest
     return _model(GROUND), _model(FOUNTAIN), _model(LAKE)

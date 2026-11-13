@@ -145,7 +145,7 @@ def test_accepted_split_source_tree_keeps_authored_glb_inputs() -> None:
     ).hexdigest()
     assert (
         fingerprint
-        == "5ea6d7309188b609705c19bf323373c8786e2bc47cfd7e4aab0f627beb3fa18b"
+        == "72cb35c2501efc41d8c0b6ba1a534b911b4ca97ce534794d4d5a9c5458488d2b"
     )
     actual = {
         str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()

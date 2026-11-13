@@ -40,7 +40,7 @@ describe("formal Nest asset menu", () => {
     expect(category("buildings").children[0]!.label).toBe("主楼");
   });
 
-  it("lifts only courtyard overview and single complete layouts", () => {
+  it("lifts standalone courtyard and furniture layouts", () => {
     const furniture = category("furniture");
     const layouts = folder(furniture.children, "furniture-layouts");
     expect(layouts.children!.map(item => item.id)).toEqual([
@@ -62,9 +62,9 @@ describe("formal Nest asset menu", () => {
     expect(assetPath(court.children, "view:courtyard-covered"))
       .toEqual(["courtyard-overview", "view:courtyard-covered"]);
     expect(assetPath(court.children, "view:courtyard-ground"))
-      .toEqual(["courtyard-areas", "ground", "view:courtyard-ground"]);
+      .toEqual(["courtyard-areas", "view:courtyard-ground"]);
     expect(assetPath(court.children, "view:meadow-layout"))
-      .toEqual(["courtyard-areas", "meadow", "view:meadow-layout"]);
+      .toEqual(["courtyard-areas", "view:meadow-layout"]);
     expect(category("total").children.map(item => item.id)).toEqual(["view:estate-layout"]);
   });
 
@@ -82,7 +82,9 @@ describe("formal Nest asset menu", () => {
     const parts = folder(category("courtyard").children, "courtyard-parts");
     expect(parts.children!.map(item => item.label)).toEqual(["地面", "森林", "水榭", "草原", "共享"]);
     expect(assetLeaves(folder(parts.children!, "shared").children!).map(item => item.id))
-      .toEqual(["source:plant-library", "source:forest-wood", "source:forest-foliage", "source:shore-stones"]);
+      .toEqual(["source:plant-library", "source:shore-stones"]);
+    expect(assetPath(category("courtyard").children, "source:forest-foliage"))
+      .toEqual(["courtyard-parts", "forest", "source:forest-foliage"]);
   });
 
   it("renders the selected shared asset in the existing toolbar", () => {

@@ -2,7 +2,7 @@
   "files": {
     "nest/assembly/activity_regions.gd": "58bdc6f8ea373f0ddcfb59f2b82aa906d83abef2dbcf091e0d316c0ec5e94234",
     "nest/assembly/activity_regions.tres": "f2baa5c55a080d440dd19408cfd276b23afbb2ce105150e25a401a3a7328ed67",
-    "nest/assembly/asset-index.json": "0fc06c29f88ff15e465bf88d05b80056fe7fbf4d937dd779c3428f778f6c0ea6",
+    "nest/assembly/asset-index.json": "2674f266c4e39b5b17441f9073cb996ea89adaf8b04d19326463b81d34628149",
     "nest/assembly/estate.tscn": "7580f187c3512a8b2908aa1bc240f0317142d174558344a9758348b3a4c808b6",
     "nest/assembly/estate_runtime.gd": "fd6f6855d7e226a2dd1b08aa7ac9ba5ec696319a5ca32792f5001021c522c94a",
     "nest/assembly/glb_placement.gd": "47b3af100b53a06ceac4892067b1096b99068351b0ca1e9faaf95b771d5ff95c",
@@ -27,7 +27,7 @@
     "nest/buildings/main/arrival/estate_petal_side.gdshader": "b0d44bb04d741af8448cc89618e0e6d0db9adaa8c5feae3d368d0e1cc2350780",
     "nest/buildings/main/arrival/estate_platform_cycle.gd": "856a59c50dcb3d1cefc59834f2cc23840d2fdd53f3116c76a4511e0bfa17c1f8",
     "nest/buildings/main/arrival/estate_transit_column.gdshader": "baac3861fc5a66ae1cacd022914043e04ea79ff8abb51fb63d12369a32fcbbb3",
-    "nest/buildings/main/central-building.glb": "1f6177540c8329a16069cc84873235a58f9b4bc58fba59855b09782a487d6435",
+    "nest/buildings/main/central-building.glb": "52230bde5a6f3a99b8f21256fae06f768383e2ce1af082ab445e38a2a5070f6b",
     "nest/buildings/main/central-building.glb.import": "8eac36d466d3f37d62a8edaeaf42ded90ef16dfc83b07e500b8a5a75ecb22f64",
     "nest/buildings/pod/pod-building.glb": "c12ea90b4f8f88a64e8ff5b66de2e9e7f9bab567a9985ff078eebeae2f1901e8",
     "nest/buildings/pod/pod-building.glb.import": "e3be429a6b43257408ee1c408e75111708b185157f7d88e5ad6332f0725272dc",
@@ -413,5 +413,5 @@
     "nest/spatial/estate_semantics.gd": "c36d67c711f8ffa028ebf99f6bb1f0176a5ec851c15b58ee6915444d40df563f",
     "nest/spatial/estate_spatial_data.gd": "b1d1b3392c8e21df393674e01c6314874c16e1ddd1a6f2a758b893c74abf057d"
   },
-  "source_tree": "ddd5d311cee3949f1f8906538374202c4d32ef484aae4efab3420f64607b3e1c"
+  "source_tree": "04a151848b249a04928eaaea5644c5ac98d2cfdd4e60ee8f1543b23021a846dc"
 }

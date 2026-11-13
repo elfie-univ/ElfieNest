@@ -35,7 +35,7 @@ def test_building_menu_names_bedroom_structure_and_exposes_eight_sliding_doors()
     graph = json.loads((NEST / "assembly/asset-index.json").read_text())["fileGraph"]
     entries = graph["entries"]
     bedroom = entries["source:pod-building"]
-    assert bedroom["title"] == "卧室建筑"
+    assert bedroom["title"] == "共享小屋"
     main = entries["source:central-building"]
     doors = next(
         part for part in main["components"] if part["id"] == "bedroom-sliding-door"

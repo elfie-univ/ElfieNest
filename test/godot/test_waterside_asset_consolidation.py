@@ -79,7 +79,7 @@ def test_water_features_have_two_complete_source_entries():
             "courtyard/parts/waterside/fountain.glb",
             81,
             "COMPLETE Inset natural lake receiving under spillway",
-            "cadfcb30abd489de06be92902ca1149eaf34a529b19513945c234ff5075a741f",
+            "52c029cb8689949b181bb96a693ff91f4716c0a9183dd7475bd565b0acfcef32",
         ),
     ],
 )
@@ -88,6 +88,7 @@ def test_consolidation_preserves_every_mesh_corner_material_and_pose(
 ):
     rows = render_rows(NEST / file)
     assert len(rows) == count
+    # Compare against the approved optimized fountain from 5a215035.
     # The receiving contour follows the physical-bank fit contract. The approved
     # replacement of the old lily prototypes is covered by test_lotus_bay.
     unchanged = [

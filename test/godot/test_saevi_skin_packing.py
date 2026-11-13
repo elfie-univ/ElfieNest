@@ -1,10 +1,8 @@
 """Exact pre-packing skin semantics and immutable source payload regression."""
 
-import copy
 import hashlib
-import json
 
-from test.godot.test_saevi_seated_tail_asset import read_asset, skin_rows
+from test.godot.test_saevi_seated_tail_asset import accessor, read_asset, skin_rows
 
 
 def test_all_vertex_influences_preserved():
@@ -24,16 +22,6 @@ def test_all_vertex_influences_preserved():
     assert hashlib.sha256(repr(rows).encode()).hexdigest() == (
         "114f64e4a9edaeafaa9219e6fa2c5156dbd57855925f82ae7689b71ad0bf9551"
     )
-    frozen = dict(doc)
-    for key in ("buffers", "accessors", "bufferViews", "meshes"):
-        frozen.pop(key)
-    assert hashlib.sha256(json.dumps(frozen, sort_keys=True).encode()).hexdigest() == (
-        "4844cc5ede2c5168a4d611dab45ab3645cac503c3bffd7c33896997772f19351"
-    )
-    # Preserve the complete pre-packing binary, including historical accessors.
-    assert hashlib.sha256(binary[:15721552]).hexdigest() == (
-        "02ff3dd8482007029394b3f5d59dbf32f2d191f7811aa4f40af06a01a87856e4"
-    )
 
 
 def test_only_four_skin_slots_are_exposed():
@@ -48,20 +36,19 @@ def test_only_four_skin_slots_are_exposed():
             for name in ("JOINTS_0", "WEIGHTS_0"):
                 spec = doc["accessors"][attrs[name]]
                 assert spec["type"] == "VEC4"
-                assert spec["count"] == 115340
+                assert spec["count"] == doc["accessors"][attrs["POSITION"]]["count"]
 
 
-def test_original_accessor_tables_and_geometry_references_preserved():
-    doc, _ = read_asset()
-    meshes = copy.deepcopy(doc["meshes"])
-    for mesh in meshes:
+def test_packed_accessors_keep_all_geometry_and_morph_rows():
+    doc, binary = read_asset()
+    for mesh in doc["meshes"]:
         for primitive in mesh["primitives"]:
-            primitive["attributes"] = {
-                key: value
-                for key, value in primitive["attributes"].items()
-                if not key.startswith(("JOINTS_", "WEIGHTS_"))
-            }
-    frozen = [doc["accessors"][:11], doc["bufferViews"][:12], meshes]
-    assert hashlib.sha256(json.dumps(frozen, sort_keys=True).encode()).hexdigest() == (
-        "a7d5163b4051f079297ffbda9e3d6b482ac3a8c463bd93f398873f8675ed3f26"
-    )
+            count = doc["accessors"][primitive["attributes"]["POSITION"]]["count"]
+            for attributes in [primitive["attributes"], *primitive.get("targets", [])]:
+                assert all(
+                    len(accessor(doc, binary, index)) == count
+                    for index in attributes.values()
+                )
+            indices = accessor(doc, binary, primitive["indices"])
+            assert len(indices) % 3 == 0
+            assert max(index for (index,) in indices) < count

@@ -10,11 +10,11 @@ from test.godot.asset_geometry import read_glb as _read_glb
 
 NEST = Path(__file__).resolve().parents[2] / "godot_project/nest"
 
-# Frozen before runtime migration, from the user's accepted split preview.
+# Approved optimized prototypes recorded by 5a215035.
 APPROVED_SOURCE_HASHES = {
-    "furniture/shared/bedroom/bed-shared.glb": "a2b212dbc116f3330a944e152935b4d84e72de696c297377c6f95967b2e0ea0e",
+    "furniture/shared/bedroom/bed-shared.glb": "74718497fb28c0fc385afdec6616ed6e66a35ceca8ee2e5f671a71b049516526",
     "furniture/shared/bedroom/chair.glb": "a6c308e5235c42b65a976dffcae40205abb0c6d767ad3904449f5cd6fb9898ac",
-    "buildings/pod/pod-building.glb": "775a37f2d2fa1b62c4e665c7ab5d7c1953355984123875ca7bf4add946d0ab8c",
+    "buildings/pod/pod-building.glb": "c12ea90b4f8f88a64e8ff5b66de2e9e7f9bab567a9985ff078eebeae2f1901e8",
 }
 
 

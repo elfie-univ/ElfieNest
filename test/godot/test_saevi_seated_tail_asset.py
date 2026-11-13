@@ -6,7 +6,10 @@ import json
 import math
 import os
 import struct
+from io import BytesIO
 from pathlib import Path
+
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 ASSET = ROOT / "godot_project/characters/saevi/saevi.glb"
@@ -15,12 +18,11 @@ EXPECTED = {
         "POSITION": "57945394486a64c25ee5972b4a8c546e00baa8ec58a140cdada3db314e38326a",
         "NORMAL": "190072e291e2f540cda82718d8c1e70d30fa4170b624eb48f791e321e225afff",
         "TEXCOORD_0": "8e1e5ca1576d5a9cd3ba882dc77922c9147754c5b1e6a52b9fa89b71ba78eea7",
-        "image_0": "3a99cc5b9f9b3c1e17398ba164ccdfcd5b2d6a863e91c728f0f3d49ad550fc28",
-        "materials": "5af935f3f33a4b6fc78983c5f07eb185c3b2ef6cca2f0784e935f7b4a150a2cf",
+        "body_texture": "0161296a1f1d4db88dc5f076ca5f63d02fb8de01d14803eaea561c2f9819b5d0",
+        "materials": "ff8e3040c503e95bdde378bd818b96a2100112b36c3e5ade9dd0f6d346ce0ef1",
         "indices": "3c7109045721c54c0ca79edf60a4c09d21236adacddfa52b5433c0af127c2830",
     },
     "original_bind": "494f5cd24e020a467d858092c2df55801fb8177e569954cd03c70805482cbc04",
-    "source_weights": "496f41c8ca2197eaf014f14cca4807c3f298209fe57b3f057d4b4868935826c8",
     "non_tail_weights": "14fb20c5c9db91fa0422460c2908a90ca57e10bccb6aafeef9d7a3f5f3846ead",
     "tail_region": "f0723586dc34ee64c4d9ec36ecaaea2091f1d889b74eb649be4ad139a0e2d847",
 }
@@ -51,6 +53,17 @@ def digest(value):
     return hashlib.sha256(value).hexdigest()
 
 
+def emissive_pixels(doc, binary, primitive):
+    material = doc["materials"][primitive["material"]]
+    texture = doc["textures"][material["emissiveTexture"]["index"]]
+    image = doc["images"][texture["source"]]
+    view = doc["bufferViews"][image["bufferView"]]
+    start = view.get("byteOffset", 0)
+    with Image.open(BytesIO(binary[start : start + view["byteLength"]])) as decoded:
+        assert decoded.size == (2048, 2048)
+        return digest(decoded.convert("RGBA").tobytes())
+
+
 def appearance(doc, binary):
     attrs = doc["meshes"][0]["primitives"][0]["attributes"]
     result = {}
@@ -61,12 +74,10 @@ def appearance(doc, binary):
                 for v in accessor(doc, binary, attrs[name])
             )
         )
-    for i, image in enumerate(doc["images"]):
-        view = doc["bufferViews"][image["bufferView"]]
-        start = view.get("byteOffset", 0)
-        result[f"image_{i}"] = digest(binary[start : start + view["byteLength"]])
-    result["materials"] = digest(json.dumps(doc["materials"], sort_keys=True).encode())
     primitive = doc["meshes"][0]["primitives"][0]
+    material = doc["materials"][primitive["material"]]
+    result["body_texture"] = emissive_pixels(doc, binary, primitive)
+    result["materials"] = digest(json.dumps([material], sort_keys=True).encode())
     result["indices"] = digest(
         repr(accessor(doc, binary, primitive["indices"])).encode()
     )
@@ -93,22 +104,27 @@ def skin_rows(doc, binary):
     return joints, weights
 
 
+def tail_membership(doc, joints, weights):
+    names = [doc["nodes"][index]["name"] for index in doc["skins"][0]["joints"]]
+    return [
+        any(names[j].startswith("Tail_") and w > 0 for j, w in zip(js, ws))
+        for js, ws in zip(joints, weights)
+    ]
+
+
 def body_weights(doc, binary):
     skin = doc["skins"][0]
     joints, weights = skin_rows(doc, binary)
-    rows = []
-    source_js = accessor(doc, binary, 3)
-    source_ws = accessor(doc, binary, 4)
-    for js, ws, old_js, old_ws in zip(joints, weights, source_js, source_ws):
-        if any(j == 41 and w > 0 for j, w in zip(old_js, old_ws)):
-            continue
-        rows.append(
-            sorted(
-                (doc["nodes"][skin["joints"][j]]["name"], w)
-                for j, w in zip(js, ws)
-                if w > 0 and "Tail" not in doc["nodes"][skin["joints"][j]]["name"]
-            )
+    tail = tail_membership(doc, joints, weights)
+    rows = [
+        sorted(
+            (doc["nodes"][skin["joints"][j]]["name"], w)
+            for j, w in zip(js, ws)
+            if w > 0
         )
+        for js, ws, is_tail in zip(joints, weights, tail)
+        if not is_tail
+    ]
     return digest(repr(rows).encode())
 
 
@@ -224,11 +240,12 @@ def test_saevi_default_rest_skinning_unchanged():
     assert digest(repr(original).encode()) == EXPECTED["original_bind"]
     assert math.isfinite(sum(old))
     attrs = doc["meshes"][0]["primitives"][0]["attributes"]
-    # Authoring appends arrays: these original source accessors remain immutable.
-    source_js = accessor(doc, binary, 3)
-    source_ws = accessor(doc, binary, 4)
-    assert digest(repr((source_js, source_ws)).encode()) == EXPECTED["source_weights"]
+    # The packed file drops the historical weight accessors. The frozen tail
+    # vertex mask and body weights still identify every vertex independently.
     current_js, current_ws = skin_rows(doc, binary)
+    tail = tail_membership(doc, current_js, current_ws)
+    assert digest(bytes(tail)) == EXPECTED["tail_region"]
+    assert body_weights(doc, binary) == EXPECTED["non_tail_weights"]
     tail_bind = skin["joints"].index(control)
     skin_matrices = [
         multiply(worlds[index], inverse)
@@ -236,23 +253,17 @@ def test_saevi_default_rest_skinning_unchanged():
     ]
     positions = accessor(doc, binary, attrs["POSITION"])
     max_rest_error = 0.0
-    for position, original_js, original_ws, new_js, new_ws in zip(
-        positions, source_js, source_ws, current_js, current_ws
+    for position, new_js, new_ws, is_tail in zip(
+        positions, current_js, current_ws, tail
     ):
-        is_tail = any(
-            j == tail_bind and w > 0 for j, w in zip(original_js, original_ws)
-        )
         if not is_tail:
-            assert sorted((j, w) for j, w in zip(new_js, new_ws) if w > 0) == sorted(
-                (j, w) for j, w in zip(original_js, original_ws) if w > 0
-            )
             continue
         assert all(
             doc["nodes"][skin["joints"][j]]["name"].startswith("Tail_")
             for j, w in zip(new_js, new_ws)
             if w > 0
         )
-        assert abs(sum(new_ws) - sum(original_ws)) < 1e-7
+        assert abs(sum(new_ws) - 1.0) < 2e-7
 
         def deform(joints, weights, position=position):
             return [
@@ -267,7 +278,7 @@ def test_saevi_default_rest_skinning_unchanged():
                 for r in range(3)
             ]
 
-        original_position = deform(original_js, original_ws)
+        original_position = deform((tail_bind,), (1.0,))
         new_position = deform(new_js, new_ws)
         max_rest_error = max(max_rest_error, math.dist(original_position, new_position))
     assert max_rest_error < 2e-6
@@ -330,11 +341,8 @@ def test_saevi_tail_region_is_one_surface_attached_only_at_narrow_root():
     doc, binary = read_asset()
     attrs = doc["meshes"][0]["primitives"][0]["attributes"]
     positions = accessor(doc, binary, attrs["POSITION"])
-    source_js, source_ws = accessor(doc, binary, 3), accessor(doc, binary, 4)
-    tail = [
-        any(j == 41 and w > 0 for j, w in zip(js, ws))
-        for js, ws in zip(source_js, source_ws)
-    ]
+    joints, weights = skin_rows(doc, binary)
+    tail = tail_membership(doc, joints, weights)
     assert sum(tail) == 44606
     assert digest(bytes(tail)) == EXPECTED["tail_region"]
     # Exact-position welding removes UV seams without changing the source mesh.

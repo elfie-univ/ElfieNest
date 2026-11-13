@@ -17,7 +17,7 @@ FLOWER_FAMILIES = (
 def test_shared_flower_library_keeps_approved_complete_prototypes():
     path = ROOT / "godot_project/nest/courtyard/parts/shared/plant-library.glb"
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "b9527b9035787b95b4d3cd9794dabb8fa9993d623488c5034564c816e9ed493b"
+        "a90c4a9e6666b7e74e31171ee46e74db2d4d097713ec083c6e8143945456cef7"
     )
     document, _ = read_glb(path)
     nodes = [n for n in document["nodes"] if "mesh" in n]

@@ -35,7 +35,9 @@ def test_water_has_no_unnecessary_interior_grid():
     boundary = {point for edge, count in edges.items() if count == 1 for point in edge}
     vertices = {tuple(round(v, 5) for v in point) for tri in triangles for point in tri}
     assert len(vertices - boundary) <= 2
-    assert len(triangles) < 900
+    # A triangulated shoreline with no internal grid needs N - 2 faces.
+    assert len(triangles) == len(boundary) - 2
+    assert set(edges.values()) == {1, 2}
 
 
 def test_contact_surfaces_do_not_generate_automatic_approximate_lods():

@@ -9954,6 +9954,9 @@
         "file": "courtyard/parts/ground/shared-ground.glb",
         "focus": [
           "Generated/CompleteEstate/CompleteFinal/COMPLETE Building garden island",
+          "Generated/CompleteEstate/CompleteFinal/COMPLETE Building garden island/Region_forest",
+          "Generated/CompleteEstate/CompleteFinal/COMPLETE Building garden island/Region_meadow",
+          "Generated/CompleteEstate/CompleteFinal/COMPLETE Building garden island/Region_waterside",
           "Generated/CompleteEstate/CompleteFinal/CY R003 fountain connector inset limestone flag 00",
           "Generated/CompleteEstate/CompleteFinal/CY R003 fountain connector inset limestone flag 01",
           "Generated/CompleteEstate/CompleteFinal/CY R003 fountain connector inset limestone flag 02",
