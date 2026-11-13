@@ -15,8 +15,9 @@
   正式运行、Nest Lab 整体场景与发行导出使用同一份拆分总装。
   `estate/` 保留物理、导航、交互、灯光、水景脚本、shader 与 `estate_spatial.res`，
   不是第二套模型来源。
-- `furniture/bedroom/` 和 `layouts/bedroom/bedroom.tscn` 是卧室组件试点，编辑规则见
-  [卧室家具 AGENTS.md](furniture/bedroom/AGENTS.md)。整园入口引用正式拆分总装。
+- 正式卧室由 `furniture/layouts/bedroom/bedroom-layout.scn` 装入 A–D 套装，
+  套装引用 `furniture/shared/bedroom/` 的原型。V044 卧室试点、工作稿和独立场景归
+  [卧室创作试点](../tools/nest_authoring/bedroom-pilot/AGENTS.md)，其目录位于整园空间扫描和发行导出范围外。
 - Nest Lab 的「单件资产」从 `res://nest/` 加载拆分资源。
   [asset-index.json](assembly/asset-index.json) 登记每个资产的菜单路径、文件和引用关系。
   模型、贴图、场景及渲染资源都在本目录。改文件路径或增减引用时同步更新索引。
@@ -101,7 +102,7 @@ furniture/
 │   ├── bedroom/                  整床、转椅、卧室桌柜原型、台灯等
 │   ├── main/                     座椅、桌几、植物、摆件、画框
 │   └── terraces/                 座椅、矮桌、盆栽、地毯、内衬与灯槽
-└── textures/                     家具引用的外置贴图
+└── textures/                     家具引用的外置贴图，包括卧室正式套装与创作试点共用的贴图
 ```
 
 - `layouts/` 保存空间里的位置和朝向。主楼三层各一份，八个露台保留各自的布置。
@@ -242,8 +243,7 @@ courtyard/
   再定位正式 `res://nest/` 路径。改路灯款式进入路灯原型，挪一盏路灯进入地面总装的对应实例。
   实例变体和可变状态在使用方修改。灯光策略、水流、交互、碰撞及导航沿场景引用定位对应脚本、
   shader 或烘焙输入。每个原始节点只有一个拥有者。
-- **一个原型只编辑一份上游。** 已登记的 GLB 是形状源时改该 GLB。卧室试点以对应的
-  `source/*.blend` 为形状源，GLB 与原生 SCN 按各自流程生成。主楼和小屋的 Blender
+- **一个原型只编辑一份上游。** 已登记的 GLB 是形状源时改该 GLB。主楼和小屋的 Blender
   工作稿从当前正式 GLB 重建；从 Blender 改形状时，先导出候选并核对材质、复用、摆位
   和 Godot 绑定，再将已验收的形状合入正式 GLB。装配、灯光和运行行为仍由正式场景持有。
   导出和重放用法见 [建筑编辑工具](../tools/nest_authoring/README.md)。

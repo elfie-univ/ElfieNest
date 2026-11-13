@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bl7bxq1w17b0j"
-path="res://.godot/imported/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png-ccf5baff6eac8165488d49fde75da3a7.ctex"
+path="res://.godot/imported/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png-022c73ba1df44cf70ff7681ffd89bac1.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://nest/furniture/bedroom/textures/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png"
-dest_files=["res://.godot/imported/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png-ccf5baff6eac8165488d49fde75da3a7.ctex"]
+source_file="res://nest/furniture/textures/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png"
+dest_files=["res://.godot/imported/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png-022c73ba1df44cf70ff7681ffd89bac1.ctex"]
 
 [params]
 

@@ -30,7 +30,7 @@
                   "pillows"
                 ]
               },
-              "artifact": "nest/furniture/bedroom/bed/bed.scn"
+              "artifact": "tools/nest_authoring/bedroom-pilot/bed/bed.scn"
             },
             {
               "id": "chair",
@@ -42,7 +42,7 @@
                   "chair"
                 ]
               },
-              "artifact": "nest/furniture/bedroom/chair/chair.scn"
+              "artifact": "tools/nest_authoring/bedroom-pilot/chair/chair.scn"
             },
             {
               "id": "desk-a",
@@ -54,7 +54,7 @@
                   "desk"
                 ]
               },
-              "artifact": "nest/furniture/bedroom/desks/a/desk_a.scn"
+              "artifact": "tools/nest_authoring/bedroom-pilot/desks/a/desk_a.scn"
             },
             {
               "id": "desk-b",
@@ -66,7 +66,7 @@
                   "desk"
                 ]
               },
-              "artifact": "nest/furniture/bedroom/desks/b/desk_b.scn"
+              "artifact": "tools/nest_authoring/bedroom-pilot/desks/b/desk_b.scn"
             },
             {
               "id": "desk-c",
@@ -78,7 +78,7 @@
                   "desk"
                 ]
               },
-              "artifact": "nest/furniture/bedroom/desks/c/desk_c.scn"
+              "artifact": "tools/nest_authoring/bedroom-pilot/desks/c/desk_c.scn"
             },
             {
               "id": "desk-d",
@@ -90,7 +90,7 @@
                   "desk"
                 ]
               },
-              "artifact": "nest/furniture/bedroom/desks/d/desk_d.scn"
+              "artifact": "tools/nest_authoring/bedroom-pilot/desks/d/desk_d.scn"
             }
           ]
         },

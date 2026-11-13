@@ -55,7 +55,6 @@ def test_nest_contains_current_estate_and_formal_split_assets() -> None:
         "buildings",
         "courtyard",
         "furniture",
-        "layouts",
     }
     estate = rooms / "estate"
     for retired in (
@@ -163,19 +162,23 @@ def test_elfie_lab_retries_its_web_bridge_until_the_browser_is_ready() -> None:
     assert "window.parent.postMessage" in lab_runtime_text
 
 
-def test_nest_lab_web_mode_accepts_only_named_camera_presets_and_restore() -> None:
-    # Given
+def test_nest_lab_web_preview_routes_camera_messages_through_its_console() -> None:
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
-    lab_runtime_text = (GODOT_ROOT / "runtime" / "lab" / "lab_runtime.gd").read_text(
-        encoding="utf-8"
-    )
+    lab_dir = GODOT_ROOT / "runtime" / "lab"
+    lab_runtime_text = (lab_dir / "lab_runtime.gd").read_text(encoding="utf-8")
+    console_text = (lab_dir / "nest_lab_console.gd").read_text(encoding="utf-8")
+    frontend_text = (
+        PROJECT_ROOT / "devtools" / "web" / "src" / "nest" / "use-preview.ts"
+    ).read_text(encoding="utf-8")
 
-    # When / Then
     assert "_lab_runtime.process_nest_lab_frame()" in main_text
-    assert "elfienest-nest-lab" in lab_runtime_text
-    assert "process_nest_lab_frame" in lab_runtime_text
-    assert "select_observer_camera_by_id" in lab_runtime_text
-    assert "reset_observation_camera" in lab_runtime_text
+    assert 'load("res://runtime/lab/nest_lab_console.gd")' in lab_runtime_text
+    assert "_nest_console.process_frame()" in lab_runtime_text
+    assert "event.origin !== location.origin || event.source !== parent" in console_text
+    assert "d.channel !== 'elfienest-nest-lab'" in console_text
+    assert 'channel: "elfienest-nest-lab", type: "camera"' in frontend_text
+    assert "_nest.select_observer_camera_by_id(view)" in console_text
+    assert "_nest.reset_observer_camera()" in console_text
 
 
 def test_actor_movement_matches_the_imported_model_forward_axis() -> None:
@@ -231,7 +234,8 @@ def test_runtime_manifest_is_semantic_and_does_not_export_coordinates() -> None:
     # Coordinates stay inside Godot; only the model-bound semantic catalog crosses out.
     assert '"zones": _estate_semantics.zones' in manifest_section
     assert (
-        '"anchors": _estate_semantics.manifest_anchors(FIXED_BED_COUNT)'
+        '"anchors": _estate_semantics.manifest_anchors('
+        'FIXED_BED_COUNT, bool(get_meta("lab_action_preview", false)))'
         in manifest_section
     )
     assert (

@@ -17,12 +17,6 @@ GODOT_EXPORT_EXCLUDED_PATHS: Final[Tuple[str, ...]] = (
     "nest/estate/estate.tscn",
     "nest/estate/estate_complete_final.gd",
     "nest/estate/estate_outdoor_lighting.scn",
-    # Bedroom authoring pilots are not used by the split runtime assemblies.
-    # Their texture directory remains available to the formal bedroom sets.
-    "nest/furniture/bedroom/bed/*",
-    "nest/furniture/bedroom/chair/*",
-    "nest/furniture/bedroom/desks/*",
-    "nest/layouts/bedroom/bedroom.tscn",
 )
 
 GODOT_EXPORT_EXCLUDE_FILTER: Final[str] = ",".join(GODOT_EXPORT_EXCLUDED_PATHS)
@@ -32,6 +26,7 @@ GODOT_EXPORT_EXCLUDE_FILTER: Final[str] = ",".join(GODOT_EXPORT_EXCLUDED_PATHS)
 GODOT_AUTHORING_ONLY_PATHS: Final[Tuple[str, ...]] = (
     "characters/saevi/source",
     "characters/tools",
+    "tools/nest_authoring",
 )
 GODOT_AUTHORING_ONLY_FILES: Final[Tuple[str, ...]] = ()
 
@@ -39,12 +34,15 @@ GODOT_AUTHORING_ONLY_FILES: Final[Tuple[str, ...]] = ()
 def runtime_source_files(root: Path) -> Iterator[Path]:
     """Walk the Godot source tree without entering authoring-only directories."""
     for directory, children, names in walk(root):
-        if ".gdignore" in names:
+        parent = Path(directory)
+        if (
+            ".gdignore" in names
+            or parent.relative_to(root).as_posix() in GODOT_AUTHORING_ONLY_PATHS
+        ):
             children.clear()
             continue
         if ".godot" in children:
             children.remove(".godot")
-        parent = Path(directory)
         for name in names:
             path = parent / name
             if path.is_file() and path.suffix not in {".import", ".tmp"}:

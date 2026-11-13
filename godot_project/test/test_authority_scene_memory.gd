@@ -42,8 +42,25 @@ func run() -> void:
  if nest.resolve_anchor(inspection) != null or manifest["anchors"].size() != 92:
   fail("Inspection contacts must not become normal navigation targets");return
  nest.set_meta("lab_action_preview",true)
- if nest.resolve_anchor(inspection) == null or nest.scene_manifest()["anchors"].size() != 137 or not nest.validate_navigation_anchors():
+ var lab_anchors: Array = nest.scene_manifest()["anchors"]
+ if nest.resolve_anchor(inspection) == null or lab_anchors.size() != 137 or not nest.validate_navigation_anchors():
   fail("Lab must expose all real furniture contacts from the same compiled scene");return
+ var formal_anchors := {}
+ for anchor: Dictionary in manifest["anchors"]:
+  formal_anchors[anchor["anchor_id"]] = anchor
+ var semantic_fields := ["anchor_id", "zone_id", "kind", "label", "stable_order", "active"]
+ for anchor: Dictionary in lab_anchors:
+  if anchor.size() != semantic_fields.size() or not anchor.has_all(semantic_fields):
+   fail("Anchor manifest must carry semantic fields only");return
+  var id: String = anchor["anchor_id"]
+  if formal_anchors.has(id):
+   if anchor != formal_anchors[id]:
+    fail("Lab changed a formal anchor: "+id);return
+   formal_anchors.erase(id)
+  elif anchor["active"]:
+   fail("Inspection-only anchor became active: "+id);return
+ if not formal_anchors.is_empty():
+  fail("Lab must retain all formal anchors");return
  var doors: Array=nest._estate_physics._doors
  for door: Dictionary in doors:
   if not is_instance_valid(door.body) or not is_instance_valid(door.mesh):

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cpsi710u5mlbn"
-path="res://.godot/imported/desk_d.glb-08c3102b5f9c5584050f4ed012af64f5.scn"
+uid="uid://bgwf665e1y1fd"
+path="res://.godot/imported/desk_b.glb-781a8d3d4a2b6182e96e6db4e19a926c.scn"
 
 [deps]
 
-source_file="res://nest/furniture/bedroom/desks/d/desk_d.glb"
-dest_files=["res://.godot/imported/desk_d.glb-08c3102b5f9c5584050f4ed012af64f5.scn"]
+source_file="res://tools/nest_authoring/bedroom-pilot/desks/b/desk_b.glb"
+dest_files=["res://.godot/imported/desk_b.glb-781a8d3d4a2b6182e96e6db4e19a926c.scn"]
 
 [params]
 

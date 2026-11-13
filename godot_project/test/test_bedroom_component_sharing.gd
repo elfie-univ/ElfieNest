@@ -11,7 +11,7 @@ func require(ok: bool, message: String) -> bool:
 	return ok
 
 func run() -> void:
-	var scene := load("res://nest/layouts/bedroom/bedroom.tscn") as PackedScene
+	var scene := load("res://tools/nest_authoring/bedroom-pilot/bedroom.tscn") as PackedScene
 	if not require(scene != null, "Bedroom layout must load without build dependencies"): return
 	var layout := scene.instantiate() as Node3D
 	root.add_child(layout)

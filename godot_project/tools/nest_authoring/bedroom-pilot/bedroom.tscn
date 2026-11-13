@@ -1,15 +1,15 @@
 [gd_scene format=4]
 
-[ext_resource type="PackedScene" path="res://nest/furniture/bedroom/desks/a/desk_a.scn" id="1_8s0dp"]
+[ext_resource type="PackedScene" path="res://tools/nest_authoring/bedroom-pilot/desks/a/desk_a.scn" id="1_8s0dp"]
 [ext_resource type="Shader" path="res://nest/estate/estate_opaque.gdshader" id="2_7ih0h"]
 [ext_resource type="Texture2D" path="res://nest/furniture/textures/80ada63bb0d4e592810a82e3efcba97e4614eeb57600a8430603499989d104fc.png" id="3_4mq3t"]
-[ext_resource type="PackedScene" path="res://nest/furniture/bedroom/desks/b/desk_b.scn" id="4_q08l8"]
-[ext_resource type="PackedScene" path="res://nest/furniture/bedroom/desks/c/desk_c.scn" id="5_3arax"]
-[ext_resource type="PackedScene" path="res://nest/furniture/bedroom/desks/d/desk_d.scn" id="6_5yu1t"]
-[ext_resource type="PackedScene" path="res://nest/furniture/bedroom/bed/bed.scn" id="7_o73y4"]
-[ext_resource type="Texture2D" path="res://nest/furniture/bedroom/textures/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png" id="8_jrsyu"]
+[ext_resource type="PackedScene" path="res://tools/nest_authoring/bedroom-pilot/desks/b/desk_b.scn" id="4_q08l8"]
+[ext_resource type="PackedScene" path="res://tools/nest_authoring/bedroom-pilot/desks/c/desk_c.scn" id="5_3arax"]
+[ext_resource type="PackedScene" path="res://tools/nest_authoring/bedroom-pilot/desks/d/desk_d.scn" id="6_5yu1t"]
+[ext_resource type="PackedScene" path="res://tools/nest_authoring/bedroom-pilot/bed/bed.scn" id="7_o73y4"]
+[ext_resource type="Texture2D" path="res://nest/furniture/textures/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png" id="8_jrsyu"]
 [ext_resource type="Shader" path="res://nest/estate/m01_sheen.gdshader" id="9_0sym7"]
-[ext_resource type="PackedScene" path="res://nest/furniture/bedroom/chair/chair.scn" id="10_dky4g"]
+[ext_resource type="PackedScene" path="res://tools/nest_authoring/bedroom-pilot/chair/chair.scn" id="10_dky4g"]
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_pcgcf"]
 _surfaces = [{

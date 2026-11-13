@@ -17,6 +17,7 @@ func run() -> void:
 	root.add_child(console)
 	console.setup(nest, characters)
 	await process_frame
+	if not check(console.catalog()["channel"] == "elfienest-nest-lab", "Preview catalog uses the wrong browser channel"): return
 	if not check(console.camera_command({"action":"environment", "environment":{"phase":"dusk", "lights_on":true,"quiet_mode":false}}), "Cannot receive Nest environment"): return
 	if not check(console.camera_command({"action": "select", "view_id": "central-1"}), "Cannot select actual estate camera"): return
 	if not check(console.catalog()["active_id"] == "central-1", "Camera acknowledgement differs from selected view"): return
@@ -76,7 +77,12 @@ func run() -> void:
 	if not check(not paused, "Observation pause stopped the authority simulation"): return
 	if not check(console.catalog()["presentation_paused"], "Pause state not acknowledged"): return
 	console.camera_command({"action": "pause", "paused": false})
+	if not check(console.camera_command({"action": "select", "view_id": "central-1"}), "Cannot select preset to test restore"): return
+	var camera := nest._active_camera()
+	var preset := camera.global_transform
+	camera.global_position += Vector3.UP
 	if not check(console.camera_command({"action": "reset"}), "Cannot restore view"): return
+	if not check(camera.global_transform.is_equal_approx(preset), "Reset did not restore the selected camera's transform"): return
 	nest.queue_free()
 	characters.queue_free()
 	console.queue_free()
