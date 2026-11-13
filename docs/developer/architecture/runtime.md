@@ -184,7 +184,7 @@ presentation without changing the authoritative world.
 
 ## Complete-estate physics and furniture actions
 
-`godot_project/rooms/nest.tscn` remains the single world entry. The complete
+`godot_project/nest/nest.tscn` remains the single world entry. The complete
 estate's authored module, floor and furniture metadata bind its physical
 colliders and stable interaction anchors; the retired procedural-room coordinates
 are not reused. Mirrored render nodes are converted into positive-handed physics
@@ -205,6 +205,15 @@ Occupied furniture, unavailable paths, invalid contact metadata and blocked exit
 positions fail explicitly. Walking away restores the standing body and collisions.
 These operations remain Godot-owned; they do not add a Python geometry model,
 a second Gateway, or an Observer simulation authority.
+
+For animation inspection, `use_anchor` additionally accepts an optional named
+`furniture_cycle`: `seat`, `sleep-back`, `sleep-left` or `sleep-right`. It selects a
+Godot-owned authored sequence rather than accepting a transform or arbitrary pose.
+Normal Body `furniture.use` calls still pass only `anchor_id`. The sequence runner,
+root motion, contact sampling, chair swivel, sleep poses and duvet deformation live
+under `runtime/actor/`; estate contacts and collision shapes remain under `nest/spatial/`.
+Nest Lab selects and observes the same implementation. Completion, cancellation and
+failure use the original command identity and one terminal event.
 
 ## Runtime artifact contract
 

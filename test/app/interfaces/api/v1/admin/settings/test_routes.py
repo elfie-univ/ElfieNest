@@ -123,6 +123,7 @@ def test_no_generic_section_route_is_defined() -> None:
     paths = {route.path for route in router.routes}
 
     assert paths == {
+        "/api/v1/admin/settings/environment",
         "/api/v1/admin/settings/elfies",
         "/api/v1/admin/settings/runtime",
         "/api/v1/admin/settings/security",

@@ -1,52 +1,15 @@
 extends RefCounted
-## Preserve downloaded clips; optional F01 authored edits are explicit resources.
-## Rebase source rests using Godot's model-space rule. No furniture snapping.
+## Retarget the resting seated pose; travel and exit use the authored direct curves.
 
-const FILES := {
-	"sit_down": "Stand To Sit",
-	"seated_idle": "Sitting Idle",
-	"stand_up": "Sit To Stand",
-	"step_up": "Step Onto Platform",
-	"jump_down": "Jump Down",
-}
-
-
-static func library_for(actor: ElfieActor, chair_contact_edits: bool = false) -> AnimationLibrary:
+static func library_for(actor: ElfieActor) -> AnimationLibrary:
 	var result := AnimationLibrary.new()
-	for key: String in FILES:
-		var source := load("res://characters/animation/candidates/%s.fbx" % FILES[key]) as AnimationLibrary
-		var clip := _retarget(source, actor, false)
-		if clip == null: return null
-		if chair_contact_edits and key in ["sit_down", "stand_up"]:
-			_apply_contact_keys(clip, key, actor)
-		clip.loop_mode = Animation.LOOP_LINEAR if key == "seated_idle" else Animation.LOOP_NONE
-		result.add_animation(key, clip)
-	var turn := _retarget(load("res://characters/animation/left turn 90.fbx") as AnimationLibrary, actor, false)
-	if turn == null: return null
-	result.add_animation("turn_left_90", turn)
-	if chair_contact_edits:
-		var idle := _retarget(load("res://characters/animation/idle.fbx") as AnimationLibrary, actor, true)
-		for key: String in ["turn_left_90", "sit_down", "seated_idle", "stand_up"]:
-			preload("res://runtime/actor/chair_dog_leg_keys.gd").bake(result.get_animation(key), key, actor, idle)
-		for key: String in ["sit_down","seated_idle","stand_up"]:
-			if not preload("res://runtime/actor/chair_seated_hand_pose.gd").bake(result.get_animation(key),key,actor):return null
+	var clip := _retarget(load("res://characters/animation/candidates/Sitting Idle.fbx") as AnimationLibrary,actor,false)
+	if clip == null: return null
+	clip.loop_mode = Animation.LOOP_LINEAR
+	var idle := locomotion_for(actor).get_animation("idle")
+	preload("res://runtime/actor/chair_dog_leg_keys.gd").bake(clip,"seated_idle",actor,idle)
+	result.add_animation("seated_idle",clip)
 	return result
-
-
-static func _apply_contact_keys(clip: Animation, key: String, actor: ElfieActor) -> void:
-	# Explicit artist-editable delta keys, in metres, layered onto downloaded
-	# motion. These edit the animation, never the live actor/seat transform.
-	var edits := preload("res://characters/animation/candidates/dog_chair_contact_edits.tres") as AnimationLibrary
-	var correction := edits.get_animation(key)
-	var skeleton := actor._furniture_hips()["skeleton"] as Skeleton3D
-	var bone := int(actor._furniture_hips()["bone"])
-	var track := clip.find_track(NodePath("Skeleton3D:" + String(skeleton.get_bone_name(bone))), Animation.TYPE_POSITION_3D)
-	for index in range(clip.track_get_key_count(track)):
-		var time := clip.track_get_key_time(track, index)
-		var delta := correction.position_track_interpolate(0, time)
-		var point := clip.track_get_key_value(track, index) as Vector3
-		clip.track_set_key_value(track, index, point + skeleton.global_basis.inverse() * delta)
-
 
 static func locomotion_for(actor: ElfieActor) -> AnimationLibrary:
 	var result := AnimationLibrary.new()

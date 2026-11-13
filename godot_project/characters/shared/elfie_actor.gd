@@ -18,6 +18,17 @@ const FURNITURE_CONTACT_DISTANCE := 2.0
 @export var install_shared_animations := true
 @export var install_preview_poses := false
 
+var _furniture_motion: RefCounted
+var _appearance_payload: Dictionary = {}
+var furniture_cycle_command: String:
+	get: return _furniture_motion.furniture_cycle_command if _furniture_motion != null else ""
+var cycle_cancelled: bool:
+	get: return _furniture_motion.cycle_cancelled
+var cycle_error: String:
+	get: return _furniture_motion.cycle_error
+	set(value): _furniture_motion.cycle_error = value
+signal precision_terminal(accepted: bool, reason: String)
+
 var elfie_id := ""
 var active_command_id := ""
 var _deadline_msec := 0
@@ -43,6 +54,8 @@ signal tactile_contact(contact: Dictionary)
 
 
 func _ready() -> void:
+	_furniture_motion = (load("res://runtime/actor/furniture_motion_runtime.gd") as GDScript).new(self)
+	_furniture_motion.precision_terminal.connect(func(accepted: bool, reason: String) -> void: precision_terminal.emit(accepted,reason))
 	collision_mask |= COLLISION_LAYERS.MOVEMENT_BOUNDARY
 	floor_snap_length = maxf(floor_snap_length, MAX_STEP_HEIGHT + 0.05)
 	_navigation_agent = NavigationAgent3D.new()
@@ -77,6 +90,7 @@ func configure(
 	spawn_position: Vector3,
 	appearance: Dictionary = {},
 ) -> void:
+	_appearance_payload = appearance.duplicate(true)
 	elfie_id = identity
 	global_position = spawn_position
 	if install_preview_poses:
@@ -142,6 +156,7 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _furniture_motion != null and _furniture_motion.physics_frame(delta): return
 	if install_preview_poses:
 		# Character Lab is a nonphysical pose viewer, not a world authority.
 		return
@@ -610,3 +625,10 @@ func play_preview_intent(intent: Dictionary) -> bool:
 
 func _play_animation(animation_name: String) -> void:
 	_animation_runtime.play(animation_name)
+
+
+func walk_precisely(target: Vector3, timeout: float = 8.0) -> void: _furniture_motion.walk_precisely(target, timeout)
+func cycle_available() -> bool: return _furniture_motion.cycle_available()
+func cancel_furniture_cycle(reason: String) -> void: _furniture_motion.cancel_furniture_cycle(reason)
+func play_furniture_cycle(marker: Marker3D, anchor_id: String, command_id: String, variant: String, nest: ModularNest) -> Dictionary:
+	return await _furniture_motion.play_furniture_cycle(marker,anchor_id,command_id,variant,nest)

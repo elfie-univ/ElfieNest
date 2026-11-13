@@ -244,6 +244,9 @@ class _ExecuteIntentPayload(_Payload):
     text: Optional[str] = None
     expression: Optional[str] = None
     intensity: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    furniture_cycle: Optional[
+        Literal["seat", "sleep-back", "sleep-left", "sleep-right"]
+    ] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -278,6 +281,8 @@ class _ExecuteIntentPayload(_Payload):
                 "deadline_seconds",
                 "anchor_id",
             }
+            if self.furniture_cycle is not None:
+                expected_fields.add("furniture_cycle")
             if self.model_fields_set != expected_fields:
                 raise ValueError("use_anchor payload has incompatible fields")
         if self.intent == "speak":
@@ -309,6 +314,7 @@ class _ExecuteIntentPayload(_Payload):
                 "text": self.text,
                 "expression": self.expression,
                 "intensity": self.intensity,
+                "furniture_cycle": self.furniture_cycle,
             }.items()
             if field_value is not None
         }
@@ -322,6 +328,8 @@ class _ExecuteIntentPayload(_Payload):
         }[self.intent]
         if self.intent == "emotion_expression" and self.intensity is not None:
             expected = expected | {"intensity"}
+        if self.intent == "use_anchor" and self.furniture_cycle is not None:
+            expected = expected | {"furniture_cycle"}
         if supplied != expected:
             raise ValueError(f"{self.intent} payload has incompatible fields")
         return self

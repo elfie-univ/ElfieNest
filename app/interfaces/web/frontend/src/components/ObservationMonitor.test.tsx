@@ -61,7 +61,6 @@ const catalog = {
     ]).flat(),
     { id: "lighting-live", label: "Live" }, { id: "lighting-day", label: "Day" },
     { id: "lighting-night", label: "Night" }, { id: "lighting-quiet", label: "Quiet" },
-    { id: "access-estate", label: "Inspection" },
     { id: "elfie-00000001", label: "Follow one" }, { id: "elfie-pov-00000001", label: "POV one" },
     { id: "elfie-00000002", label: "Other owner" },
   ],
@@ -156,17 +155,17 @@ describe("ObservationMonitor", () => {
     expect(screen.getAllByRole("toolbar")).toHaveLength(1)
   })
 
-  it.each(["", "0", "true"])("does not enable time preview for debug=%s", (value) => {
+  it.each(["", "0", "true", "1"])("keeps lighting preview in Developer Tools for debug=%s", (value) => {
     window.history.replaceState(null, "", `/monitor?debug=${value}`)
     renderMonitor()
     expect(screen.queryByRole("combobox", { name: "时间" })).not.toBeInTheDocument()
     expect(fixture.calls.select).not.toHaveBeenCalled()
   })
 
-  it("opens debug time preview at live time without restoring a saved preview", () => {
+  it("keeps the product monitor focused on observation with debug=1", () => {
     window.history.replaceState(null, "", "/monitor?room=local-nest&debug=1")
     renderMonitor()
-    expect(screen.getByRole("combobox", { name: "时间" })).toHaveTextContent("本地实时")
+    expect(screen.queryByRole("combobox", { name: "时间" })).not.toBeInTheDocument()
     expect(screen.queryByRole("separator")).not.toBeInTheDocument()
     expect(fixture.calls.select).not.toHaveBeenCalled()
   })
@@ -192,7 +191,6 @@ describe("ObservationMonitor", () => {
     const labels = within(list).getAllByRole("option").map((item) => item.textContent)
     expect(labels.slice(6, 10)).toEqual(["卧室 M01 · 一层", "卧室 M01 · 二层", "卧室 M02 · 一层", "卧室 M02 · 二层"])
     expect(within(list).queryByText("Other owner")).not.toBeInTheDocument()
-    expect(within(list).queryByText("Inspection")).not.toBeInTheDocument()
     const bedroomColors = ["#95b58c", "#d39bae", "#91bbd7", "#d5a078", "#83bbb5", "#b8a2ce", "#d8cc92", "#8791bc"]
     for (const [index, color] of bedroomColors.entries()) {
       const room = `M0${index + 1}`
@@ -289,13 +287,11 @@ describe("ObservationMonitor", () => {
     expect(fixture.calls.select).not.toHaveBeenCalled()
   })
 
-  it("selects time independently and pauses through the presentation bridge", async () => {
+  it("pauses through the presentation bridge without a lighting override", async () => {
     window.history.replaceState(null, "", "/monitor?debug=1")
     const user = userEvent.setup()
     renderMonitor()
-    await user.click(screen.getByRole("combobox", { name: "时间" }))
-    await user.click(screen.getByRole("option", { name: "白天 06:00–18:00" }))
-    expect(fixture.calls.select).toHaveBeenLastCalledWith("lighting-day")
+    expect(screen.queryByRole("combobox", { name: "时间" })).not.toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "视角" })).toHaveTextContent("全园总览")
     await user.click(screen.getByRole("button", { name: "暂停观察" }))
     expect(fixture.calls.setLocalPresentationPaused).toHaveBeenCalledWith(true)

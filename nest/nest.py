@@ -36,6 +36,7 @@ from nest.time_environment.models import (
     EnvironmentRule,
     LifePhase,
 )
+from nest.time_environment.schedule import EnvironmentSchedule
 
 
 class Nest:
@@ -533,13 +534,20 @@ class Nest:
         self._space.clear_runtime_projections()
         self._interaction.invalidate_runtime_state()
 
-    def tick(self, seconds: float, *, local_time: datetime | None = None) -> None:
+    def tick(
+        self,
+        seconds: float,
+        *,
+        local_time: datetime | None = None,
+        environment_schedule: EnvironmentSchedule | None = None,
+    ) -> None:
         previous_phase = self.life_phase
         previous_environment = self.desired_environment
         self._time_driver.tick(
             seconds,
             environment_override=self._living_rules.environment_override,
             local_time=local_time,
+            environment_schedule=environment_schedule,
         )
         current_phase = self.life_phase
         current_environment = self.desired_environment

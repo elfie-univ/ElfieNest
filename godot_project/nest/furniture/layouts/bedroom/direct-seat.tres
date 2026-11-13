@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[resource]
+resource_name = "Shared direct seated landing"
+metadata/contact_offset = Vector3(0, 0, 0.155)
+metadata/entry_offset = Vector3(0, 0, 0.35)
+metadata/wait_offset = Vector3(0, 0, 1.30)
+metadata/open_angle = 3.1415927
+metadata/closed_angle = 0.0
+metadata/seat_clearance = 0.012
+metadata/hop_seconds = 1.75
+metadata/leave_seconds = 1.60
+metadata/tail_joint_angles = PackedFloat32Array(82, 25, 12, 3, 0, -10)
+metadata/tail_seated_joint_angles = PackedFloat32Array(82, 25, 12, 3, -12, -25)
+metadata/hand_rest = Vector3(0.22, 0.20, 0.18)
+metadata/seated_ankle = Vector3(0, -0.17, 0.15)
+metadata/standing_ankle_inset = 0.03

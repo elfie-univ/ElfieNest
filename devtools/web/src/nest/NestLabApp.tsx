@@ -1,124 +1,81 @@
-import { useRef, useState } from "react";
-import { Alert, Button, Card, Empty, Tag } from "antd";
-
-import { FIXED_BED_COUNT } from "../constants";
-import { viewIntents, type NestEvent, type ViewIntent } from "./contracts";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { Alert } from "antd";
+import { DebugToolbar } from "./DebugToolbar";
+import { ActorManager } from "./ActorManager";
+import { EnvironmentToolbar } from "./EnvironmentToolbar";
+import { MenuDock } from "./MenuDock";
+import { initialMenuState, menuReducer, runLabControl } from "./menu-state";
+import { ObservationToolbar } from "./ObservationToolbar";
+import { RunRecords } from "./RunRecords";
 import { useNestLab } from "./use-nest-lab";
-
-const viewOptions: readonly Readonly<{ readonly label: string; readonly value: ViewIntent }>[] = [
-  { label: "总览俯视", value: viewIntents.overview },
-  { label: "活动区", value: viewIntents.activity },
-  { label: "宿舍", value: viewIntents.dorm },
-  { label: "传送室", value: viewIntents.portal },
-];
-
-const eventLabels: Readonly<Record<string, string>> = {
-  gateway_started: "网关启动",
-  runtime_connected: "Godot 已连接",
-  runtime_disconnected: "Godot 已断开",
-  configure_world: "房间配置已发送",
-  world_reconfigured: "房间已重建",
-  actor_added: "角色已加入",
-  wander_enabled: "随机游走已开启",
-  simulation_paused: "模拟已暂停",
-  simulation_resumed: "模拟已继续",
-  simulation_reset: "实验已重置",
-  world_ready: "房间已就绪",
-  scene_manifest: "场景目录已同步",
-  world_snapshot: "世界状态已同步",
-  intent_accepted: "移动指令已接收",
-  intent_started: "角色开始执行动作",
-  intent_completed: "角色已到达目标",
-  intent_failed: "角色未能完成动作",
-  intent_cancelled: "角色动作已取消",
-  wander_move: "随机游走目标已分配",
-};
-
-function eventTitle(event: NestEvent): string {
-  return eventLabels[event.name] ?? event.name.replaceAll("_", " ");
-}
-
-function eventTime(isoTime: string): string {
-  return new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date(isoTime));
-}
+import { usePreview } from "./use-preview";
+import { isAssetMode, modeUrl } from "./preview-mode";
+import { StaticAssetReview } from "./StaticAssetReview";
+import "./nest-lab.css";
 
 export function NestLabApp(): React.JSX.Element {
-  const { state, error, refresh, run } = useNestLab();
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const [notice, setNotice] = useState("");
+  return isAssetMode(window.location.search) ? <StaticAssetReview /> : <LiveNestLab />;
+}
 
-  async function action(path: string, success: string, json?: unknown): Promise<void> {
+function LiveNestLab(): React.JSX.Element {
+  const { state, error, run } = useNestLab();
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const { catalog, send } = usePreview(frameRef, state.previewUrl, state.environment);
+  const [notice, setNotice] = useState("");
+  const [actionError, setActionError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [selectedActor, setSelectedActor] = useState("");
+  const [menu, dispatch] = useReducer(menuReducer, initialMenuState);
+  const actorId = state.actors.some((actor) => actor.actor_id === selectedActor)
+    ? selectedActor : state.actors[0]?.actor_id ?? "";
+  const ready = state.runtime?.world_configured === true;
+  const playing = state.world?.wandering === true && !state.world.paused;
+  const startupFailure = !ready && state.events.some((event) => event.name === "startup_error");
+
+  useEffect(() => {
+    if (!notice || actionError) return;
+    const timer = window.setTimeout(() => setNotice(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [notice, actionError]);
+
+  async function action(path: string, success: string, json?: unknown): Promise<boolean> {
+    setBusy(true);
     try {
-      await run(path, path === "world" ? "put" : "post", json);
+      await runLabControl(path, state.world, async (step) => { await run(step, "post", step === path ? json : undefined); });
       setNotice(success);
+      setActionError(false);
+      return true;
     } catch (reason) {
       setNotice(reason instanceof Error ? reason.message : "操作未完成");
+      setActionError(true);
+      return false;
+    } finally { setBusy(false); }
+  }
+
+  function selectActor(id: string) {
+    setSelectedActor(id);
+    if (catalog?.active_id.startsWith("elfie-")) {
+      send({ action: "select", view_id: `${catalog.active_id.startsWith("elfie-pov-") ? "elfie-pov-" : "elfie-"}${id}` });
     }
   }
 
-  function selectView(intent: ViewIntent): void {
-    frameRef.current?.contentWindow?.postMessage(
-      { channel: "elfienest-nest-lab", type: "camera", intent },
-      window.location.origin,
-    );
-    setNotice(intent === viewIntents.restore ? "已还原当前预设视角。" : "已切换房间视角。");
-  }
-
-  const status = state.world?.paused
-    ? "模拟已暂停"
-    : state.world?.wandering
-      ? "随机游走中"
-      : "等待指令";
-
-  return (
-    <main className="nest-console">
-      <header className="console-header">
-        <div>
-          <h1>Nest Lab</h1>
-        </div>
-        <Tag className={`connection ${state.runtime?.runtime_connected ? "online" : ""}`} color={state.runtime?.runtime_connected ? "success" : "default"}>
-          <span aria-hidden="true" />
-          {state.runtime?.runtime_connected ? "Godot Runtime 已连接" : "等待 Godot Runtime"}
-        </Tag>
-      </header>
-
-      <section className="nest-grid" aria-label="Nest Lab 工作区">
-        <Card className="room-panel console-panel" extra={<Tag bordered={false}>{status}</Tag>} title={<h2>房间观测</h2>}>
-          <div className="view-toolbar" aria-label="房间视角">
-            {viewOptions.map((option) => (
-              <Button key={option.value} onClick={() => selectView(option.value)} size="small">{option.label}</Button>
-            ))}
-            <Button className="restore-view" onClick={() => selectView(viewIntents.restore)} size="small">还原视角</Button>
-          </div>
-          <div className="room-frame">
-            {state.previewUrl === null ? <p>{state.previewHint ?? "正在准备 Godot Web…"}</p> : <iframe ref={frameRef} src={state.previewUrl} title="Nest Lab Godot 房间预览" />}
-          </div>
-        </Card>
-
-        <aside className="controls-column">
-          <Card className="console-panel" title={<h2>房间设置</h2>}>
-            <div className="bed-control"><span>床位数</span><output>{FIXED_BED_COUNT}</output></div>
-            <p className="muted">房间容量固定为 {FIXED_BED_COUNT} 个床位。</p>
-            <p className="muted">{state.world?.actor_count ?? 0} 个临时角色 · 世界版本 {state.world?.world_revision ?? "—"}</p>
-          </Card>
-          <Card className="console-panel" title={<h2>添加角色</h2>}>
-            <div className="button-row"><Button onClick={() => { void action("actors", "已添加一只赛维。", { species: "saevi" }); }}>＋ 赛维</Button><Button onClick={() => { void action("actors", "已添加一只托伦。", { species: "tovren" }); }}>＋ 托伦</Button></div>
-            {state.actors.length ? <ul className="actor-list">{state.actors.map((actor) => <li key={actor.actor_id}><span>{actor.species === "saevi" ? "赛维" : "托伦"}</span>{actor.actor_id}</li>)}</ul> : <Empty description="还没有临时角色" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-          </Card>
-          <Card className="console-panel" title={<h2>实验控制</h2>}>
-            <div className="button-grid"><Button onClick={() => { void action("simulation/wander", "随机游走已开启。"); }}>随机游走</Button><Button onClick={() => { void action("simulation/pause", "模拟已暂停。"); }}>暂停</Button><Button onClick={() => { void action("simulation/resume", "模拟已继续。"); }}>继续</Button><Button danger onClick={() => { void action("simulation/reset", "实验已重置。"); }}>重置</Button></div>
-          </Card>
-        </aside>
-
-        <Card className="event-panel console-panel" extra={<Button onClick={() => { void refresh(); }} size="small">刷新</Button>} title={<h2>事件时间线</h2>}>
-          {state.events.length ? <ol className="event-timeline">{[...state.events].reverse().map((event) => <li key={event.sequence}><time dateTime={event.occurred_at}>{eventTime(event.occurred_at)}</time><div><strong>{eventTitle(event)}</strong><p>{event.detail}</p><small>事件 #{event.sequence} · {event.name}</small></div></li>)}</ol> : <Empty description="还没有运行事件" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-        </Card>
-      </section>
-      {error !== null || notice ? <Alert className="console-notice" message={error ?? notice} role="status" showIcon type={error === null ? "success" : "error"} /> : null}
-    </main>
-  );
+  return <main className="nest-monitor" aria-label="Nest Lab">
+    <section className="nest-monitor-stage" aria-label="精灵巢监控">
+      {state.previewUrl === null ? <div className="nest-monitor-placeholder">{state.previewHint ?? "正在准备监控画面…"}</div>
+        : <iframe ref={frameRef} src={state.previewUrl} title="Nest Lab Godot 房间预览" />}
+    </section>
+    {error !== null || notice ? <Alert className="nest-monitor-notice" message={error ?? notice} role="status" showIcon closable onClose={() => setNotice("")} type={error !== null || actionError ? "error" : "info"} /> : null}
+    {startupFailure ? <Alert className="nest-startup-error" type="error" showIcon message="庄园加载失败，请查看运行记录。" /> : null}
+    <div className="nest-pilot-modes" role="group" aria-label="预览模式">
+      <button type="button" aria-pressed={true}>整体场景</button>
+      <button type="button" aria-pressed={false} onClick={() => window.location.assign(modeUrl(window.location.href, true))}>单件资产</button>
+    </div>
+    {menu.records ? <RunRecords events={state.events} close={() => dispatch({ type: "records" })} /> : null}
+    <ActorManager open={manageOpen} close={() => setManageOpen(false)} actors={state.actors} species={state.species} selectActor={selectActor} mutate={async (path, method, json) => { setBusy(true); try { return await run(path, method, json); } finally { setBusy(false); } }} />
+    <MenuDock environment={<EnvironmentToolbar catalog={catalog} send={send} />} state={menu} dispatch={dispatch} playing={playing} ready={ready} busy={busy} togglePlayback={() => { void action("playback", playing ? "随机游走已暂停。" : "随机游走已播放。"); }} panels={{
+      view: <ObservationToolbar catalog={catalog} actors={state.actors} ready={catalog !== null} actorId={actorId} selectActor={setSelectedActor} manageActors={() => setManageOpen(true)} send={send} />,
+      action: <DebugToolbar actors={state.actors} targets={state.targets} catalog={catalog} actorId={actorId} ready={ready} busy={busy} selectActor={selectActor} manageActors={() => setManageOpen(true)} run={action} send={send} />,
+    }} />
+  </main>;
 }

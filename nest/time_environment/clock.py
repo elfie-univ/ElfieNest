@@ -10,6 +10,7 @@ from nest.time_environment.models import (
     EnvironmentRule,
     LifePhase,
 )
+from nest.time_environment.schedule import EnvironmentSchedule
 
 
 class InvalidTickError(ValueError):
@@ -35,11 +36,14 @@ class TimeEnvironmentDriver:
         *,
         environment_override: EnvironmentDesiredState | None = None,
         local_time: datetime | None = None,
+        environment_schedule: EnvironmentSchedule | None = None,
     ) -> None:
         if seconds < 0:
             raise InvalidTickError(seconds)
         if self._state.clock_paused:
             return
+        if environment_schedule is not None and local_time is None:
+            raise ValueError("configured daylight requires a timezone-aware local time")
         if local_time is not None:
             if local_time.utcoffset() is None:
                 raise ValueError("local_time must include its local timezone")
@@ -48,6 +52,11 @@ class TimeEnvironmentDriver:
                 + local_time.minute * 60
                 + local_time.second
                 + local_time.microsecond / 1_000_000
+            )
+            self._state.scheduled_phase = (
+                environment_schedule.phase_at(local_time)
+                if environment_schedule is not None
+                else None
             )
         self._state.elapsed_seconds += seconds * self._state.time_scale
         self._state.apply_environment_rules(
@@ -78,6 +87,7 @@ class TimeEnvironmentState:
     elapsed_seconds: float = 0.0
     # A fresh host-clock input, supplied by App; elapsed lifetime stays durable.
     local_seconds: float | None = None
+    scheduled_phase: LifePhase | None = None
     clock_paused: bool = False
     time_scale: float = 1.0
     environment_desired: EnvironmentDesiredState = field(
@@ -89,6 +99,8 @@ class TimeEnvironmentState:
 
     @property
     def life_phase(self) -> LifePhase:
+        if self.scheduled_phase is not None:
+            return self.scheduled_phase
         seconds = (
             self.elapsed_seconds if self.local_seconds is None else self.local_seconds
         )

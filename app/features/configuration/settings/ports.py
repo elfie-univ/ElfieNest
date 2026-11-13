@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from nest.public import EnvironmentSchedule
+
 from .port_models import (
     StoredElfieSettings,
     StoredRuntimeSettings,
@@ -13,6 +15,10 @@ from .port_models import (
 
 class SettingsStorePort(Protocol):
     """Read and atomically update each owned Runtime settings section."""
+
+    def load_environment_settings(self) -> EnvironmentSchedule: ...
+
+    def save_environment_settings(self, settings: EnvironmentSchedule) -> None: ...
 
     def load_elfie_settings(self) -> StoredElfieSettings: ...
 

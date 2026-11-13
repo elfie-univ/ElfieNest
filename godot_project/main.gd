@@ -18,7 +18,6 @@ const RUNTIME_MODE := preload("res://runtime/endpoint/runtime_mode.gd")
 const AUTHORITY_SEMANTIC_EVENTS := preload("res://runtime/endpoint/authority_semantic_events.gd")
 const AUTHORITY_ENDPOINT := preload("res://runtime/endpoint/authority_endpoint.gd")
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
-const OUTDOOR_ACCESS_OVERLAY := preload("res://runtime/observer/outdoor_access_overlay.gd")
 const OBSERVER_MODE_PARAMETER := "observer"
 const OBSERVER_MODE_VALUE := "product"
 const VISUAL_AUTHORITY_ENV := "ELFIENEST_GODOT_SHOW_VISUALS"
@@ -80,13 +79,9 @@ func _ready() -> void:
 		return
 	if _nest_lab_mode:
 		_lab_runtime.setup_nest_lab()
-		nest.set_observation_hud_visible(true)
 	if _product_observer_mode:
 		_enter_product_observer_presentation_mode()
 		_setup_observer_presentation()
-		var access_overlay := OUTDOOR_ACCESS_OVERLAY.new()
-		add_child(access_overlay)
-		await access_overlay.setup(nest)
 		nest.add_lighting_observer_views()
 		nest.show_observation_hud = false
 		nest.set_observation_hud_visible(false)
@@ -155,6 +150,7 @@ func _start_authority_runtime() -> void:
 	)
 	_world_controller.set_actor_provider(_actor_controller.actor_instances)
 	_actor_controller.runtime_event.connect(_on_runtime_event)
+	if _nest_lab_mode: _lab_runtime.bind_actor_controller(_actor_controller)
 	_environment_controller = ENVIRONMENT_RUNTIME_CONTROLLER.new()
 	add_child(_environment_controller)
 	_environment_controller.setup(nest)

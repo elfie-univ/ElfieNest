@@ -68,3 +68,24 @@ Common food (常用粮) and a last-resort Emergency food (保底粮) for Elfies.
 for the complete checklist. The app keeps connections in local protected
 storage. Never paste an API key, password or one-time authorization code into a
 public document or send it to another user.
+
+## Daylight and rest time
+
+Open **Management → System settings → Advanced settings → Nest environment**.
+Configure three clock points: sunrise, sunset and rest. Their defaults are 06:00,
+18:00 and 00:00. They divide the day into daytime, evening and late night;
+manual points must occur in that order before the next sunrise.
+
+Choose **Manual** to enter sunrise and sunset, or **Follow local daylight** and
+click **Use computer location**. The browser asks for location permission only
+when you click. ElfieNest stores an approximate location in its protected local
+settings and calculates daily sunrise and sunset locally, without an external
+daylight service. Rest time remains manual. Save using **Save environment settings**;
+changes reach the running Nest on its next tick without restarting.
+
+Automatic daylight uses the saved location and the Nest computer's local date
+and timezone. Use the location button again after moving. The open settings page
+refreshes today's results automatically. Polar day/night is shown explicitly when
+there is no sunrise or sunset; the environment stays in daytime/late-night mode.
+The Lab's Live option uses the same Nest rules with its own isolated settings;
+its three manual lighting previews do not overwrite the saved schedule.

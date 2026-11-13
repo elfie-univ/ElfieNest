@@ -225,7 +225,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="nest-godot-semantic-world",
-        version="1.2",
+        version="1.3",
         english_path="docs/developer/contracts/nest-godot-semantic-world.md",
         chinese_path="docs/zh/developer/contracts/nest-godot-semantic-world.md",
         decision_paths=(

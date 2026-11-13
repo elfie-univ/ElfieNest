@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Final
+from datetime import datetime
+from typing import Callable, Final
 
 from app.features.accounts import AccountPrincipal
 
 from .errors import SettingsForbidden, SettingsValidationError
 from .models import (
     ElfieSettingsResult,
+    EnvironmentSettingsResult,
     GetElfieSettingsQuery,
+    GetEnvironmentSettingsQuery,
     GetRuntimeSettingsQuery,
     GetSecuritySettingsQuery,
     LoginRateLimit,
@@ -18,6 +21,7 @@ from .models import (
     SecuritySettingsResult,
     SettingsResetResult,
     UpdateElfieSettingsCommand,
+    UpdateEnvironmentSettingsCommand,
     UpdateRuntimeSettingsCommand,
     UpdateSecuritySettingsCommand,
 )
@@ -37,9 +41,27 @@ class SettingsService:
         self,
         store: SettingsStorePort,
         security_settings_changed: SecuritySettingsChangedPort | None = None,
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self._store = store
         self._security_settings_changed = security_settings_changed
+        self._now = now or (lambda: datetime.now().astimezone())
+
+    def get_environment_settings(
+        self, principal: AccountPrincipal, query: GetEnvironmentSettingsQuery
+    ) -> EnvironmentSettingsResult:
+        self._require_manager(principal)
+        settings = self._store.load_environment_settings()
+        return EnvironmentSettingsResult(settings, settings.daylight_at(self._now()))
+
+    def update_environment_settings(
+        self, principal: AccountPrincipal, command: UpdateEnvironmentSettingsCommand
+    ) -> EnvironmentSettingsResult:
+        self._require_manager(principal)
+        self._store.save_environment_settings(command.settings)
+        return EnvironmentSettingsResult(
+            command.settings, command.settings.daylight_at(self._now())
+        )
 
     def get_elfie_settings(
         self,

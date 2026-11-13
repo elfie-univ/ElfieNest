@@ -28,6 +28,11 @@ system:
     personality_presets_enabled: {}
   engine:
     tick_interval_sec: 1.0
+  environment:
+    daylight_source: manual
+    sunrise_time: "06:00"
+    sunset_time: "18:00"
+    rest_time: "00:00"
   security:
     session_ttl_days: 1
     rate_limit:
@@ -145,6 +150,11 @@ system:
     unexpected: true
   engine:
     tick_interval_sec: 1.0
+  environment:
+    daylight_source: manual
+    sunrise_time: "06:00"
+    sunset_time: "18:00"
+    rest_time: "00:00"
   security:
     session_ttl_days: 1
     rate_limit:

@@ -1,6 +1,6 @@
 extends RefCounted
 ## Physical, non-looping arrival trajectory sampled from the actual platform colliders.
-const TIMING := preload("res://rooms/estate/estate_platform_cycle.gd")
+const TIMING := preload("res://nest/buildings/main/arrival/estate_platform_cycle.gd")
 var origin := Vector3.ZERO
 var steps := Vector3.ZERO
 var platform_bounds := AABB()
@@ -29,7 +29,7 @@ func bind(nest: ModularNest) -> bool:
  var step_bounds := AABB(stairs[0], Vector3.ZERO)
  for point: Vector3 in stairs: step_bounds = step_bounds.expand(point)
  steps = step_bounds.get_center()
- origin = Vector3(marker.global_position.x, platform_bounds.end.y + 0.025, marker.global_position.z)
+ origin = Vector3(platform_bounds.get_center().x, platform_bounds.end.y + 0.025, platform_bounds.get_center().z)
  walk_profile = sample_walk(origin, steps, faces)
  return walk_profile.size() == 67
 

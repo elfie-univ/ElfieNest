@@ -24,16 +24,17 @@ Main source layout:
 godot_project/
 ├── main.tscn, main.gd     # project entry
 ├── runtime/               # world configuration, actor sync and semantic action lifecycle
-├── rooms/                 # Nest observer and the complete final estate asset
+│   └── observer/          # observation cameras, message bridge and native HUD
+├── nest/                  # estate assembly, assets, spatial data and rendering
 ├── characters/            # Elfie characters, models, animation and appearance authoring material
-├── ui/                    # observation UI
-└── scripts/               # Godot-internal tests and asset authoring tools
+├── test/                  # Godot-internal tests (Python tests remain in test/godot/)
+└── tools/                 # asset authoring tools
 ```
 
 Enter character authoring from [`characters/README.md`](characters/README.md);
 enter the complete building, interiors and courtyard from
-[`rooms/estate/README.md`](rooms/estate/README.md). The legacy procedural rooms,
-standalone furniture and central/pod baseline have been retired; `rooms/nest.tscn`
+[`nest/RUNTIME.md`](nest/RUNTIME.md). The legacy procedural rooms,
+standalone furniture and central/pod baseline have been retired; `nest/nest.tscn`
 is the only Nest entry and instantiates this complete estate once. Its authored
 geometry now binds collisions, 32 beds, 32 desk chairs, courtyard seating, doors
 and navigation; world readiness waits for synchronization and reachable anchors.
@@ -44,7 +45,7 @@ The project includes the forest loop and return spur, smooth lawn and planting r
 ten physical doors, and offline collision/navigation resources. Buildings, furniture and
 base materials retain their baseline; terrain, fixtures and actions are integrated by feature.
 Chair/sofa sequences, the original duvet, bed-bound embodiment, adoption arrival and water
-effects use the actual models in this project. See the [estate entry](rooms/estate/README.md)
+effects use the actual models in this project. See the [estate entry](nest/RUNTIME.md)
 for focused replays; these do not certify autonomous life.
 
 The product monitor consumes Nest's local civil-time environment: artificial lighting is off
@@ -102,7 +103,7 @@ contract can reference the same artifacts; do not keep copies inside
 `godot_project/`, `app/interfaces/desktop/` or end-user web sources.
 
 Environment preparation, directory layout and acceptance details for the Web
-export are maintained only in [`WEB_EXPORT.md`](WEB_EXPORT.md) to avoid multiple
+export are maintained only in [Godot Web export guide](../docs/developer/engineering/godot.md#web-export) to avoid multiple
 drifting copies of the flow.
 
 ## Linux Dedicated Runtime

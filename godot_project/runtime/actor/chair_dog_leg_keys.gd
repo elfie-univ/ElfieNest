@@ -2,7 +2,7 @@ extends RefCounted
 ## Bake a dog-sized two-bone leg retarget into clip copies, not per-frame IK.
 ## Source body motion/timing and bone lengths stay intact; target poses are authored.
 
-const EDITS := preload("res://characters/animation/candidates/dog_chair_contact_edits.tres")
+const EDITS := preload("res://nest/furniture/layouts/bedroom/direct-seat.tres")
 
 
 static func bake(clip: Animation, key: String, actor: ElfieActor, idle: Animation, standing_lift: Vector2 = Vector2.ZERO) -> void:
@@ -36,11 +36,7 @@ static func bake(clip: Animation, key: String, actor: ElfieActor, idle: Animatio
 	for frame in range(int(ceil(clip.length * 30.0)) + 1):
 		var time := minf(float(frame) / 30.0, clip.length)
 		_apply(skeleton, source, time)
-		var seated := 1.0 if key == "seated_idle" else 0.0
-		if key in ["sit_down", "stand_up"]:
-			var edit := EDITS.get_animation(key)
-			seated = absf(edit.position_track_interpolate(0, time).y / edit.position_track_interpolate(0, edit.length).y)
-			if key == "stand_up": seated = 1.0 - seated
+		var seated := 1.0
 		var heading := _heading(skeleton, hips)
 		for side: String in ["Left", "Right"]:
 			var upper := skeleton.find_bone("mixamorig_" + side + "UpLeg")
@@ -57,7 +53,6 @@ static func bake(clip: Animation, key: String, actor: ElfieActor, idle: Animatio
 			ankle.y += standing_lift.x if side == "Left" else standing_lift.y
 			var lateral := (heading.inverse() * (a - _world(skeleton, hips).origin)).x
 			ankle.x = -signf(lateral) * float(EDITS.get_meta("standing_ankle_inset"))
-			if key == "stand_up": ankle.y += float(EDITS.get_meta("standing_sole_lift")) * (1.0 - seated)
 			ankle = ankle.lerp(EDITS.get_meta("seated_ankle") as Vector3, seated)
 			var source_foot := _world(skeleton, foot).basis.orthonormalized()
 			var target := a + heading * ankle
@@ -71,7 +66,7 @@ static func bake(clip: Animation, key: String, actor: ElfieActor, idle: Animatio
 			b = _world(skeleton, lower).origin
 			c = _world(skeleton, foot).origin
 			_rotate_toward(skeleton, lower, c - b, target - b)
-			var foot_blend := 0.65 if key == "turn_left_90" else 1.0
+			var foot_blend := 1.0
 			_set_world_basis(skeleton, foot, source_foot.slerp((heading * (foot_frames[side] as Basis)).orthonormalized(), foot_blend))
 			# Keep the downloaded idle toe orientation, not the sitting toe curl.
 			var toe := skeleton.find_bone("mixamorig_" + side + "ToeBase")

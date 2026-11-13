@@ -24,10 +24,9 @@ def mount_static_surfaces(app: FastAPI) -> bool:
     mount_vite_bundle(app)
     bundle_dir = Path(__file__).parents[2] / "build" / "components" / "godot-web"
     bundle_ready = (bundle_dir / "elfienest.html").is_file()
-    if bundle_ready:
-        app.mount(
-            "/godot-web",
-            NoStoreStaticFiles(directory=bundle_dir, html=True),
-            name="nest_lab_godot_web",
-        )
+    app.mount(
+        "/godot-web",
+        NoStoreStaticFiles(directory=bundle_dir, html=True, check_dir=False),
+        name="nest_lab_godot_web",
+    )
     return bundle_ready

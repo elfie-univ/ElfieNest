@@ -10,7 +10,9 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from devtools.elfie_lab.host import LoopbackHostMiddleware
+from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.nest_lab.routes import build_router
+from devtools.nest_lab.saved_actors import SavedLabActors
 from devtools.nest_lab.static_host import mount_static_surfaces
 from devtools.nest_lab.world import NestLabWorld
 from devtools.web_host import frontend_shell
@@ -24,17 +26,20 @@ def create_app(
     godot_ws_port: int = 9002,
     on_ready: Callable[[], None] | None = None,
 ) -> FastAPI:
-    """Create one disposable Lab without production engine or data dependencies."""
-    root = (
-        Path(data_dir)
-        if data_dir is not None
-        else get_elfie_developer_home() / "nest_lab"
+    """Use the shared Developer data layout without production data dependencies."""
+    developer_root = (
+        Path(data_dir) if data_dir is not None else get_elfie_developer_home()
+    )
+    root = developer_root / "nest_lab"
+    storage = ElfieLabStorage(
+        str(developer_root / "elfie_lab") if data_dir is not None else None
     )
     root.mkdir(parents=True, exist_ok=True)
     world = NestLabWorld(
         data_dir=root,
         http_port=http_port,
         websocket_port=godot_ws_port,
+        saved_actors=SavedLabActors(storage),
     )
     runtime_startup_error: Optional[str] = None
 
@@ -89,9 +94,12 @@ def create_app(
 
     @app.get("/api/godot-web")
     def godot_web_status() -> Dict[str, Union[bool, str]]:
+        ready = (
+            Path(__file__).parents[2] / "build/components/godot-web/elfienest.html"
+        ).is_file()
         return {
-            "ready": bundle_ready,
-            "entry_url": "/godot-web/elfienest.html" if bundle_ready else "",
+            "ready": ready,
+            "entry_url": "/godot-web/elfienest.html" if ready else "",
             "build_command": "./developer.sh build-godot-web",
         }
 

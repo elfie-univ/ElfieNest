@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from elfie.profile import ResolvedAppearance
 from nest.config import FIXED_BED_COUNT
+from nest.public import LifePhase
 
 LabSpecies = Literal["tovren", "saevi"]
 
 
 class _LabRequest(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class LabEnvironmentState(_LabRequest):
+    phase: LifePhase
+    lights_on: bool
+    quiet_mode: bool
 
 
 class BedCountRequest(_LabRequest):
@@ -23,17 +31,50 @@ class BedCountRequest(_LabRequest):
 
 
 class CreateActorRequest(_LabRequest):
-    """A developer request to add one temporary rendered actor."""
+    """Create and save an experiment Elfie through the shared Lab library."""
 
     species: LabSpecies
+    name: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    age_years: Optional[int] = Field(default=None, strict=True, ge=2, le=100)
+    gender: Optional[Literal["male", "female"]] = None
+
+
+class LabActionRequest(_LabRequest):
+    """One manual Lab request using existing Runtime actions."""
+
+    actor_id: str = Field(min_length=1, max_length=128)
+    action: Literal["animation", "move", "use"]
+    animation: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    anchor_id: Optional[str] = Field(default=None, min_length=1, max_length=256)
+
+    furniture_cycle: Optional[
+        Literal["seat", "sleep-back", "sleep-left", "sleep-right"]
+    ] = None
+
+    @model_validator(mode="after")
+    def validate_target(self) -> LabActionRequest:
+        if self.action == "animation":
+            valid = self.animation is not None and self.anchor_id is None
+        else:
+            valid = self.anchor_id is not None and self.animation is None
+        if self.furniture_cycle is not None and self.action != "use":
+            raise ValueError("furniture cycles require a use action")
+        if not valid:
+            raise ValueError("animation requires a clip; move/use require an anchor")
+        return self
 
 
 @dataclass(frozen=True)
 class LabActor:
-    """Temporary actor identity owned by the Lab controller."""
+    """Scene projection of a saved experiment identity and appearance."""
 
     actor_id: str
     species: LabSpecies
+    age_years: int = 4
+    gender: Literal["male", "female"] = "female"
+    appearance: Optional[ResolvedAppearance] = None
+    name: str = ""
+    saved: bool = False
 
 
 @dataclass(frozen=True)

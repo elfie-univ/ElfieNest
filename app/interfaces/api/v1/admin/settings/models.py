@@ -14,6 +14,8 @@ from pydantic import (
     model_validator,
 )
 
+from nest.public import DaylightTimes, EnvironmentSchedule
+
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -67,6 +69,15 @@ class RuntimeSettingsResponse(_StrictModel):
     tick_interval_sec: float
 
 
+class EnvironmentSettingsRequest(_StrictModel):
+    settings: EnvironmentSchedule
+
+
+class EnvironmentSettingsResponse(_StrictModel):
+    settings: EnvironmentSchedule
+    today: DaylightTimes
+
+
 class LoginRateLimitResponse(_StrictModel):
     max_attempts: int
     window_seconds: int
@@ -87,6 +98,8 @@ class ErrorResponse(_StrictModel):
 
 
 __all__ = (
+    "EnvironmentSettingsRequest",
+    "EnvironmentSettingsResponse",
     "ElfieSettingsPatch",
     "ElfieSettingsResponse",
     "ErrorResponse",

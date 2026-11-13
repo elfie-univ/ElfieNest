@@ -21,6 +21,9 @@ pause, resume or reset the experiment. The event timeline shows world
 configuration, actor sync, motion terminal states, collisions and other Runtime
 facts.
 
+In **Actions → Scene Actions → Water**, select **Waterfall** for a close view of
+the outlet and its two sides without changing the fountain's playback state.
+
 House geometry, rendering, pathfinding and collision are always performed by
 Godot; the Lab does not copy coordinates or physics rules into Python. The
 random walk is just Python picking a semantic anchor every two seconds and

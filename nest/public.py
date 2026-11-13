@@ -38,8 +38,11 @@ from nest.time_environment.models import (
     EnvironmentRule,
     LifePhase,
 )
+from nest.time_environment.schedule import DaylightTimes, EnvironmentSchedule
 
 __all__ = [
+    "DaylightTimes",
+    "EnvironmentSchedule",
     "AnchorKind",
     "BedCapacityError",
     "BedConflictError",

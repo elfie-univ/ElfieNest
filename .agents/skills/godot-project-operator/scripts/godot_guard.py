@@ -18,7 +18,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from infrastructure.godot import runner as godot_runner  # noqa: E402
 
 DEFAULT_PROJECT = REPO_ROOT / "godot_project"
-DEFAULT_VALIDATION_SCRIPT = "res://scripts/test/test_scene_resource_contract.gd"
+DEFAULT_VALIDATION_SCRIPT = "res://test/test_scene_resource_contract.gd"
 
 
 @dataclass(frozen=True)

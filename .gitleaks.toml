@@ -1,0 +1,14 @@
+title = "ElfieNest secret scanning"
+
+[extend]
+useDefault = true
+
+# Verified SHA-256 of estate_outdoor_access.gd, not an authentication credential.
+# Match only this exact receipt entry; all other values and default rules remain scanned.
+[[allowlists]]
+description = "Verified split spatial input file fingerprint"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+paths = ['''^godot_project/nest/assembly/runtime-inputs\.json$''']
+regexes = ['''^\s*"nest/spatial/estate_outdoor_access\.gd":\s*"4242ad74b75cab7e06a7a00e516903545dd3a603ef25966c9267ea9daec2e994",?\s*$''']

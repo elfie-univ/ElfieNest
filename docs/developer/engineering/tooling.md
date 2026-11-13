@@ -157,7 +157,7 @@ GODOT_BIN=/path/to/godot ./developer.sh build-godot-dedicated
 
 The official output lives at `build/components/godot-web/` and is not committed
 to Git. For the specific environment, artifacts and packaging flow see
-`godot_project/WEB_EXPORT.md` inside the standalone Godot source project.
+the [Web export guide](godot.md#web-export).
 The dedicated authority export is a Linux x64 executable at
 `build/components/godot-linux-dedicated/ElfieNestRuntime`; it has no Web
 payload and is also not committed to Git.

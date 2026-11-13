@@ -12,8 +12,10 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterable
 
+from pydantic import ValidationError
+
 from infrastructure.persistence.configuration.documents import ConfigDocumentId
-from nest.public import FIXED_BED_COUNT
+from nest.public import FIXED_BED_COUNT, EnvironmentSchedule
 
 
 class ConfigSchemaError(ValueError):
@@ -141,7 +143,7 @@ def _validate_system(
     partial: bool,
     allow_runtime_extensions: bool = False,
 ) -> None:
-    section_names = {"adoption", "engine", "security", "model_execution"}
+    section_names = {"adoption", "engine", "security", "model_execution", "environment"}
     if not partial:
         _keys(system, section_names, label)
     if not partial:
@@ -188,6 +190,13 @@ def _validate_system(
                 engine["tick_interval_sec"],
                 f"{label}.engine.tick_interval_sec",
             )
+    if "environment" in system:
+        try:
+            EnvironmentSchedule.model_validate(system["environment"])
+        except ValidationError as error:
+            raise ConfigSchemaError(
+                f"{label}.environment is invalid: {error}"
+            ) from error
     if "security" in system:
         security = _object(system["security"], f"{label}.security")
         _keys(

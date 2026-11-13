@@ -11,6 +11,7 @@ from app.features.accounts import AccountPrincipal
 from app.features.configuration import (
     ElfieSettingsResult,
     GetElfieSettingsQuery,
+    GetEnvironmentSettingsQuery,
     GetRuntimeSettingsQuery,
     GetSecuritySettingsQuery,
     LoginRateLimit,
@@ -20,6 +21,7 @@ from app.features.configuration import (
     SettingsStorageError,
     SettingsValidationError,
     UpdateElfieSettingsCommand,
+    UpdateEnvironmentSettingsCommand,
     UpdateRuntimeSettingsCommand,
     UpdateSecuritySettingsCommand,
 )
@@ -28,6 +30,8 @@ from app.interfaces.api.v1.auth import require_manager
 from .models import (
     ElfieSettingsPatch,
     ElfieSettingsResponse,
+    EnvironmentSettingsRequest,
+    EnvironmentSettingsResponse,
     ErrorResponse,
     LoginRateLimitResponse,
     RuntimeSettingsPatch,
@@ -52,6 +56,48 @@ def settings_service(request: Request) -> SettingsService:
 CurrentManager = Annotated[AccountPrincipal, Depends(require_manager)]
 SettingsDependency = Annotated[SettingsService, Depends(settings_service)]
 ResultT = TypeVar("ResultT")
+
+
+@router.get(
+    "/environment",
+    response_model=EnvironmentSettingsResponse,
+    responses={403: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
+def get_environment_settings(
+    principal: CurrentManager, service: SettingsDependency
+) -> Union[EnvironmentSettingsResponse, JSONResponse]:
+    result = _execute(
+        lambda: service.get_environment_settings(
+            principal, GetEnvironmentSettingsQuery()
+        )
+    )
+    if isinstance(result, JSONResponse):
+        return result
+    return EnvironmentSettingsResponse(settings=result.settings, today=result.today)
+
+
+@router.put(
+    "/environment",
+    response_model=EnvironmentSettingsResponse,
+    responses={
+        403: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+def update_environment_settings(
+    body: EnvironmentSettingsRequest,
+    principal: CurrentManager,
+    service: SettingsDependency,
+) -> Union[EnvironmentSettingsResponse, JSONResponse]:
+    result = _execute(
+        lambda: service.update_environment_settings(
+            principal, UpdateEnvironmentSettingsCommand(body.settings)
+        )
+    )
+    if isinstance(result, JSONResponse):
+        return result
+    return EnvironmentSettingsResponse(settings=result.settings, today=result.today)
 
 
 @router.get(

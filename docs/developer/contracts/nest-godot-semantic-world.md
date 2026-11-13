@@ -1,8 +1,8 @@
 # Nest–Godot semantic-world contract
 
-**Contract version:** 1.2
+**Contract version:** 1.3
 **Adopted:** 2026-08-13
-**Amended:** 2026-09-02
+**Amended:** 2026-11-13
 **Scope:** `nest/`, the Godot semantic boundary, and affected App orchestration
 
 > **Normative target.** This contract defines Nest internal fact ownership,
@@ -182,10 +182,10 @@ modules:
 
 | Source category | Repository role |
 | --- | --- |
-| `rooms/`, `characters/` | authored physical scenes, geometry, actor resources and runtime content; these are retained content, not extra business modules |
+| `nest/`, `characters/` | authored physical scenes, geometry, actor resources and runtime content; these are retained content, not extra business modules |
 | `runtime/actor/`, `runtime/world/`, `runtime/endpoint/` | the small authority glue described above; spatial visibility and audibility belong to World rather than Actor |
-| `runtime/observer/`, `runtime/lab/`, `ui/` and referenced preview controllers | presentation or development modes; they do not gain physical, household or lifecycle authority |
-| `scripts/test/`, `scripts/tools/`, character tools and authoring-source trees | developer-only inputs; they must be excluded from every release export and are not Runtime dependencies |
+| `runtime/observer/`, `runtime/lab/` and referenced preview controllers | presentation or development modes; they do not gain physical, household or lifecycle authority |
+| `test/`, `tools/`, character tools and authoring-source trees | developer-only inputs; they must be excluded from every release export and are not Runtime dependencies |
 
 `main.gd` is assembly and mode dispatch. Directory cleanup does not justify
 deleting referenced scenes or assets. Conversely, an all-resources export must

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ownerRead, ownerWrite } from "../http"
 import {
   elfieSettings,
+  environmentSettings, updateEnvironmentSettings,
   runtimeSettings,
   securitySettings,
   updateElfieSettings,
@@ -67,5 +68,15 @@ describe("administrator Settings API boundary", () => {
     })
 
     await expect(elfieSettings()).rejects.toThrow()
+  })
+
+  it("validates environment settings and writes them to the manager resource with CSRF", async () => {
+    const settings = { daylight_source: "manual" as const, sunrise_time: "06:00", sunset_time: "18:00", rest_time: "00:00", latitude: null, longitude: null }
+    const result = { settings, today: { date: "2026-11-03", timezone: "UTC", sunrise_time: "06:00", sunset_time: "18:00", condition: "normal" } }
+    vi.mocked(ownerWrite).mockResolvedValue(result)
+    await expect(updateEnvironmentSettings(settings, "csrf")).resolves.toEqual(result)
+    expect(ownerWrite).toHaveBeenCalledWith("/api/v1/admin/settings/environment", "PUT", "csrf", { settings })
+    vi.mocked(ownerRead).mockResolvedValue({ ...result, settings: { ...settings, daylight_source: "unknown" } })
+    await expect(environmentSettings()).rejects.toThrow()
   })
 })

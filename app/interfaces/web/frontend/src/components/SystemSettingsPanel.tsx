@@ -22,6 +22,7 @@ import { Icon } from "./Icon"
 import { Notice } from "./Notice"
 import { NumberField } from "./NumberField"
 import { RefreshButton } from "./RefreshButton"
+import { EnvironmentSettingsSection } from "./EnvironmentSettingsSection"
 import { LocalFileToolDetails } from "./tools/LocalFileToolDetails"
 import { ToolSettingsRow } from "./tools/ToolSettingsRow"
 import { useToolsPermissions } from "./tools/useToolsPermissions"
@@ -163,6 +164,7 @@ export function SystemSettingsPanel({ csrfToken }: { readonly csrfToken: string 
         <Icon name={advancedOpen ? "chevron-up" : "chevron-down"} size={16} />
       </button>
       {advancedOpen ? <div className="system-advanced__body">
+        <EnvironmentSettingsSection csrfToken={csrfToken} />
         <section className="system-advanced__group">
           <h3>{t("systemSettings.security.title")}</h3>
           <NumberField disabled={saving !== null} label={t("systemSettings.security.sessionTtl")} max={3650} min={1} onChange={(days) => setSecurity({ ...security, session_ttl_days: days })} value={security.session_ttl_days} />

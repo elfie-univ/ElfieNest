@@ -21,7 +21,7 @@ def test_developer_tools_are_explicit_and_do_not_include_user_service() -> None:
     names = tuple(tool.name for tool in tools)
 
     # Then
-    assert names == ("elfie-lab", "nest-lab", "brain-eval", "asset-design")
+    assert names == ("elfie-lab", "nest-lab", "brain-eval")
     assert "serve" not in names
 
 
@@ -50,7 +50,6 @@ def test_default_developer_tools_resolve_under_developer_home(
         developer_home / "elfie_lab",
         developer_home / "nest_lab",
         developer_home / "elfie_lab" / "evaluation",
-        developer_home / "asset_design",
     )
 
 
@@ -348,3 +347,30 @@ def test_nest_lab_direct_module_entrypoint_rejects_remote_binding(monkeypatch) -
 
     with pytest.raises(SystemExit, match="2"):
         nest_lab_main.main()
+
+
+def test_retired_asset_design_command_cannot_start_a_service(monkeypatch) -> None:
+    monkeypatch.setattr(
+        developer_main,
+        "restart_default_lab",
+        lambda *_: pytest.fail("retired command must not stop an existing Lab"),
+    )
+    monkeypatch.setattr(
+        developer_main.uvicorn,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("retired command must not start HTTP"),
+    )
+    monkeypatch.setattr(
+        developer_main.webbrowser,
+        "open",
+        lambda *_: pytest.fail("retired command must not open a browser"),
+    )
+    with pytest.raises(SystemExit, match="2"):
+        developer_main.main(["asset-design"])
+
+
+def test_retired_asset_design_package_is_removed() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    package = repository / "devtools/asset_design"
+    assert not package.exists()
+    assert (repository / "godot_project/nest/assembly/estate.tscn").is_file()

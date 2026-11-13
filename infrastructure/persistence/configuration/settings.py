@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Any, Mapping, NoReturn
 
+from pydantic import ValidationError
+
 from app.features.configuration import (
     SettingsStorageError,
     StoredElfieSettings,
@@ -33,6 +35,7 @@ from infrastructure.persistence.configuration.schemas import (
     validate_registered_document,
 )
 from infrastructure.persistence.layout.data_home import get_config_path
+from nest.public import EnvironmentSchedule
 
 
 class RuntimeSettingsAdapter:
@@ -46,6 +49,17 @@ class RuntimeSettingsAdapter:
     ) -> None:
         self._config_path = config_path or get_config_path()
         self._bundled_root = bundled_root
+
+    def load_environment_settings(self) -> EnvironmentSchedule:
+        section = self._section("environment")
+        values = section if section else self._default_section("environment")
+        try:
+            return EnvironmentSchedule.model_validate(values)
+        except ValidationError as error:
+            raise SettingsStorageError("Invalid environment settings") from error
+
+    def save_environment_settings(self, settings: EnvironmentSchedule) -> None:
+        self._save_section("environment", settings.model_dump())
 
     def load_elfie_settings(self) -> StoredElfieSettings:
         section = self._section("adoption")

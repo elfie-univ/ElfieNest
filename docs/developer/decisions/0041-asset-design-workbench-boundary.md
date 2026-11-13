@@ -1,6 +1,6 @@
 # ADR-0041: Isolate the asset design workbench and its saved assets
 
-**Status:** Accepted
+**Status:** Retired on 2026-11-05 by explicit user direction. The entire design workbench and asset workspace have been removed. Authoring uses formal resources in `godot_project/`; previews use Nest Lab. The decision below remains a historical record.
 **Date:** 2026-10-22
 **Scope:** Developer Tools asset design preview and asset workspace storage
 
@@ -55,3 +55,13 @@ Large approved GLBs use Git LFS without changing their asset identity or bytes.
 A fresh-checkout validation entry materializes tracked LFS inputs before computing
 input fingerprints or running asset checks. Download failures and unresolved
 pointers are errors; pointer bytes are never accepted as model data.
+
+
+## Godot directories after retirement — 2026-11-13
+
+The formal Nest scenes and assets live under `nest/` in the Godot project.
+Estate assembly, spatial data, and shared rendering live in `nest/assembly/`,
+`nest/spatial/`, and `nest/rendering/` respectively. Observer UI lives under
+`runtime/observer/`. Developer scripts and tests live under `tools/` and
+`test/`, and species acceptance uses the new test path. Release exports
+continue to exclude authoring sources, tools, and tests.

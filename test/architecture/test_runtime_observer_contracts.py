@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FORBIDDEN_RUNTIME_DIRECTORIES = frozenset({"desktop", "nest/godot", "nest/runtime"})
 RUNTIME_SNAPSHOT_PATH = PROJECT_ROOT / "app/orchestration/lifecycle/runtime_snapshot.py"
 GODOT_MAIN_PATH = PROJECT_ROOT / "godot_project/main.gd"
-GODOT_NEST_PATH = PROJECT_ROOT / "godot_project/rooms/nest.gd"
+GODOT_NEST_PATH = PROJECT_ROOT / "godot_project/nest/nest.gd"
 GODOT_OBSERVER_BRIDGE_PATH = (
     PROJECT_ROOT / "godot_project/runtime/observer/observer_bridge.gd"
 )

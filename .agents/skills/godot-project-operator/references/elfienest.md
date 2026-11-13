@@ -6,8 +6,8 @@
 - 项目文件：`godot_project/project.godot`
 - 要求版本：读取 `project.godot` 的 `config/features`；渲染器为 GL Compatibility
 - 主场景：`res://main.tscn`
-- 最终巢穴场景：`res://rooms/nest.tscn`
-- 场景资源契约：`res://scripts/test/test_scene_resource_contract.gd`
+- 最终巢穴场景：`res://nest/nest.tscn`
+- 场景资源契约：`res://test/test_scene_resource_contract.gd`
 - Godot 生成缓存：`godot_project/.godot/`，已被 Git 忽略
 
 主场景包含 `Nest` 和空的 `Characters` 容器。Godot 专项门禁只执行单次同步 headless 验证，不启动编辑器、独立游戏进程或截图进程。

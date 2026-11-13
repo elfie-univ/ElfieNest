@@ -18,8 +18,14 @@ if os.name == "nt":
 else:
     import fcntl
 
-from infrastructure.godot.artifacts.authority_pack import build_authority_pack
-from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
+from infrastructure.godot.artifacts.authority_pack import (
+    build_authority_pack,
+    verify_split_sources,
+)
+from infrastructure.godot.artifacts.export_boundary import (
+    export_boundary_manifest,
+    runtime_source_files,
+)
 from infrastructure.godot.artifacts.species_package_validation import (
     GodotSpeciesValidationRunner,
     SpeciesPackageValidationError,
@@ -43,7 +49,7 @@ ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
 LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v3"
 CANVAS_CAPTURE_VERSION = "canvas-capture-v3"
-PACK_OWNERSHIP_VERSION = "pack-ownership-v3-authority"
+PACK_OWNERSHIP_VERSION = "pack-ownership-v4-authority-lab-visual"
 LAN_HTTP_COMPATIBILITY_MARKER = "elfienest:lan-http-compatibility"
 CANVAS_CAPTURE_MARKER = "elfienest:webgl-canvas-capture"
 _SECURE_CONTEXT_FEATURE = "Secure Context - Check web server configuration (use HTTPS)"
@@ -228,6 +234,11 @@ def _export_runtime_locked(
     godot_runner: GodotSpeciesValidationRunner,
 ) -> int:
     """Export, then validate the imported source before publishing the bundle."""
+    try:
+        verify_split_sources(GODOT_PROJECT)
+    except ValueError as error:
+        print(f"❌ {error}")
+        return 1
     staging = output.parent / f".{output.name}.staging"
     previous = output.parent / f".{output.name}.previous"
     shutil.rmtree(staging, ignore_errors=True)
@@ -369,10 +380,8 @@ def current_source_fingerprint() -> str:
     digest.update(b"\0")
     if not GODOT_PROJECT.is_dir():
         return digest.hexdigest()
-    for path in sorted(item for item in GODOT_PROJECT.rglob("*") if item.is_file()):
+    for path in sorted(runtime_source_files(GODOT_PROJECT)):
         relative = path.relative_to(GODOT_PROJECT)
-        if ".godot" in relative.parts or relative.suffix in {".import", ".tmp"}:
-            continue
         digest.update(relative.as_posix().encode("utf-8"))
         digest.update(b"\0")
         digest.update(path.read_bytes())
@@ -388,7 +397,7 @@ def current_species_catalog_digest() -> str:
 def patch_web_authority_pack(entry: Path, size: int) -> None:
     """Select the physical package only for the existing authority entry mode."""
     text = entry.read_text(encoding="utf-8")
-    marker = "// elfienest:authority-pack-v1"
+    marker = "// elfienest:authority-pack-v2"
     if marker in text:
         return
     before = "const engine = new Engine(GODOT_CONFIG);"
@@ -396,7 +405,8 @@ def patch_web_authority_pack(entry: Path, size: int) -> None:
         raise RuntimeError(f"Unsupported Godot authority pack entry: {entry}")
     script = (
         marker + "\n"
-        "if (new URLSearchParams(window.location.search).get('mode') === 'authority') {\n"
+        "if (new URLSearchParams(window.location.search).get('mode') === 'authority'\n"
+        "    && new URLSearchParams(window.location.search).get('lab') !== 'nest_lab') {\n"
         "  GODOT_CONFIG.mainPack = 'elfienest-authority.pck';\n"
         f"  GODOT_CONFIG.fileSizes['elfienest-authority.pck'] = {size};\n"
         "}\n"

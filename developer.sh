@@ -75,7 +75,7 @@ fi
 
 case "${1:-}" in
   elfie-lab|nest-lab)
-    "$PYTHON_BIN" scripts/internal/build/build_godot_web.py --ensure
+    "$PYTHON_BIN" -m devtools.nest_lab.preview_build
     "$PYTHON_BIN" scripts/internal/build/build_devtools_web.py --ensure
     ;;
   brain-eval)
@@ -85,10 +85,10 @@ case "${1:-}" in
       catalog|capture|compare|calibrate)
         ;;
       *)
-        "$PYTHON_BIN" scripts/build_godot_web.py --ensure
+        "$PYTHON_BIN" -m devtools.nest_lab.preview_build
         ;;
     esac
-    "$PYTHON_BIN" scripts/build_devtools_web.py --ensure
+    "$PYTHON_BIN" scripts/internal/build/build_devtools_web.py --ensure
     ;;
 esac
 exec "$PYTHON_BIN" -m devtools "$@"

@@ -1,7 +1,7 @@
 # Species asset package contract
 
-Status: normative, version 4<br>
-Revised: 2026-09-24<br>
+Status: normative, version 5<br>
+Revised: 2026-11-13<br>
 Decision: [ADR-0033](../decisions/0033-one-time-genesis-and-final-owner-isolation)
 
 This contract defines when a species is a usable ElfieNest runtime species. A
@@ -116,5 +116,5 @@ uv run --no-sync pytest -q \
   test/elfie/profile/test_species_registry.py \
   test/app/features/adoption/test_facade.py
 godot --headless --path godot_project \
-  --script scripts/test/test_species_catalog.gd
+  --script test/test_species_catalog.gd
 ```

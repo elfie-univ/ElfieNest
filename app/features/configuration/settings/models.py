@@ -5,6 +5,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from nest.public import DaylightTimes, EnvironmentSchedule
+
+
+@dataclass(frozen=True)
+class GetEnvironmentSettingsQuery:
+    pass
+
+
+@dataclass(frozen=True)
+class UpdateEnvironmentSettingsCommand:
+    settings: EnvironmentSchedule
+
+
+@dataclass(frozen=True)
+class EnvironmentSettingsResult:
+    settings: EnvironmentSchedule
+    today: DaylightTimes
+
 
 @dataclass(frozen=True)
 class GetElfieSettingsQuery:
@@ -74,6 +92,9 @@ class SettingsResetResult:
 
 
 __all__ = (
+    "GetEnvironmentSettingsQuery",
+    "UpdateEnvironmentSettingsCommand",
+    "EnvironmentSettingsResult",
     "ElfieSettingsResult",
     "GetElfieSettingsQuery",
     "GetRuntimeSettingsQuery",

@@ -138,7 +138,7 @@ GODOT_BIN=/path/to/godot ./developer.sh build-godot-dedicated
 ```
 
 正式输出位于 `build/components/godot-web/`，不会提交 Git。具体环境、产物和
-打包流程见独立 Godot 源工程内的 `godot_project/WEB_EXPORT.md`。
+打包流程见 [Web 导出说明](godot.md#web-export)。
 Dedicated 权威导出是
 `build/components/godot-linux-dedicated/ElfieNestRuntime` 下的 Linux x64 可执行文件，
 不包含 Web payload，同样不会提交 Git。

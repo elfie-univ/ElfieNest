@@ -48,11 +48,9 @@ NEST_ROOT_ENTRIES: Dict[str, ScopeEntry] = {
 }
 
 GODOT_ROOT_ENTRIES: Dict[str, ScopeEntry] = {
-    **_files("AGENTS.md", "README.md", "README_zh.md", "WEB_EXPORT.md"),
+    **_files("AGENTS.md", "README.md", "README_zh.md"),
     **_files(
         "export_presets.cfg",
-        "lab_preview_controller.gd",
-        "lab_preview_controller.gd.uid",
         "main.gd",
         "main.gd.uid",
         "main.tscn",
@@ -61,10 +59,10 @@ GODOT_ROOT_ENTRIES: Dict[str, ScopeEntry] = {
     ),
     ".godot": ScopeEntry("directory", "generated"),
     "characters": ScopeEntry("directory", "authored-content"),
-    "rooms": ScopeEntry("directory", "authored-content"),
+    "nest": ScopeEntry("directory", "authored-content"),
     "runtime": ScopeEntry("directory", "target"),
-    "scripts": ScopeEntry("directory", "developer-input"),
-    "ui": ScopeEntry("directory", "presentation"),
+    "test": ScopeEntry("directory", "developer-input"),
+    "tools": ScopeEntry("directory", "developer-input"),
 }
 
 GODOT_RUNTIME_ENTRIES: Dict[str, ScopeEntry] = {
@@ -77,16 +75,10 @@ GODOT_RUNTIME_ENTRIES: Dict[str, ScopeEntry] = {
     "world": ScopeEntry("directory", "target"),
 }
 
-GODOT_SCRIPT_ENTRIES: Dict[str, ScopeEntry] = {
-    "test": ScopeEntry("directory", "developer-input"),
-    "tools": ScopeEntry("directory", "developer-input"),
-}
-
 STRUCTURAL_SCOPES: Tuple[DirectoryScope, ...] = (
     DirectoryScope("nest", NEST_ROOT_ENTRIES),
     DirectoryScope("godot_project", GODOT_ROOT_ENTRIES),
     DirectoryScope("godot_project/runtime", GODOT_RUNTIME_ENTRIES),
-    DirectoryScope("godot_project/scripts", GODOT_SCRIPT_ENTRIES),
 )
 
 # These are temporary migration locations, not permanent allowed architecture.
