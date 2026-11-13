@@ -222,7 +222,7 @@ def test_configuration_contract_freezes_genesis_source_ownership() -> None:
     assert "second hard-coded Profile Canon" in english_normalized
     assert "第二份硬编码 Profile Canon" in chinese_normalized
     assert "| CFG-005 | P0 | closed (v0.2 structural) |" in conformance
-    assert "Status: normative, version 4" in species_english_normalized
-    assert "状态：规范性契约，版本 4" in species_chinese_normalized
+    assert "Status: normative, version 5" in species_english_normalized
+    assert "状态：规范性契约，版本 5" in species_chinese_normalized
     assert "Profile receives neither catalog nor package" in species_english_normalized
     assert "Profile 不接收目录或资料包" in species_chinese_normalized
