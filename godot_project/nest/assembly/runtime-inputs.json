@@ -68,7 +68,7 @@
     "nest/courtyard/parts/forest/broadleaf-tree.glb.import": "29061101bd828249be346508853118d91208fa8410adaa764bd35cbf41b2fc8c",
     "nest/courtyard/parts/forest/forest-foliage.glb": "6be42ff95a5cdd62e71c94b35584241c7bfd90927a721708ba65150ad7a71ef1",
     "nest/courtyard/parts/forest/forest-foliage.glb.import": "b0b730765c91a3319120cf73cc0f656913674ca492537407e4e906a8b2270509",
-    "nest/courtyard/parts/forest/forest-foliage.lods.json": "b670a7c6ca49be2a66a6d80269b50e8ebb0a056efe500f737aeda325fe10d833",
+    "nest/courtyard/parts/forest/forest-foliage.lods.json": "de8043c56e7326e2e5740d95b1234eb2f9341b32f94341fa514b6fe81bef8b81",
     "nest/courtyard/parts/forest/forest-twigs.glb": "92fe031ecaff9b54f83b268d6d9630a1c9491fd5c59534bf4ca37b6765810696",
     "nest/courtyard/parts/forest/forest-twigs.glb.import": "58ecc923502c7d3c3994ec2a257761014082769f1ed58ec0e526dc8e54a74a2b",
     "nest/courtyard/parts/forest/pine-tree.glb": "fe890e322039178057f2f5d79b2bb78ad1a606123c40c78ac895a81505aed6b0",
@@ -413,5 +413,5 @@
     "nest/spatial/estate_semantics.gd": "c36d67c711f8ffa028ebf99f6bb1f0176a5ec851c15b58ee6915444d40df563f",
     "nest/spatial/estate_spatial_data.gd": "b1d1b3392c8e21df393674e01c6314874c16e1ddd1a6f2a758b893c74abf057d"
   },
-  "source_tree": "04a151848b249a04928eaaea5644c5ac98d2cfdd4e60ee8f1543b23021a846dc"
+  "source_tree": "9556257d2ee68f991dccda6eaaa8b560f5e4b246c93e9b1e4d55a59a4a11a0ff"
 }
