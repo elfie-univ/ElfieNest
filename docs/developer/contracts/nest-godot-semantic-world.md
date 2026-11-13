@@ -1,8 +1,8 @@
 # Nest–Godot semantic-world contract
 
-**Contract version:** 1.2
+**Contract version:** 1.3
 **Adopted:** 2026-08-13
-**Amended:** 2026-09-02
+**Amended:** 2026-11-13
 **Scope:** `nest/`, the Godot semantic boundary, and affected App orchestration
 
 > **Normative target.** This contract defines Nest internal fact ownership,

@@ -43,3 +43,11 @@ Developer Tools 的 `/assets/design` 路由及其现有查看器是唯一的资�
 大型已确认 GLB 使用 Git LFS 保存，不改变资产身份或内容字节。新检出的验证入口在
 计算输入指纹和运行资产检查之前取回已跟踪的 LFS 输入。下载失败及未解析指针均
 作为错误处理，不能把指针字节当作模型数据。
+
+
+## 退役后的 Godot 目录 — 2026-11-13
+
+正式 Nest 场景和资产归 Godot 工程内的 `nest/`。整园装配、空间数据与共用渲染分别归
+`nest/assembly/`、`nest/spatial/` 与 `nest/rendering/`。观察界面随
+`runtime/observer/` 管理。开发脚本和测试分别在 `tools/` 与 `test/`，
+物种资源验收也使用新的测试路径。正式导出继续排除创作源、工具和测试。

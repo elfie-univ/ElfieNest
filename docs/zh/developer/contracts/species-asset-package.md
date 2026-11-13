@@ -1,7 +1,7 @@
 # 物种资源包契约
 
-状态：规范性契约，版本 4<br>
-修订日期：2026-09-24<br>
+状态：规范性契约，版本 5<br>
+修订日期：2026-11-13<br>
 决策：[ADR-0033](../decisions/0033-one-time-genesis-and-final-owner-isolation)
 
 本契约定义一个物种什么时候才是 ElfieNest 可用的运行时物种。不能因为有

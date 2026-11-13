@@ -1,7 +1,7 @@
 # Species asset package contract
 
-Status: normative, version 4<br>
-Revised: 2026-09-24<br>
+Status: normative, version 5<br>
+Revised: 2026-11-13<br>
 Decision: [ADR-0033](../decisions/0033-one-time-genesis-and-final-owner-isolation)
 
 This contract defines when a species is a usable ElfieNest runtime species. A
