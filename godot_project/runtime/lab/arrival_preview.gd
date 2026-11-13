@@ -1,7 +1,7 @@
 extends Node
 ## Lab-only replay of the production presentation; never changes admission facts.
 const PRESENTATION := preload("res://runtime/observer/resident_effects.gd")
-const TIMING := preload("res://nest/estate/estate_platform_cycle.gd")
+const TIMING := preload("res://nest/buildings/main/arrival/estate_platform_cycle.gd")
 var _nest: ModularNest
 var _body: ElfieActor
 var _effects: Node3D

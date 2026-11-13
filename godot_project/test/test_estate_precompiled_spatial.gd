@@ -1,7 +1,7 @@
 extends SceneTree
 
-const DATA := preload("res://nest/estate/estate_spatial_data.gd")
-const PHYSICS := preload("res://nest/estate/estate_physics.gd")
+const DATA := preload("res://nest/spatial/estate_spatial_data.gd")
+const PHYSICS := preload("res://nest/spatial/estate_physics.gd")
 
 func _initialize() -> void:call_deferred("run")
 

@@ -211,7 +211,7 @@ For animation inspection, `use_anchor` additionally accepts an optional named
 Godot-owned authored sequence rather than accepting a transform or arbitrary pose.
 Normal Body `furniture.use` calls still pass only `anchor_id`. The sequence runner,
 root motion, contact sampling, chair swivel, sleep poses and duvet deformation live
-under `runtime/actor/`; estate contacts and collision shapes remain under `nest/estate/`.
+under `runtime/actor/`; estate contacts and collision shapes remain under `nest/spatial/`.
 Nest Lab selects and observes the same implementation. Completion, cancellation and
 failure use the original command identity and one terminal event.
 

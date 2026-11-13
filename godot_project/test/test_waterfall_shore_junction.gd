@@ -10,7 +10,7 @@ func run() -> void:
 	var points: PackedVector3Array = ribbon.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var grounds: Array[MeshInstance3D] = []
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
-		if mesh.visible and (mesh.has_meta("source_ground") or preload("res://nest/estate/estate_bank_cleanup.gd").is_bank(mesh)):
+		if mesh.visible and (mesh.has_meta("source_ground") or preload("res://nest/courtyard/parts/waterside/estate_bank_cleanup.gd").is_bank(mesh)):
 			if str(mesh.get_meta("source_ground", "")) == "CY SHORE solid Continuous lawn with true lake opening" and int(mesh.get_meta("source_surface", -1)) == 0:
 				if not mesh.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_TEX_UV2:
 					push_error("The repaired meadow patch lost its authored secondary UVs: " + str(mesh.name))

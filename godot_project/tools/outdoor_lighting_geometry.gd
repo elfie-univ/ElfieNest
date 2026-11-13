@@ -66,7 +66,7 @@ static func strip(parent: Node3D, points: PackedVector3Array, width: float, labe
 	return node
 
 static func contour(mesh: MeshInstance3D) -> PackedVector3Array:
-	var reader := preload("res://nest/estate/estate_outdoor_access.gd").new()
+	var reader := preload("res://nest/spatial/estate_outdoor_access.gd").new()
 	var loops: Array[PackedVector2Array] = reader._top_outlines(mesh, 0, -1.0)
 	reader.free()
 	assert(not loops.is_empty(), "Actual water boundary missing")

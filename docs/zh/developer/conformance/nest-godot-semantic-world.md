@@ -59,7 +59,7 @@ Godot 目录表达源码类别，不对应 Nest 的业务模块。下列归置�
 | `main.gd`、`main.tscn` | 只负责装配和模式分派；无引用 Helper 经证据确认后删除。 |
 | `nest/`、`characters/` | 保留物理场景、几何、角色资源和运行资产；它们是内容，不是多出的业务模块。 |
 | `runtime/actor/`、`runtime/world/`、`runtime/endpoint/` | 保留少量 ElfieNest 自有 authority 胶水；物理可见性和可听性归 `world`，不归 Actor Controller。 |
-| `runtime/observer/`、`runtime/lab/`、`nest/ui/`、`runtime/lab/lab_preview_controller.gd` | 只保留有引用的 Observer/Lab 展示行为；不拥有物理或家庭 authority，不为追求形式对称强制改名。 |
+| `runtime/observer/`、`runtime/lab/`、`runtime/lab/lab_preview_controller.gd` | 只保留有引用的 Observer/Lab 展示行为；不拥有物理或家庭 authority，不为追求形式对称强制改名。 |
 | `test/`、`tools/`、`characters/tools/`、角色 `source/` 树 | 作为测试、创作或开发输入；正确区分 audit/render 脚本，并从所有发布导出中排除。 |
 | 无引用 Helper、参考场景、被忽略 source 下的 `.import` 边车 | 逐项审查；只有 Scene、preload、CLI、文档及导出引用都不存在时才删除。 |
 

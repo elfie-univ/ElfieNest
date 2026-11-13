@@ -38,7 +38,7 @@ func run() -> void:
 	needles.multimesh.mesh.set_meta("nest_source_extras", {"source_name": "Pine needles"})
 	needles.multimesh.instance_count = 1
 	estate.add_child(needles)
-	var physics := preload("res://nest/estate/estate_physics.gd").new()
+	var physics := preload("res://nest/spatial/estate_physics.gd").new()
 	root.add_child(physics)
 	preload("res://nest/assembly/physical_sources.gd").build(estate, null, physics)
 	var body := estate.get_node("LandscapePhysics/GardenCollision_TreeTrunks") as StaticBody3D

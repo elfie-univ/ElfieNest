@@ -13,18 +13,19 @@
 
 - `res://nest/nest.tscn` 是唯一 Nest 入口，`nest.gd` 只加载 `assembly/estate.tscn`。
   正式运行、Nest Lab 整体场景与发行导出使用同一份拆分总装。
-  `estate/` 保留物理、导航、交互、灯光、水景脚本、shader 与 `estate_spatial.res`，
-  不是第二套模型来源。
+  `spatial/` 持有碰撞、导航、语义锚点与空间快照，`rendering/` 持有整园共用的
+  光照、材质与渲染批次。庭院罩、水景、建筑门和床品专用资源随对象放置。
 - 正式卧室由 `furniture/layouts/bedroom/bedroom-layout.scn` 装入 A–D 套装，
-  套装引用 `furniture/shared/bedroom/` 的原型。V044 卧室试点、工作稿和独立场景归
-  [卧室创作试点](../tools/nest_authoring/bedroom-pilot/AGENTS.md)，其目录位于整园空间扫描和发行导出范围外。
+  套装引用 `furniture/shared/bedroom/` 的原型。其 `source/bedroom.blend` 按七个正式
+  GLB 分集合，记录来源 SHA-256 并打包贴图。Godot 的装配、材质覆盖与法线变体以正式
+  GLB 和 SCN 为准。Blender 工作稿供形状编辑，导回前须核对这些绑定。
 - Nest Lab 的「单件资产」从 `res://nest/` 加载拆分资源。
   [asset-index.json](assembly/asset-index.json) 登记每个资产的菜单路径、文件和引用关系。
   模型、贴图、场景及渲染资源都在本目录。改文件路径或增减引用时同步更新索引。
 - 拆分总装通过 `assembly/activity_regions.tres` 持有活动权限，活动面绑定当前 GLB 摆位；
   室外允许/禁止区域不是渲染几何的副本。`tools/export_split_activity.gd` 仅将导航输入和
   活动掩码导出到 `build/`，仅用于单独检查活动输入；正式运行使用 `tools/bake_estate_spatial.gd` 生成的完整空间快照。
-- `asset_catalog.json` 保存 V044 原始提取绑定和指纹。旧拆分候选是迁入记录。
+- `tools/nest_authoring/v044-asset-catalog.json` 保存 V044 历史提取绑定和指纹。
   浏览器预览从正式文件重新打包，`build/` 存放生成的网页包、对照快照和校验记录。
 
 ## 正式拆分目录
@@ -38,23 +39,24 @@ nest/
 ├── ASSET_MIGRATION_PLAN.md
 ├── nest.tscn                     唯一 Nest 入口
 ├── nest.gd                       加载所选整园并绑定 Nest 行为
-├── asset_catalog.json            V044 提取绑定
-├── estate/                       共享运行脚本、shader 和空间快照
+├── RUNTIME.md                    运行与导出说明
+├── spatial/                      碰撞、导航、语义锚点和空间快照
+├── rendering/                    整园共用照明、材质和绘制批次
 ├── furniture/                    家具、套装及室内和露台摆位
 ├── buildings/                    建筑原型和建筑总装
 ├── courtyard/                    庭院总装、区域装配及其部件
-├── assembly/
-│   ├── estate.tscn               拆分版整园总装
-│   ├── asset-index.json          Nest Lab 的菜单、文件及引用索引
-│   ├── glb_placement.gd          从已导入 GLB 绑定网格和实例批次
-│   └── render-resources/          装配场景引用的渲染资源
-└── ui/                           Nest 观察界面资源
+└── assembly/
+    ├── estate.tscn               拆分版整园总装
+    ├── asset-index.json          Nest Lab 的菜单、文件及引用索引
+    ├── glb_placement.gd          从已导入 GLB 绑定网格和实例批次
+    └── render-resources/          装配场景引用的渲染资源
 ```
 
 家具模型、套装和摆位同归 `furniture/`。建筑总装引用完整主楼、八个共享小屋实例，以及同一份
 卧室布置的八个实例和各露台布置。拆分整园由 `assembly/estate.tscn` 引用建筑总装和带罩庭院总装。
 园区级脚本和资源按实际职责归属，专用行为随所属组件。贴图按引用归到资产类内的 `textures/`，
 真正跨类复用的贴图指定一个拥有者，各使用方引用该路径。
+Godot 机位 HUD 与字体归 `runtime/observer/`，导航与碰撞验收直接使用真实空间数据。
 
 Nest Lab 的「总组装 → 全场景总组合」读取 `assembly/estate.tscn`。
 页面只保留「整体场景」和「单件资产」，不再提供回拼对照和机位像素比较。
@@ -102,7 +104,7 @@ furniture/
 │   ├── bedroom/                  整床、转椅、卧室桌柜原型、台灯等
 │   ├── main/                     座椅、桌几、植物、摆件、画框
 │   └── terraces/                 座椅、矮桌、盆栽、地毯、内衬与灯槽
-└── textures/                     家具引用的外置贴图，包括卧室正式套装与创作试点共用的贴图
+└── textures/                     家具引用的外置贴图
 ```
 
 - `layouts/` 保存空间里的位置和朝向。主楼三层各一份，八个露台保留各自的布置。

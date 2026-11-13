@@ -104,7 +104,7 @@ func build(source: Node3D) -> Node3D:
 	result.set_meta("shoreline",shore)
 	result.set_meta("fountain_rim",pool_rim)
 	result.set_meta("ground_patches",patches)
-	result.set_meta("source_tree",preload("res://nest/estate/estate_spatial_data.gd").current_inputs().get("source_tree", ""))
+	result.set_meta("source_tree",preload("res://nest/spatial/estate_spatial_data.gd").current_inputs().get("source_tree", ""))
 	return result
 
 func _lakeside_lamp_position(source: Node3D, desired: Vector3) -> Vector3:
@@ -150,8 +150,8 @@ func _outer_ring(source: Node3D, road: MeshInstance3D, trail: MeshInstance3D) ->
 		var e: Dictionary=mesh.get_meta("extras",{})
 		if str(e.get("outdoor_fixture_id","")).begins_with("R") and bool(e.get("lighting_diffuser",false)):inner.append(mesh)
 	inner.sort_custom(func(a: MeshInstance3D,b: MeshInstance3D):return str(a.get_meta("extras").outdoor_fixture_id)<str(b.get_meta("extras").outdoor_fixture_id))
-	var access := preload("res://nest/estate/estate_outdoor_access.gd").new()
-	access.load_precompiled(load("res://nest/estate/estate_spatial.res"))
+	var access := preload("res://nest/spatial/estate_outdoor_access.gd").new()
+	access.load_precompiled(load("res://nest/spatial/estate_spatial.res"))
 	var pavement := paving_triangles([road,trail])
 	var ring := paving_triangles([road])
 	for i in range(inner.size()-1):

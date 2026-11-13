@@ -1,5 +1,5 @@
 extends SceneTree
-const SCRIPT := "res://nest/estate/estate_opaque_batches.gd"
+const SCRIPT := "res://nest/rendering/estate_opaque_batches.gd"
 var failures := 0
 
 func _initialize() -> void: call_deferred("run")
@@ -71,8 +71,8 @@ func run() -> void:
 	check(controlled.groups.is_empty() and near.layers==1 and far.layers==1,"Different potential local-light sets must not be combined")
 	lit.free()
 	check_shared_mesh()
-	check_material_sharing("res://nest/estate/estate_opaque.gdshader")
-	check_material_sharing("res://nest/estate/m01_sheen.gdshader")
+	check_material_sharing("res://nest/rendering/estate_opaque.gdshader")
+	check_material_sharing("res://nest/furniture/shared/bedroom/m01_sheen.gdshader")
 	print("OPAQUE_BATCHES failures=",failures)
 	quit(0 if failures==0 else 1)
 
@@ -102,7 +102,7 @@ func check_material_sharing(shader_path: String) -> void:
 	var rough := part(world,0.9,different)
 	for node: MeshInstance3D in [first,second,rough]: node.set_meta("extras",{"module":"M01"})
 	other_room.set_meta("extras",{"module":"M02"})
-	var controller: RefCounted = load("res://nest/estate/estate_lighting_sample.gd").new()
+	var controller: RefCounted = load("res://nest/rendering/estate_lighting_sample.gd").new()
 	controller.bind_m01(world)
 	check(first.get_active_material(0)==second.get_active_material(0),"Equivalent opaque materials in one lighting group must share a runtime material")
 	check(first.get_active_material(0)!=other_room.get_active_material(0) and first.get_active_material(0)!=rough.get_active_material(0),"Room ownership and different shader inputs must stay separate")

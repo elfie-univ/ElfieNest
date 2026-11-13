@@ -160,7 +160,11 @@ def check_glb(path, item, inventory, fingerprints):
 
 def main():
     require_unique_authoring_geometry()
-    catalog = json.loads((ROOT / "godot_project/nest/asset_catalog.json").read_text())
+    catalog = json.loads(
+        (
+            ROOT / "godot_project/tools/nest_authoring/v044-asset-catalog.json"
+        ).read_text()
+    )
     native = json.loads((PACKAGE / "export-report.json").read_text())
     authoring = json.loads((PACKAGE / "authoring/authoring-report.json").read_text())
     blends = json.loads((PACKAGE / "authoring/blend-report.json").read_text())
@@ -266,7 +270,7 @@ def main():
     )
     (PACKAGE / "AGENTS.md").write_text(
         "# V044 静态提取候选\n\n"
-        "- 四类菜单与文件入口见 `asset-index.json`；唯一手工清单仍是源码中的 `godot_project/nest/asset_catalog.json`。\n"
+        "- 四类菜单与文件入口见 `asset-index.json`；唯一手工清单仍是源码中的 `godot_project/tools/nest_authoring/v044-asset-catalog.json`。\n"
         "- `assets/*.tscn` 引用 `models/*.scn`；`resources/*.res` 保留原生共享资源，禁止分别手改生成资源。\n"
         "- 这些是源范围视图，彼此可能重叠，不能把 76 个视图同时放入世界；正式嵌套组合和独占归属尚未迁移。\n"
         "- `authoring/*.blend` 是从最终 V044 几何重建的编辑候选，非历史原稿；同名 GLB 为交换文件。未恢复程序生成历史或建模修改器。\n"

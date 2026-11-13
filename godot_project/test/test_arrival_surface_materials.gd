@@ -1,5 +1,5 @@
 extends SceneTree
-const LIGHTING := preload("res://nest/estate/estate_arrival_lighting.gd")
+const LIGHTING := preload("res://nest/buildings/main/arrival/estate_arrival_lighting.gd")
 func _initialize() -> void: call_deferred("run")
 func require(ok: bool, message: String) -> bool:
 	if not ok:

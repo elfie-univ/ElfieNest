@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SAMPLE := preload("res://nest/estate/estate_lighting_sample.gd")
+const SAMPLE := preload("res://nest/rendering/estate_lighting_sample.gd")
 const PLACEMENT := preload("res://nest/assembly/glb_placement.gd")
 const COVER_LIBRARY := "res://nest/courtyard/parts/ground/courtyard-cover.glb"
 const COVERED_COURTYARD := "res://nest/courtyard/overview/courtyard-all/courtyard-covered.scn"
@@ -80,7 +80,10 @@ func _run() -> void:
 	fixture.add_child(world)
 	root.add_child(fixture)
 	var error: String = await _check_courtyard_cover(fixture, world)
-	fixture.queue_free()
+	# Flush the detached fixture before releasing its materials in the dummy renderer.
+	root.remove_child(fixture)
+	RenderingServer.force_draw(false)
+	fixture.free()
 	await process_frame
 	if not error.is_empty():
 		push_error(error)
@@ -122,7 +125,7 @@ func _check_courtyard_cover(courtyard: Node3D, world: WorldEnvironment) -> Strin
 			for surface: int in mesh.mesh.get_surface_count():
 				var material := mesh.get_active_material(surface)
 				if night:
-					if not material is ShaderMaterial or material.shader.resource_path != "res://nest/estate/courtyard_cover_night.gdshader":
+					if not material is ShaderMaterial or material.shader.resource_path != "res://nest/courtyard/parts/ground/courtyard_cover_night.gdshader":
 						return "Night must draw the sky on the existing cover surfaces"
 				elif material != binding.daytime[surface]:
 					return "Returning to daylight must restore each original textured cover material"

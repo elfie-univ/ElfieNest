@@ -7,7 +7,7 @@ const REQUIRED_RESOURCES := [
 	"res://nest/nest.tscn",
 	"res://nest/assembly/estate.tscn",
 	"res://nest/assembly/estate_runtime.gd",
-	"res://nest/ui/observation_hud.tscn",
+	"res://runtime/observer/observation_hud.tscn",
 	"res://characters/tovren/tovren.tscn",
 	"res://characters/saevi/saevi.tscn",
 	"res://characters/shared/elfie_actor.gd",

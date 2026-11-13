@@ -1,8 +1,8 @@
 extends SceneTree
 ## Add the display-free snapshot without rebaking unchanged collision/navigation.
-const DATA := preload("res://nest/estate/estate_spatial_data.gd")
-const COMPILER := preload("res://nest/estate/estate_authority_scene.gd")
-const PHYSICS := preload("res://nest/estate/estate_physics.gd")
+const DATA := preload("res://nest/spatial/estate_spatial_data.gd")
+const COMPILER := preload("res://nest/spatial/estate_authority_scene.gd")
+const PHYSICS := preload("res://nest/spatial/estate_physics.gd")
 func _initialize() -> void:call_deferred("run")
 func run() -> void:
  var data := load(DATA.PATH) as Resource

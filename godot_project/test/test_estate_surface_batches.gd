@@ -1,5 +1,5 @@
 extends SceneTree
-const PATH := "res://nest/estate/estate_surface_batches.gd"
+const PATH := "res://nest/rendering/estate_surface_batches.gd"
 var failures := 0
 func _initialize() -> void: call_deferred("run")
 func check(ok: bool, message: String) -> void:
@@ -43,7 +43,7 @@ func run() -> void:
   for index:int in indices(second.get("_surfaces")[0],threshold):expected.append(index+4)
   check(indices(surface,threshold)==expected,"Merged LOD must use exactly the matching original triangle indices")
  var world:=Node3D.new();root.add_child(world)
- var material:=ShaderMaterial.new();material.shader=load("res://nest/estate/m01_sheen.gdshader")
+ var material:=ShaderMaterial.new();material.shader=load("res://nest/furniture/shared/bedroom/m01_sheen.gdshader")
  var nodes:Array[MeshInstance3D]=[]
  for mesh:Mesh in [first,second]:
   var node:=MeshInstance3D.new();node.mesh=mesh;node.material_override=material;world.add_child(node);nodes.append(node)

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const CONTROL := preload("res://nest/estate/estate_lighting.gd")
+const CONTROL := preload("res://nest/rendering/estate_lighting.gd")
 const GEOMETRY := preload("res://tools/outdoor_lighting_geometry.gd")
 
 func _initialize() -> void:
@@ -49,7 +49,7 @@ func run() -> void:
 	arrival.resource_name = "Roof fine turquoise halo"
 	if not require(CONTROL.is_ordinary_emission(arrival), "Idle arrival fixtures must follow the day/quiet switch; event effects own their explicit activation"):
 		return
-	for file: String in ["res://nest/estate/estate_opaque.gdshader", "res://nest/estate/m01_sheen.gdshader"]:
+	for file: String in ["res://nest/rendering/estate_opaque.gdshader", "res://nest/furniture/shared/bedroom/m01_sheen.gdshader"]:
 		if not require(not FileAccess.get_file_as_string(file).contains("room_light_scale"), "Room surfaces must receive actual lights without the rejected fixed warm irradiance"):
 			return
 	var water := PackedVector2Array([Vector2(-2,-2),Vector2(2,-2),Vector2(2,2),Vector2(-2,2)])

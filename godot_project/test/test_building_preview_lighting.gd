@@ -37,7 +37,7 @@ func run() -> void:
 	for mesh: MeshInstance3D in view.current.find_children("*", "MeshInstance3D", true, false):
 		if mesh.get_meta("extras", {}).get("source_name") == "Central integrated shallow skylight": skylight = mesh
 	var glass := skylight.get_active_material(0) as ShaderMaterial if skylight != null else null
-	if not require(glass != null and glass.shader == preload("res://nest/estate/estate_glass.gdshader"), "Isolated skylight must use the assembly transmission shader"):
+	if not require(glass != null and glass.shader == preload("res://nest/rendering/estate_glass.gdshader"), "Isolated skylight must use the assembly transmission shader"):
 		return
 	if not require(is_equal_approx(glass.get_shader_parameter("source_transmission"), 0.94), "Skylight must retain authored transmission"):
 		return

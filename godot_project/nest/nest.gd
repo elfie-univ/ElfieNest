@@ -4,11 +4,11 @@ extends Node3D
 
 signal observer_camera_catalog_changed(catalog: Dictionary)
 
-const ESTATE_LIGHTING := preload("res://nest/estate/estate_lighting.gd")
+const ESTATE_LIGHTING := preload("res://nest/rendering/estate_lighting.gd")
 const COMPLETE_SCENE_PATH := "res://nest/assembly/estate.tscn"
-const ESTATE_PHYSICS := preload("res://nest/estate/estate_physics.gd")
-const ESTATE_SEMANTICS := preload("res://nest/estate/estate_semantics.gd")
-const AUTHORITY_SCENE := preload("res://nest/estate/estate_authority_scene.gd")
+const ESTATE_PHYSICS := preload("res://nest/spatial/estate_physics.gd")
+const ESTATE_SEMANTICS := preload("res://nest/spatial/estate_semantics.gd")
+const AUTHORITY_SCENE := preload("res://nest/spatial/estate_authority_scene.gd")
 const COLLISION_LAYERS := preload("res://runtime/world/collision_layers.gd")
 const FIXED_BED_COUNT: int = 32
 const CAMERA_ORBIT_SPEED: float = 0.008
@@ -402,7 +402,7 @@ func _runtime_occupied_zones() -> PackedStringArray:
 func _apply_observer_lighting_display() -> void:
 	if get_node_or_null("Generated/CompleteEstate") == null: return
 	if _observer_optics == null:
-		_observer_optics = preload("res://nest/estate/estate_lighting_sample.gd").new()
+		_observer_optics = preload("res://nest/rendering/estate_lighting_sample.gd").new()
 		_observer_optics.bind_m01(self)
 	var preview := _observer_lighting_preview != "live"
 	if _observer_environment.is_empty() and not preview: return
@@ -416,23 +416,23 @@ func _apply_observer_lighting_display() -> void:
 	var daylight := {"day": 1.0, "dawn": 1.0, "dusk": 0.0, "night": 0.0}
 	_observer_optics.apply_environment(float(daylight.get(phase, 1.0)), enabled,true,quiet,_observer_occupied_zones,not preview)
 	if _observer_water == null:
-		_observer_water = preload("res://nest/estate/estate_water_display.gd").new()
+		_observer_water = preload("res://nest/courtyard/parts/waterside/estate_water_display.gd").new()
 		_observer_water.name = "ObserverFountainLighting"
 		get_node("Generated").add_child(_observer_water)
-		_observer_water.bind(get_node("Generated/CompleteEstate"), $WorldEnvironment.environment, false)
+		_observer_water.bind(get_node("Generated/CompleteEstate"))
 		_observer_water.set_presentation_paused(_observer_presentation_paused)
 	_observer_water.set_night(phase in ["dusk","night"] and not quiet)
 	_observer_water.set_sky_night(phase in ["dusk","night"])
 	if not is_instance_valid(_opaque_render_batches):
-		_opaque_render_batches = preload("res://nest/estate/estate_opaque_batches.gd").new()
+		_opaque_render_batches = preload("res://nest/rendering/estate_opaque_batches.gd").new()
 		get_node("Generated/CompleteEstate").add_child(_opaque_render_batches)
 		_opaque_render_batches.bind(get_node("Generated/CompleteEstate"))
 	if not is_instance_valid(_surface_render_batches):
-		_surface_render_batches = preload("res://nest/estate/estate_surface_batches.gd").new()
+		_surface_render_batches = preload("res://nest/rendering/estate_surface_batches.gd").new()
 		get_node("Generated/CompleteEstate").add_child(_surface_render_batches)
 		_surface_render_batches.bind(get_node("Generated/CompleteEstate"))
 	if not is_instance_valid(_instance_render_batches):
-		_instance_render_batches = preload("res://nest/estate/estate_instance_batches.gd").new()
+		_instance_render_batches = preload("res://nest/rendering/estate_instance_batches.gd").new()
 		get_node("Generated/CompleteEstate").add_child(_instance_render_batches)
 		_instance_render_batches.bind(get_node("Generated/CompleteEstate"))
 
@@ -635,26 +635,6 @@ func _register_observation_view(
 		_camera_views.back()["minimum_radius"] = maxf(radius - 2.0, 1.0)
 	if view_id == "overview":
 		_camera_views.back()["track_angle_limit"] = PI / 2.0
-
-
-func add_access_observer_views() -> void:
-	if _observation_view_index_by_id("access-estate") >= 0: return
-	var parent := get_node("Generated") as Node3D
-	for spec: Array in [
-		["access-estate","室外碰撞与活动范围",Vector3(10,72,42),Vector3(0,0,-2),108.0],
-		["access-forest","森林小路边界",Vector3(-3,46,-16),Vector3(-3,0,-24),70.0],
-	]:
-		_add_complete_view(parent,spec[0],spec[1],to_global(spec[2]),to_global(spec[3]))
-		var view: Dictionary = _camera_views.pop_back()
-		var camera := view["camera"] as Camera3D
-		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-		camera.keep_aspect = Camera3D.KEEP_WIDTH
-		camera.size = spec[4]
-		view["size"] = camera.size
-		_camera_views.insert(1 if spec[0] == "access-estate" else 2,view)
-	_active_camera_index = _observation_view_index_by_id(_active_camera_id)
-	camera_catalog_revision += 1
-	_emit_observer_camera_catalog_changed()
 
 
 func observation_view_count() -> int:

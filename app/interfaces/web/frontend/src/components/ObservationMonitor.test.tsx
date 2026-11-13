@@ -61,7 +61,6 @@ const catalog = {
     ]).flat(),
     { id: "lighting-live", label: "Live" }, { id: "lighting-day", label: "Day" },
     { id: "lighting-night", label: "Night" }, { id: "lighting-quiet", label: "Quiet" },
-    { id: "access-estate", label: "Inspection" },
     { id: "elfie-00000001", label: "Follow one" }, { id: "elfie-pov-00000001", label: "POV one" },
     { id: "elfie-00000002", label: "Other owner" },
   ],
@@ -192,7 +191,6 @@ describe("ObservationMonitor", () => {
     const labels = within(list).getAllByRole("option").map((item) => item.textContent)
     expect(labels.slice(6, 10)).toEqual(["卧室 M01 · 一层", "卧室 M01 · 二层", "卧室 M02 · 一层", "卧室 M02 · 二层"])
     expect(within(list).queryByText("Other owner")).not.toBeInTheDocument()
-    expect(within(list).queryByText("Inspection")).not.toBeInTheDocument()
     const bedroomColors = ["#95b58c", "#d39bae", "#91bbd7", "#d5a078", "#83bbb5", "#b8a2ce", "#d8cc92", "#8791bc"]
     for (const [index, color] of bedroomColors.entries()) {
       const room = `M0${index + 1}`

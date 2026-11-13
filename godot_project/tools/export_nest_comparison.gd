@@ -175,7 +175,7 @@ func capture(world: Node3D, label: String) -> bool:
 
 func run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(COMPARISON))
-	var pending: Array[String] = [NEST + "nest.tscn",NEST + "estate/estate_physics.gd",NEST + "estate/estate_lighting_sample.gd",NEST + "estate/estate_water_display.gd",NEST + "assembly/asset-index.json",NEST + "assembly/glb_placement.gd", "res://tools/export_nest_comparison.gd", "res://tools/pack_nest_assets.gd", "res://tools/static_asset_review.gd", "res://project.godot"]
+	var pending: Array[String] = [NEST + "nest.tscn",NEST + "spatial/estate_physics.gd",NEST + "rendering/estate_lighting_sample.gd",NEST + "courtyard/parts/waterside/estate_water_display.gd",NEST + "assembly/asset-index.json",NEST + "assembly/glb_placement.gd", "res://tools/export_nest_comparison.gd", "res://tools/pack_nest_assets.gd", "res://tools/static_asset_review.gd", "res://project.godot"]
 	var index: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(INDEX))
 	for entry: Dictionary in index.fileGraph.entries.values():
 		pending.append(NEST + str(entry.file))

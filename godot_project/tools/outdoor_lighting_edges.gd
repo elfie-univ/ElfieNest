@@ -5,7 +5,7 @@ const PLAZA := "Flower preview | CY R003 reference seven-petal stone and ring-ma
 
 static func build(source: Node3D, parent: Node3D, road: MeshInstance3D) -> bool:
 	var plaza := source.find_child(PLAZA,true,false) as MeshInstance3D
-	var reader := preload("res://nest/estate/estate_outdoor_access.gd").new()
+	var reader := preload("res://nest/spatial/estate_outdoor_access.gd").new()
 	var road_outline := _largest(reader._top_outlines(road,0))
 	var plaza_outline := _largest(reader._top_outlines(plaza,0))
 	# The connector is a separate material surface of the same paving mesh.

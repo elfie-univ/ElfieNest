@@ -1,9 +1,8 @@
-"""Authoring pilots stay editable without shipping their duplicate models."""
+"""Formal assets remain exportable while the bedroom workfile stays authoring-only."""
 
 import json
 from fnmatch import fnmatch
 from pathlib import Path
-from struct import unpack
 
 from infrastructure.godot.artifacts.export_boundary import (
     GODOT_EXPORT_EXCLUDED_PATHS,
@@ -11,26 +10,18 @@ from infrastructure.godot.artifacts.export_boundary import (
 )
 
 GODOT = Path(__file__).resolve().parents[2] / "godot_project"
-PILOT = GODOT / "tools/nest_authoring/bedroom-pilot"
+BEDROOM = GODOT / "nest/furniture/shared/bedroom"
 
 
-def test_bedroom_pilot_models_are_excluded_but_shared_texture_is_retained():
-    pilot_files = [path for path in PILOT.rglob("*") if path.is_file()]
-    assert (PILOT / "bedroom.tscn").is_file()
-    assert sum(path.suffix == ".glb" for path in pilot_files) == 6
-    assert sum(path.suffix == ".scn" for path in pilot_files) == 6
-    assert sum(path.suffix == ".blend" for path in pilot_files) == 6
-    assert all(
-        (path.parent / ".gdignore").is_file()
-        for path in pilot_files
-        if path.suffix == ".blend"
-    )
-    for path in pilot_files:
-        relative = path.relative_to(GODOT).as_posix()
-        assert any(
-            fnmatch(relative, pattern) for pattern in GODOT_EXPORT_EXCLUDED_PATHS
-        )
-    assert set(pilot_files).isdisjoint(runtime_source_files(GODOT))
+def test_bedroom_keeps_one_authoring_workfile():
+    source = BEDROOM / "source"
+    assert set(source.iterdir()) == {source / ".gdignore", source / "bedroom.blend"}
+    assert (source / "bedroom.blend").stat().st_size > 0
+    assert not set(source.iterdir()) & set(runtime_source_files(GODOT))
+    assert not (GODOT / "tools/nest_authoring/bedroom-pilot").exists()
+
+
+def test_formal_bedroom_and_shared_texture_stay_in_export_scope():
     for relative in (
         "nest/furniture/textures/5b243550b6900cbd2364903857ba1125fb3537f2b32ca438d758b8cc5eccb043.png",
         "nest/furniture/shared/bedroom/bed-shared.glb",
@@ -43,34 +34,20 @@ def test_bedroom_pilot_models_are_excluded_but_shared_texture_is_retained():
         )
 
 
-def test_bedroom_pilot_scenes_are_discoverable_on_a_clean_godot_import():
-    for directory in (PILOT, *PILOT.parents):
-        if directory == GODOT:
-            break
-        assert not (directory / ".gdignore").exists(), directory
-
-
-def test_bedroom_pilot_glbs_resolve_external_textures():
-    texture_root = GODOT / "nest/furniture/textures"
-    for glb in PILOT.rglob("*.glb"):
-        with glb.open("rb") as stream:
-            stream.seek(12)
-            size, kind = unpack("<I4s", stream.read(8))
-            assert kind == b"JSON", glb
-            images = json.loads(stream.read(size)).get("images", [])
-        for image in images:
-            if "uri" in image:
-                texture = (glb.parent / image["uri"]).resolve()
-                assert texture.parent == texture_root and texture.is_file(), texture
-
-
-def test_formal_spatial_receipt_has_no_bedroom_pilot_inputs():
+def test_spatial_receipt_uses_current_source_directories():
     receipt = json.loads((GODOT / "nest/assembly/runtime-inputs.json").read_text())
-    assert not (GODOT / "nest/furniture/bedroom").exists()
-    assert not (GODOT / "nest/layouts").exists()
-    assert all(
-        not path.startswith(
-            ("tools/nest_authoring/", "nest/furniture/bedroom/", "nest/layouts/")
+    assert "nest/spatial/estate_physics.gd" in receipt["files"]
+    assert "nest/rendering/estate_lighting.gd" in receipt["files"]
+    assert not any(
+        path.startswith(
+            (
+                "tools/",
+                "nest/estate/",
+                "nest/ui/",
+                "nest/furniture/bedroom/",
+                "nest/layouts/",
+            )
         )
+        or "/source/" in path
         for path in receipt["files"]
     )

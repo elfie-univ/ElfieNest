@@ -10,7 +10,7 @@ func _initialize() -> void:
 func run() -> void:
 	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
-	var control := preload("res://nest/estate/estate_lighting_sample.gd").new()
+	var control := preload("res://nest/rendering/estate_lighting_sample.gd").new()
 	control.bind_m01(estate)
 	control.apply_environment(1.0, false, true)
 	var suns: Array[DirectionalLight3D] = []
@@ -44,7 +44,7 @@ func run() -> void:
 		for batch: MultiMeshInstance3D in estate.find_children("*","MultiMeshInstance3D",true,false):
 			for surface in range(batch.multimesh.mesh.get_surface_count()):
 				var material := batch.material_override if batch.material_override != null else batch.multimesh.mesh.surface_get_material(surface)
-				if material is ShaderMaterial and material.shader == preload("res://nest/estate/estate_opaque.gdshader"):
+				if material is ShaderMaterial and material.shader == preload("res://nest/rendering/estate_opaque.gdshader"):
 					var scale: Variant = material.get_shader_parameter("natural_light_scale")
 					if scale == null or not is_equal_approx(float(scale),float(phase[0])):
 						if not failures.has("Instanced foliage retains daytime irradiance at night"): failures.append("Instanced foliage retains daytime irradiance at night")

@@ -36,7 +36,7 @@ def test_split_estate_restores_all_authored_light_controls() -> None:
 
 
 def test_daylight_does_not_change_render_quality_or_export_compression() -> None:
-    source = (ROOT / "nest/estate/estate_daylight.gd").read_text()
+    source = (ROOT / "nest/rendering/estate_daylight.gd").read_text()
     assert "set_surface_override_material" in source
     assert "duplicate()" in source
     for forbidden in (
@@ -70,7 +70,7 @@ def test_daylight_uses_reference_ambient_units_and_exposure() -> None:
 
 def test_daylight_binds_a_directional_environment_without_replacing_clouds() -> None:
     scene = (ROOT / "nest/nest.tscn").read_text()
-    assert 'path="res://nest/estate/estate_reflection_sky.gdshader"' in scene
+    assert 'path="res://nest/rendering/estate_reflection_sky.gdshader"' in scene
     assert 'type="Sky"' in scene
     assert 'sky = SubResource("Sky_daylight")' in scene
     assert "background_mode = 1" in scene
@@ -79,7 +79,7 @@ def test_daylight_binds_a_directional_environment_without_replacing_clouds() -> 
 
 
 def test_compatibility_sky_does_not_decode_srgb_twice() -> None:
-    shader = (ROOT / "nest/estate/estate_reflection_sky.gdshader").read_text()
+    shader = (ROOT / "nest/rendering/estate_reflection_sky.gdshader").read_text()
     assert "COLOR = environment_color.rgb;" in shader
     assert "night_amount > 0.5 && !AT_CUBEMAP_PASS" in shader
     assert "COLOR = night_sky(normalize(EYEDIR));" in shader
@@ -87,7 +87,7 @@ def test_compatibility_sky_does_not_decode_srgb_twice() -> None:
 
 
 def test_authored_warm_bounce_is_not_classified_as_a_powered_lamp() -> None:
-    source = (ROOT / "nest/estate/estate_daylight.gd").read_text()
+    source = (ROOT / "nest/rendering/estate_daylight.gd").read_text()
     assert "_is_authored_bounce" in source
     classifier = source.split("static func _is_artificial(", 1)[1]
     assert "if _is_authored_bounce(material_name):" in classifier
@@ -95,7 +95,7 @@ def test_authored_warm_bounce_is_not_classified_as_a_powered_lamp() -> None:
 
 
 def test_facade_and_observation_glass_use_source_ior_not_default_plastic() -> None:
-    source = (ROOT / "nest/estate/estate_daylight.gd").read_text()
+    source = (ROOT / "nest/rendering/estate_daylight.gd").read_text()
     assert "trial nearly clear ice-aqua facade glass" in source
     assert "metallic_specular" in source
     assert "_glass_specular" in source
@@ -104,7 +104,7 @@ def test_facade_and_observation_glass_use_source_ior_not_default_plastic() -> No
 def test_observer_does_not_add_an_artificial_ceiling_fill() -> None:
     scene = (ROOT / "nest/nest.tscn").read_text()
     assert '[node name="CeilingFill"' not in scene
-    source = (ROOT / "nest/estate/estate_daylight.gd").read_text()
+    source = (ROOT / "nest/rendering/estate_daylight.gd").read_text()
     receiver = source.split("static func _uses_interior_fill(", 1)[1].split(
         "\nstatic func ", 1
     )[0]
@@ -115,7 +115,7 @@ def test_observer_does_not_add_an_artificial_ceiling_fill() -> None:
 
 
 def test_facade_glass_and_shell_do_not_use_interior_fill() -> None:
-    source = (ROOT / "nest/estate/estate_daylight.gd").read_text()
+    source = (ROOT / "nest/rendering/estate_daylight.gd").read_text()
     assert "_uses_interior_fill" in source
     assert "clear observation glass" in source
     assert "TRANSPARENCY_ALPHA" in source
@@ -139,18 +139,17 @@ def test_accepted_split_source_tree_keeps_authored_glb_inputs() -> None:
         for path, digest in manifest["files"].items()
         if path.endswith(".glb")
     }
-    assert len(expected) == 57
+    assert len(expected) == 56
     fingerprint = hashlib.sha256(
         json.dumps(expected, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     assert (
         fingerprint
-        == "68a42582c6c09d74a9c13ff43c5ed59e137ccf67667c0a41a7366c54ee8c4c71"
+        == "5ea6d7309188b609705c19bf323373c8786e2bc47cfd7e4aab0f627beb3fa18b"
     )
     actual = {
         str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in (ROOT / "nest").rglob("*.glb")
-        if path.parent.name != "estate"
     }
     assert actual == expected
 
@@ -161,17 +160,30 @@ def test_shared_placements_keep_actual_source_prototype_identities() -> None:
     sources = [
         entry["file"] for key, entry in entries.items() if key.startswith("source:")
     ]
-    assert len(sources) == len(set(sources)) == 51
+    assert len(sources) == len(set(sources)) == 56
     for relative in sources:
         document, _ = read_glb(ROOT / "nest" / relative)
+        group_members = {
+            child
+            for node in document["nodes"]
+            if node.get("extras", {}).get("nest_instance_group")
+            for child in node.get("children", [])
+        }
         nodes = [node for node in document["nodes"] if "mesh" in node]
         assert nodes, relative
-        assert len({node["name"] for node in nodes}) == len(nodes), relative
-        for node in nodes:
-            extras = node["extras"]
-            assert (
-                extras["source_name"] and extras["v044_path"] and extras["geometry_id"]
-            ), (relative, node["name"])
+        names = [node["name"] for node in nodes if "name" in node]
+        assert len(set(names)) == len(names), relative
+        for index, node in enumerate(document["nodes"]):
+            if "mesh" not in node:
+                continue
+            assert 0 <= node["mesh"] < len(document["meshes"]), (relative, index)
+            extras = node.get("extras", {})
+            if index in group_members or extras.get("nest_surface"):
+                continue
+            assert node["name"] and extras["source_name"] and extras["v044_path"], (
+                relative,
+                node["name"],
+            )
     placement = (ROOT / "nest/assembly/glb_placement.gd").read_text()
     assert "meshes[str(node.name)] = node.mesh" in placement
     assert "target.mesh = mesh" in placement
@@ -181,7 +193,7 @@ def test_shared_placements_keep_actual_source_prototype_identities() -> None:
 
 
 def test_authored_fixtures_are_restored_from_asset_local_definitions() -> None:
-    source = (ROOT / "nest/estate/estate_daylight.gd").read_text()
+    source = (ROOT / "nest/rendering/estate_daylight.gd").read_text()
     assert 'extras.get("design_lights", [])' in source
     assert "DAYTIME_FIXTURE_SCALE" in source
     assert 'source.get("target"' in source
@@ -189,7 +201,7 @@ def test_authored_fixtures_are_restored_from_asset_local_definitions() -> None:
 
 
 def test_contact_shadows_have_a_furniture_only_caster_mask() -> None:
-    source = (ROOT / "nest/estate/estate_daylight.gd").read_text()
+    source = (ROOT / "nest/rendering/estate_daylight.gd").read_text()
     assert "const FURNITURE_CONTACT_LAYER := 8" in source
     contact = source.split("if not outdoor and not contact_rooms.has(room):", 1)[1]
     contact = contact.split("contact_rooms[room] = true", 1)[0]
@@ -198,7 +210,7 @@ def test_contact_shadows_have_a_furniture_only_caster_mask() -> None:
 
 
 def test_authored_clearcoat_is_read_from_the_real_glb_not_repainted() -> None:
-    source = (ROOT / "nest/estate/estate_daylight.gd").read_text()
+    source = (ROOT / "nest/rendering/estate_daylight.gd").read_text()
     importer = (ROOT / "tools/import_estate_optics.gd").read_text()
     assert 'get("KHR_materials_clearcoat"' in importer
     assert 'get("clearcoatFactor"' in importer
@@ -207,13 +219,13 @@ def test_authored_clearcoat_is_read_from_the_real_glb_not_repainted() -> None:
     assert "FileAccess.open" not in source
     # Split sources use the same current importer policy; calibrated materials
     # are saved on placements rather than re-running the retired whole importer.
-    imports = [
-        path
-        for path in (ROOT / "nest").rglob("*.glb.import")
-        if path.parent.name != "estate"
-    ]
-    assert len(imports) == 57
+    imports = list((ROOT / "nest").rglob("*.glb.import"))
+    assert len(imports) == 56
+    import_hooks = {
+        "bed-shared.glb.import": '"res://tools/import_bed_normal_variants.gd"',
+        "forest-foliage.glb.import": '"res://tools/import_foliage_lods.gd"',
+    }
     for path in imports:
         assert path.with_suffix("").is_file(), path
         hooks = re.findall(r"^import_script/path=(.*)$", path.read_text(), re.M)
-        assert hooks == ['""'], path
+        assert hooks == [import_hooks.get(path.name, '""')], path

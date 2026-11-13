@@ -5,9 +5,9 @@ func _initialize() -> void: call_deferred("run")
 func run() -> void:
 	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
-	var display := preload("res://nest/estate/estate_water_display.gd").new()
+	var display := preload("res://nest/courtyard/parts/waterside/estate_water_display.gd").new()
 	root.add_child(display)
-	display.bind(estate,Environment.new(),false)
+	display.bind(estate)
 	var backing := estate.find_child("CY R001 spillway supporting outlet face",true,false) as MeshInstance3D
 	var backing_box := backing.global_transform * backing.get_aabb()
 	if backing_box.end.x > 24.881 or backing_box.position.y > -0.649:

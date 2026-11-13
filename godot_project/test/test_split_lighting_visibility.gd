@@ -1,6 +1,6 @@
 extends SceneTree
 
-const CONTROL := preload("res://nest/estate/estate_lighting.gd")
+const CONTROL := preload("res://nest/rendering/estate_lighting.gd")
 const RUNTIME := preload("res://nest/assembly/estate_runtime.gd")
 var failures: Array[String] = []
 

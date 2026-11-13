@@ -44,7 +44,7 @@ func _post_import(scene: Node) -> Object:
 	# These accepted static corrections depend only on local mesh data. Store
 	# their final buffers once, instead of retaining source and corrected copies
 	# in every running estate. Animated bedding bindings still belong to runtime.
-	var surface_tools := preload("res://nest/estate/estate_surface.gd")
+	var surface_tools := preload("res://nest/rendering/estate_surface.gd")
 	var windows := {}
 	for node: MeshInstance3D in scene.find_children("*", "MeshInstance3D", true, false):
 		surface_tools.repair_window_normals(node, windows)
@@ -52,7 +52,7 @@ func _post_import(scene: Node) -> Object:
 			node.mesh = surface_tools.duvet_rest(node.mesh)
 	# Deduplicate before serialization so Web never allocates the discarded
 	# material variants of identical geometry during scene loading.
-	var sharing := preload("res://nest/estate/estate_mesh_storage.gd")
+	var sharing := preload("res://nest/rendering/estate_mesh_storage.gd")
 	print("ESTATE_IMPORTED_TEXTURES shared=", sharing.share_textures(scene as Node3D))
 	var storage := sharing.share_geometry(scene as Node3D, true)
 	print("ESTATE_IMPORTED_GEOMETRY ", JSON.stringify(storage))

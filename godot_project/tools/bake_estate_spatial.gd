@@ -1,8 +1,8 @@
 extends SceneTree
 ## Explicit authoring entry: intermediates go to build/, not runtime startup.
 
-const DATA := preload("res://nest/estate/estate_spatial_data.gd")
-const PHYSICS := preload("res://nest/estate/estate_physics.gd")
+const DATA := preload("res://nest/spatial/estate_spatial_data.gd")
+const PHYSICS := preload("res://nest/spatial/estate_physics.gd")
 
 func _initialize() -> void:call_deferred("run")
 
@@ -47,7 +47,7 @@ func run() -> void:
 	for source: String in ["GardenCollision_TreeTrunks","GardenCollision_ShoreRocks","GardenCollision_Furniture"]:
 		var body := physics._static.get_node_or_null("Accessible"+source.trim_prefix("GardenCollision_"))
 		if body!=null:data.accessible_shapes[source]=(body.get_child(0) as CollisionShape3D).shape
-	data.authority_scene=preload("res://nest/estate/estate_authority_scene.gd").capture(world,estate,physics)
+	data.authority_scene=preload("res://nest/spatial/estate_authority_scene.gd").capture(world,estate,physics)
 	data.authority_format_version=DATA.AUTHORITY_FORMAT_VERSION
 	if not require(data.matches_inputs(DATA.current_inputs()),"Generated data must satisfy runtime validation"):return
 	var output := ProjectSettings.globalize_path("res://../build/estate_spatial")

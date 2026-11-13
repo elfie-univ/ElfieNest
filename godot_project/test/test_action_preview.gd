@@ -3,7 +3,7 @@ extends SceneTree
 func _initialize() -> void: call_deferred("run")
 
 func run() -> void:
-	var door := preload("res://nest/estate/estate_door.gd").new({})
+	var door := preload("res://nest/buildings/estate_door.gd").new({})
 	assert(door.set_preview_mode("open"))
 	assert(door.preview_mode == "open")
 	assert(not door.set_preview_mode("invalid"))

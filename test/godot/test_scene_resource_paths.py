@@ -46,25 +46,19 @@ def test_nest_contains_current_estate_and_formal_split_assets() -> None:
         "nest.gd",
         "nest.gd.uid",
         "nest.tscn",
-        "estate",
-        "ui",
+        "spatial",
+        "rendering",
         "AGENTS.md",
         "ASSET_MIGRATION_PLAN.md",
-        "asset_catalog.json",
+        "RUNTIME.md",
+        "RUNTIME_zh.md",
         "assembly",
         "buildings",
         "courtyard",
         "furniture",
     }
-    estate = rooms / "estate"
-    for retired in (
-        "central.glb",
-        "pod.glb",
-        "placements.json",
-        "estate_nest.gd",
-        "estate_nest.tscn",
-    ):
-        assert not (estate / retired).exists(), f"旧资产尚未迁出: {retired}"
+    assert (rooms / "spatial/estate_spatial.res").is_file()
+    assert (rooms / "rendering/estate_lighting.gd").is_file()
 
 
 def test_legacy_resource_paths_are_not_referenced() -> None:
@@ -271,5 +265,5 @@ def test_project_top_level_matches_the_approved_layout() -> None:
     }
     assert directories == {"characters", "nest", "runtime", "tools", "test"}
     assert (GODOT_ROOT / "runtime/lab/lab_preview_controller.gd").is_file()
-    assert (GODOT_ROOT / "nest/ui/observation_hud.tscn").is_file()
+    assert (GODOT_ROOT / "runtime/observer/observation_hud.tscn").is_file()
     assert not (GODOT_ROOT / "lab_preview_controller.gd").exists()

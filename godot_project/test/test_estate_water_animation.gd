@@ -1,7 +1,7 @@
 extends SceneTree
 ## Run with the repository Godot toolchain after importing the estate once.
 
-const WATER_PATH := "res://nest/estate/estate_water.gd"
+const WATER_PATH := "res://nest/courtyard/parts/waterside/estate_water.gd"
 
 
 func _initialize() -> void:
@@ -31,7 +31,7 @@ func run() -> void:
 	var saved_mesh := fixture_lake.mesh
 	var saved_transform := fixture_lake.transform
 	# Match the real integration order, including daylight's source wrapper.
-	var surface_adapter := load("res://nest/estate/estate_surface.gd")
+	var surface_adapter := load("res://nest/rendering/estate_surface.gd")
 	fixture_lake.set_surface_override_material(0, surface_adapter.make_material(original, 0.65, 0.2))
 	fixture.visible = false
 	var counts: Dictionary = water.attach(fixture)
@@ -83,9 +83,9 @@ func run() -> void:
 	var source_rim := estate.find_child("FountainConcealedRim", true, false) as MeshInstance3D
 	var shared_rim := source_rim.mesh
 	var shared_faces := shared_rim.get_faces().to_byte_array()
-	var display := preload("res://nest/estate/estate_water_display.gd").new()
+	var display := preload("res://nest/courtyard/parts/waterside/estate_water_display.gd").new()
 	root.add_child(display)
-	display.bind(estate, Environment.new(), false)
+	display.bind(estate)
 	if not _require(source_rim.mesh == shared_rim and source_rim.mesh.get_faces().to_byte_array() == shared_faces, "Binding imported water must not rebuild or mutate the shared rim prototype"): return
 	if not _check_bound_rim(estate, display): return
 	var lake := estate.find_child("COMPLETE Inset natural lake", true, false) as MeshInstance3D

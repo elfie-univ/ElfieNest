@@ -1,7 +1,7 @@
 extends SceneTree
 
 func _initialize() -> void:
-	var shore := preload("res://nest/estate/estate_shore_finish.gd").new()
+	var shore := preload("res://nest/courtyard/parts/waterside/estate_shore_finish.gd").new()
 	shore.water = PackedVector2Array([Vector2(-1,-1), Vector2(1,-1), Vector2(1,1), Vector2(-1,1)])
 	shore.water_bounds = Rect2(-1,-1,2,2)
 	var mesh := BoxMesh.new()

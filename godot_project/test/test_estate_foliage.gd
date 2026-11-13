@@ -1,6 +1,6 @@
 extends SceneTree
-const DAYLIGHT := preload("res://nest/estate/estate_daylight.gd")
-const OPTICS := preload("res://nest/estate/estate_lighting_sample.gd")
+const DAYLIGHT := preload("res://nest/rendering/estate_daylight.gd")
+const OPTICS := preload("res://nest/rendering/estate_lighting_sample.gd")
 func _initialize() -> void: call_deferred("run")
 func run() -> void:
 	var source: Node3D=load("res://nest/assembly/estate.tscn").instantiate()

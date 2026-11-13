@@ -84,7 +84,7 @@ static func manifest_error(nest: ModularNest, manifest: Dictionary, capacity: in
 
 static func physical_error(nest: ModularNest) -> String:
 	var physics := nest.get_node_or_null("Generated/EstatePhysics")
-	if physics == null or physics.get_script() != load("res://nest/estate/estate_physics.gd"):
+	if physics == null or physics.get_script() != load("res://nest/spatial/estate_physics.gd"):
 		return "Complete estate physical owner is missing"
 	if physics.find_children("*", "StaticBody3D", true, false).is_empty():
 		return "Real architecture/furniture collision proxies are missing"

@@ -6,8 +6,8 @@ import struct
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2] / "godot_project"
-FONT = ROOT / "nest/ui/fonts/NotoSansSC-ObservationHUD.ttf"
-HUD = ROOT / "nest/ui/observation_hud.tscn"
+FONT = ROOT / "runtime/observer/fonts/NotoSansSC-ObservationHUD.ttf"
+HUD = ROOT / "runtime/observer/observation_hud.tscn"
 
 
 def _tables(data: bytes) -> dict[bytes, tuple[int, int]]:
@@ -69,8 +69,8 @@ def test_shipped_font_covers_current_hud_and_camera_labels_with_real_outlines() 
     text = "".join(
         (ROOT / path).read_text()
         for path in (
-            "nest/ui/observation_hud.tscn",
-            "nest/ui/observation_hud.gd",
+            "runtime/observer/observation_hud.tscn",
+            "runtime/observer/observation_hud.gd",
             "nest/nest.gd",
         )
     )
@@ -93,7 +93,7 @@ def test_shipped_font_covers_current_hud_and_camera_labels_with_real_outlines() 
 def test_hud_theme_binds_real_font_for_controls_popup_and_tooltips() -> None:
     source = HUD.read_text()
     assert (
-        '[ext_resource type="FontFile" path="res://nest/ui/fonts/NotoSansSC-ObservationHUD.ttf" id="2_font"]'
+        '[ext_resource type="FontFile" path="res://runtime/observer/fonts/NotoSansSC-ObservationHUD.ttf" id="2_font"]'
         in source
     )
     assert 'default_font = ExtResource("2_font")' in source
@@ -105,15 +105,15 @@ def test_hud_theme_binds_real_font_for_controls_popup_and_tooltips() -> None:
 
 
 def test_font_license_is_present_and_referenced_for_export() -> None:
-    license_text = (ROOT / "nest/ui/fonts/OFL.txt").read_text()
+    license_text = (ROOT / "runtime/observer/fonts/OFL.txt").read_text()
     assert "SIL OPEN FONT LICENSE Version 1.1" in license_text
     assert "Copyright 2014-2021 Adobe" in license_text
     # The Theme references this resource so exported PCKs retain the license.
-    license_resource = (ROOT / "nest/ui/fonts/OFL.tres").read_text()
+    license_resource = (ROOT / "runtime/observer/fonts/OFL.tres").read_text()
     embedded_license = re.search(
         r'^metadata/license_text = (".*")$', license_resource, re.MULTILINE
     )
     assert embedded_license is not None
     assert json.loads(embedded_license.group(1)) == license_text
-    assert 'path="res://nest/ui/fonts/OFL.tres"' in HUD.read_text()
+    assert 'path="res://runtime/observer/fonts/OFL.tres"' in HUD.read_text()
     assert 'metadata/font_license = ExtResource("3_font_license")' in HUD.read_text()

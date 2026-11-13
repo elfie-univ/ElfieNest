@@ -1,6 +1,6 @@
 extends SceneTree
 
-const PHYSICS := preload("res://nest/estate/estate_physics.gd")
+const PHYSICS := preload("res://nest/spatial/estate_physics.gd")
 
 
 func _init() -> void:

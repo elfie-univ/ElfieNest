@@ -1,6 +1,6 @@
 extends SceneTree
 ## Synthetic fixtures only; the owner runs this script through the Godot guard.
-const BATCHES := preload("res://nest/estate/estate_instance_batches.gd")
+const BATCHES := preload("res://nest/rendering/estate_instance_batches.gd")
 const LIBRARY := "res://nest/furniture/shared/bedroom/bed-shared.glb"
 var failures: Array[String] = []
 
@@ -394,7 +394,7 @@ func test_equivalent_materials() -> void:
 			var material: Material = StandardMaterial3D.new()
 			if kind != "base":
 				material = ShaderMaterial.new()
-				(material as ShaderMaterial).shader = load("res://nest/estate/%s.gdshader" % ("m01_sheen" if kind == "sheen" else "estate_opaque"))
+				(material as ShaderMaterial).shader = load("res://nest/furniture/shared/bedroom/m01_sheen.gdshader" if kind == "sheen" else "res://nest/rendering/estate_opaque.gdshader")
 				(material as ShaderMaterial).set_shader_parameter("natural_light_scale", 1.0)
 			f.mesh.surface_set_material(0, material)
 			var other: Material = material.duplicate()
@@ -520,9 +520,9 @@ func test_static_write_contract() -> void:
 func test_material_writer() -> void:
 	var f := fixture()
 	var material := ShaderMaterial.new()
-	material.shader = load("res://nest/estate/m01_sheen.gdshader")
+	material.shader = load("res://nest/furniture/shared/bedroom/m01_sheen.gdshader")
 	f.mesh.surface_set_material(0, material)
-	var optics := preload("res://nest/estate/estate_lighting_sample.gd").new()
+	var optics := preload("res://nest/rendering/estate_lighting_sample.gd").new()
 	optics.bind_m01(f.estate)
 	f.helper.bind(f.estate)
 	check(f.helper.groups.size() == 1, "Light-owner fixture batches shared sheen")

@@ -9,6 +9,7 @@ import struct
 from pathlib import Path, PurePosixPath
 
 INPUT_MANIFEST = "nest/assembly/runtime-inputs.json"
+SPATIAL_SNAPSHOT = "nest/spatial/estate_spatial.res"
 _DISPLAY_EXTENSIONS = {".glb", ".scn", ".tscn", ".png", ".jpg", ".jpeg", ".webp"}
 _SOURCE_EXTENSIONS = {
     ".gd",
@@ -25,7 +26,14 @@ _SOURCE_EXTENSIONS = {
     ".gdshaderinc",
     ".import",
 }
-_SOURCE_ROOTS = ("assembly", "buildings", "courtyard", "furniture", "estate")
+_SOURCE_ROOTS = (
+    "assembly",
+    "buildings",
+    "courtyard",
+    "furniture",
+    "rendering",
+    "spatial",
+)
 
 
 def _receipt(payload: bytes) -> dict:
@@ -66,13 +74,7 @@ def verify_split_sources(project: Path) -> dict:
             if not path.is_file() or path.suffix not in _SOURCE_EXTENSIONS:
                 continue
             name = path.relative_to(project).as_posix()
-            if name == INPUT_MANIFEST or path.name == "estate_complete_final.gd":
-                continue
-            if folder == "estate" and path.suffix not in {
-                ".gd",
-                ".gdshader",
-                ".gdshaderinc",
-            }:
+            if name in {INPUT_MANIFEST, SPATIAL_SNAPSHOT}:
                 continue
             actual[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     if actual != receipt["files"]:
@@ -122,7 +124,7 @@ def build_authority_pack(source: Path, destination: Path) -> None:
         indexed = {entry[0]: entry for entry in entries}
         if INPUT_MANIFEST not in indexed:
             raise ValueError("Godot PCK is missing its split source receipt")
-        if "nest/estate/estate_spatial.res" not in indexed:
+        if SPATIAL_SNAPSHOT not in indexed:
             raise ValueError("Godot PCK is missing its physical snapshot")
         if any("ElfieNest-complete-final" in name for name in names):
             raise ValueError("Godot PCK contains the retired merged estate")

@@ -12,7 +12,7 @@ Linux Dedicated 导出配置已迁移，实际导出受本机缺少 Linux 模板
   再删除合并版独占输入；共享 GLB 几何及既有视觉整改保持不变。
 - **inventory：** `build/godot_assets/split-production/retirement-inventory.json` 递归分类
   `estate/` 的 109 个文件，覆盖跟踪、未跟踪、忽略和空路径；8 个合并版独占输入已删除（619,999,348 字节），
-  其余为共享运行支持和双语说明。`asset_catalog.json` 仅保留历史提取 ID/指纹，
+  其余为共享运行支持和双语说明。`tools/nest_authoring/v044-asset-catalog.json` 仅保留历史提取 ID/指纹，
   正式导出不读取它或其旧来源路径。
 - **references：** 显示由三类分件与装配场景提供；`activity_regions.tres` 持有活动权限，
   `runtime-bindings.json` 按完整摆位路径恢复语义和控制。`estate_spatial.res` 与
@@ -27,7 +27,7 @@ Linux Dedicated 导出配置已迁移，实际导出受本机缺少 Linux 模板
   避免重复显示。夜间水景、花丛完整性和密度检查通过。273 盏灯身份映射与 42 盏距离淡出灯均保留。
 - **residuals：** Linux Dedicated 实机导出缺少本机 Godot 4.7 Linux 模板，macOS 也不能
   证明 Linux 运行结果；不得用 Web 或原生场景测试替代跨平台发行验收。旧版独占源清单已清空，共用运行支持保留。
-  历史提取脚本和 `asset_catalog.json` 的旧路径仅用于解释迁入来源，不属于正式导出入口。
+  历史提取脚本和 `tools/nest_authoring/v044-asset-catalog.json` 的旧路径仅用于解释迁入来源，不属于正式导出入口。
   灯光与遮挡的专项残余已查清并关闭：有效材质覆盖层与 54 项户外发光基准已修复，
   瀑布可见性加入真实遮挡；灯光测试按完整摆位身份、实际视锥和原生材质声明核验。
   灯光预算 146、座椅照射 85% 等原阈值不变。证据见 `build/godot_assets/lighting-repair/`。
@@ -47,17 +47,17 @@ Linux Dedicated 导出配置已迁移，实际导出受本机缺少 Linux 模板
   交互语义锚点、正式灯光/动画绑定、空间输入指纹、完整导航烘焙和正式导出仍待迁移验收。
   活动范围和导航输入不能冒充可供人物运行的完整 authority 快照。
 
-## 迁入基线
+## 历史迁入基线
 
-| 版本 | 当前来源 | 现有证据 |
+| 版本 | 当时来源 | 当时证据 |
 | --- | --- | --- |
-| 合并版 | `res://nest/estate/estate.tscn` 及同目录的整园 GLB、实例 BIN、灯光场景、`estate_spatial.res`、脚本和 shader | 正式 `nest.tscn` 的现役输入，也是两版对照基准 |
+| 合并版 | 原 `nest/estate/` 下的整园场景及配套资源 | 早期 `nest.tscn` 的输入和两版对照基准，现已退役 |
 | 正式拆分版 | `res://nest/furniture/`、`res://nest/buildings/`、`res://nest/courtyard/` 和 `res://nest/assembly/estate.tscn` | 51 个 GLB、35 个装配场景、79 张外置贴图。86 个资产与页面条目一一对应；湖岸、平台归地面，喷泉、水道与瀑布统一归喷泉，荷叶荷花归湖面 |
 
 旧候选的原生静态回拼曾通过四机位像素对照。正式拆分版用 Godot 导入的 GLB 回拼，独立记录四机位
 比较和运行行为验收；此前固定机位另含 M02、M08 卧室和主楼入口，共七个机位。
-现有卧室试点保留原路径，正式拆分版从 `assembly/asset-index.json` 定位
-唯一的编辑文件。
+V044 卧室试点已退役。正式拆分版从 `assembly/asset-index.json` 定位编辑文件，
+卧室 Blender 工作稿位于 `furniture/shared/bedroom/source/`。
 
 ## 2026-11-09 荷塘展开与花坛补种
 

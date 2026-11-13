@@ -1,7 +1,7 @@
 extends SceneTree
 ## Exercise the production light and water owners on the actual split assembly.
-const LIGHTING := preload("res://nest/estate/estate_lighting.gd")
-const WATER := preload("res://nest/estate/estate_water_display.gd")
+const LIGHTING := preload("res://nest/rendering/estate_lighting.gd")
+const WATER := preload("res://nest/courtyard/parts/waterside/estate_water_display.gd")
 
 func _initialize() -> void: call_deferred("run")
 func require(ok: bool, message: String) -> bool:
@@ -46,7 +46,7 @@ func run() -> void:
 		if not require(evening[index] == [light.visible, light.light_energy], "Replay accumulates lamp energy"): return
 	var water := WATER.new()
 	root.add_child(water)
-	water.bind(estate, Environment.new(), false)
+	water.bind(estate)
 	var retired := 0
 	for node: Node in estate.find_children("*", "", true, false):
 		if not str(node.get_meta("v044_path", "")).begins_with("Generated/ObserverFountainLighting/"): continue

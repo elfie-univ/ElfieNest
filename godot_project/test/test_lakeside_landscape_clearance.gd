@@ -1,5 +1,5 @@
 extends SceneTree
-const BANKS=preload("res://nest/estate/estate_bank_cleanup.gd")
+const BANKS=preload("res://nest/courtyard/parts/waterside/estate_bank_cleanup.gd")
 func _initialize():call_deferred("run")
 func run():
  create_timer(90.0).timeout.connect(func():quit(1))

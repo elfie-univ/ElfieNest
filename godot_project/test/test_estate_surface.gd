@@ -1,7 +1,7 @@
 extends SceneTree
 
-const SURFACE := preload("res://nest/estate/estate_surface.gd")
-const DAYLIGHT := preload("res://nest/estate/estate_daylight.gd")
+const SURFACE := preload("res://nest/rendering/estate_surface.gd")
+const DAYLIGHT := preload("res://nest/rendering/estate_daylight.gd")
 const SOURCE := "res://nest/assembly/estate.tscn"
 
 

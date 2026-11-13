@@ -8,7 +8,7 @@ func run() -> void:
 	root.add_child(estate)
 	var frame := estate.find_child("Central L1 rounded garden entrance", true, false) as MeshInstance3D
 	var glass := estate.find_child("Central L1 curved front glass", true, false) as MeshInstance3D
-	var door = load("res://nest/estate/estate_garden_door.gd").new()
+	var door = load("res://nest/buildings/estate_garden_door.gd").new()
 	door.build(estate, frame, glass, false)
 	var inner_depths: Array[float] = []
 	for vertex: Vector3 in frame.mesh.get_faces():

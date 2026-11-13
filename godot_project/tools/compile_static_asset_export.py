@@ -31,7 +31,11 @@ def inside(point, ring):
 
 
 def main():
-    catalog = json.loads((ROOT / "godot_project/nest/asset_catalog.json").read_text())
+    catalog = json.loads(
+        (
+            ROOT / "godot_project/tools/nest_authoring/v044-asset-catalog.json"
+        ).read_text()
+    )
     entries = json.loads((BUILD / "full-inventory/static-nodes.json").read_text())
     by_path = {entry["path"]: entry for entry in entries}
     assert len(by_path) == len(entries) == 14761
@@ -512,7 +516,9 @@ def main():
     output = BUILD / "static-export-bindings.json"
     report = {
         "catalog_sha256": hashlib.sha256(
-            (ROOT / "godot_project/nest/asset_catalog.json").read_bytes()
+            (
+                ROOT / "godot_project/tools/nest_authoring/v044-asset-catalog.json"
+            ).read_bytes()
         ).hexdigest(),
         "snapshot_sha256": catalog["snapshot_sha256"],
         "items": plans,

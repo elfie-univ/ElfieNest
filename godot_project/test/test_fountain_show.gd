@@ -5,7 +5,7 @@ func check(ok: bool, message: String) -> void:
  if not ok and not failures.has(message): failures.append(message); push_error(message)
 func _initialize() -> void: call_deferred("run")
 func run() -> void:
- var path := "res://nest/estate/fountain_score.gd"
+ var path := "res://nest/courtyard/parts/waterside/fountain_score.gd"
  if not ResourceLoader.exists(path):
   push_error("The approved nine-nozzle fountain score is missing")
   quit(1)
@@ -32,10 +32,10 @@ func run() -> void:
   for j in range(9): check(absf(left[j].height-right[j].height)<0.02,"Continuous pressure at phrase boundaries")
  var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
  root.add_child(estate)
- var display := preload("res://nest/estate/estate_water_display.gd").new()
+ var display := preload("res://nest/courtyard/parts/waterside/estate_water_display.gd").new()
  root.add_child(display)
  display.fountain_programme="fixed"
- display.bind(estate,Environment.new(),false)
+ display.bind(estate)
  var show: Node3D=display.fountain_show
  var pool:=estate.find_child("Reference fountain water",true,false) as MeshInstance3D
  var channel:=estate.find_child("COMPLETE Short east spillway",true,false) as MeshInstance3D

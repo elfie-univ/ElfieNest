@@ -24,8 +24,8 @@ Main source layout:
 godot_project/
 ├── main.tscn, main.gd     # project entry
 ├── runtime/               # world configuration, actor sync and semantic action lifecycle
-├── nest/                  # Nest observer and the complete final estate asset
-│   └── ui/                # observation UI
+│   └── observer/          # observation cameras, message bridge and native HUD
+├── nest/                  # estate assembly, assets, spatial data and rendering
 ├── characters/            # Elfie characters, models, animation and appearance authoring material
 ├── test/                  # Godot-internal tests (Python tests remain in test/godot/)
 └── tools/                 # asset authoring tools
@@ -33,7 +33,7 @@ godot_project/
 
 Enter character authoring from [`characters/README.md`](characters/README.md);
 enter the complete building, interiors and courtyard from
-[`nest/estate/README.md`](nest/estate/README.md). The legacy procedural rooms,
+[`nest/RUNTIME.md`](nest/RUNTIME.md). The legacy procedural rooms,
 standalone furniture and central/pod baseline have been retired; `nest/nest.tscn`
 is the only Nest entry and instantiates this complete estate once. Its authored
 geometry now binds collisions, 32 beds, 32 desk chairs, courtyard seating, doors
@@ -45,7 +45,7 @@ The project includes the forest loop and return spur, smooth lawn and planting r
 ten physical doors, and offline collision/navigation resources. Buildings, furniture and
 base materials retain their baseline; terrain, fixtures and actions are integrated by feature.
 Chair/sofa sequences, the original duvet, bed-bound embodiment, adoption arrival and water
-effects use the actual models in this project. See the [estate entry](nest/estate/README.md)
+effects use the actual models in this project. See the [estate entry](nest/RUNTIME.md)
 for focused replays; these do not certify autonomous life.
 
 The product monitor consumes Nest's local civil-time environment: artificial lighting is off

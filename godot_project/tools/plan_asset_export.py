@@ -26,7 +26,11 @@ def leaves(items, path=()):
 
 
 def main():
-    catalog = json.loads((ROOT / "godot_project/nest/asset_catalog.json").read_text())
+    catalog = json.loads(
+        (
+            ROOT / "godot_project/tools/nest_authoring/v044-asset-catalog.json"
+        ).read_text()
+    )
     source = ROOT / catalog["source_glb"]
     if digest(source) != catalog["source_sha256"]:
         raise ValueError("V044 source fingerprint changed; re-audit before planning")
@@ -91,20 +95,12 @@ def main():
             region = item.get("region")
             if region and region not in regions:
                 raise ValueError("Unknown authored region: " + region)
-            artifact = (
-                ROOT / "godot_project" / item["artifact"]
-                if item.get("artifact")
-                else None
-            )
             plans.append(
                 {
                     "id": item["id"],
                     "menu": list(path),
                     "source_node_candidates": matches,
                     "region_contours_available": bool(region),
-                    "existing_pilot_resource": str(artifact.relative_to(ROOT))
-                    if artifact and artifact.is_file()
-                    else None,
                     "export_ready": False,
                     "remaining": "Compile exclusive ownership, shared references, transforms and dynamic bindings; candidates are not export instructions.",
                 }
@@ -133,9 +129,6 @@ def main():
                 ),
                 "region_candidates": sum(
                     item["region_contours_available"] for item in plans
-                ),
-                "existing_pilot_resources": sum(
-                    item["existing_pilot_resource"] is not None for item in plans
                 ),
                 "output": str(output),
                 "export_ready": False,

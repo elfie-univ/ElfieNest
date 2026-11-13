@@ -1,6 +1,6 @@
 extends SceneTree
-const DAYLIGHT := preload("res://nest/estate/estate_daylight.gd")
-const PHYSICS := preload("res://nest/estate/estate_physics.gd")
+const DAYLIGHT := preload("res://nest/rendering/estate_daylight.gd")
+const PHYSICS := preload("res://nest/spatial/estate_physics.gd")
 
 func _initialize() -> void: call_deferred("run")
 
@@ -139,7 +139,7 @@ func run() -> void:
 		var collision := body.get_child(0) as CollisionShape3D
 		if not require((collision.shape as ConcavePolygonShape3D).get_faces()==PHYSICS.collision_faces(originals[mesh]), "Stair rendering repair changed the original collision triangles"): return
 	var repaired := cheek.mesh
-	preload("res://nest/estate/estate_stair_finish.gd").apply(fixture)
+	preload("res://nest/buildings/estate_stair_finish.gd").apply(fixture)
 	if not require(fixture.find_children("LandingTerminalPost*","MeshInstance3D",true,false).size()==2,"Repeated setup duplicated terminal posts"): return
 	if not require(cheek.mesh==repaired and fixture.find_children("StairFinish*", "MeshInstance3D", true, false).is_empty(), "Repeated presentation setup duplicates or re-trims the stair repair"): return
 	fixture.free()

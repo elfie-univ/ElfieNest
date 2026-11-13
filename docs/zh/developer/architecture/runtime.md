@@ -141,7 +141,7 @@ Godot 拥有，不增加 Python 几何模型、第二个 Gateway 或 Observer �
 动画检查时，`use_anchor` 还支持可选的命名 `furniture_cycle`：`seat`、`sleep-back`、
 `sleep-left`、`sleep-right`。它选择 Godot 自有的已创作流程，不接受变换矩阵或任意姿态。
 普通 Body `furniture.use` 仍只传 `anchor_id`。流程执行、根运动、接触采样、转椅旋转、
-睡姿和被子变形位于 `runtime/actor/`；家具接触点和碰撞仍属于 `nest/estate/`。
+睡姿和被子变形位于 `runtime/actor/`；家具接触点和碰撞仍属于 `nest/spatial/`。
 Nest Lab 选择并观察同一个实现；完成、取消和失败沿用原命令身份与唯一终态。
 
 ## Runtime 产物契约

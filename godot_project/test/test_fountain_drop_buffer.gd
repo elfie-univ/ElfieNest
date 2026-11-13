@@ -10,9 +10,9 @@ func run() -> void:
 		return
 	var estate := (load("res://nest/assembly/estate.tscn") as PackedScene).instantiate() as Node3D
 	root.add_child(estate)
-	var display := preload("res://nest/estate/estate_water_display.gd").new()
+	var display := preload("res://nest/courtyard/parts/waterside/estate_water_display.gd").new()
 	root.add_child(display)
-	display.bind(estate,Environment.new(),false)
+	display.bind(estate)
 	var batch: MultiMesh = display.fountain_show.drops.multimesh
 	var expected := PackedFloat32Array()
 	for i: int in range(2304):

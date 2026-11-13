@@ -1,6 +1,6 @@
 extends SceneTree
 
-const DAYLIGHT := preload("res://nest/estate/estate_daylight.gd")
+const DAYLIGHT := preload("res://nest/rendering/estate_daylight.gd")
 
 
 func _initialize() -> void:
@@ -113,7 +113,7 @@ func run() -> void:
 	if not _require(environment.background_mode == Environment.BG_COLOR and environment.tonemap_mode == Environment.TONE_MAPPER_ACES and is_equal_approx(environment.tonemap_exposure, 0.88), "Cloud backdrop, reference ACES response or unchanged exposure is missing"):
 		return
 	var environment_material := environment.sky.sky_material as ShaderMaterial
-	if not _require(environment_material.shader == load("res://nest/estate/estate_reflection_sky.gdshader"), "Environment does not use the reference-derived reflection field"):
+	if not _require(environment_material.shader == load("res://nest/rendering/estate_reflection_sky.gdshader"), "Environment does not use the reference-derived reflection field"):
 		return
 	var estate := nest.get_node("Generated/CompleteEstate")
 	var source := estate
@@ -163,21 +163,21 @@ func run() -> void:
 		for surface in range(mesh.mesh.get_surface_count()):
 			var actual := mesh.get_active_material(surface)
 			var imported_material := mesh.mesh.surface_get_material(surface) as BaseMaterial3D
-			if str(extras.get("source_name", "")) == "ROOM • sculpted continuous shell" and load("res://nest/estate/estate_surface.gd").supports(imported_material, true):
+			if str(extras.get("source_name", "")) == "ROOM • sculpted continuous shell" and load("res://nest/rendering/estate_surface.gd").supports(imported_material, true):
 				if not _require(actual is ShaderMaterial, "Vertex-color flag bypassed the shared shell lighting correction"):
 					return
 			if bool(extras.get("roof_skylight", false)):
 				print("ROOF_GLASS_BINDING ", mesh.name, " material=", actual.get_class(), " shader=", actual.shader.resource_path if actual is ShaderMaterial else "", " version=", extras.get("exportVersion", ""), " optics=", (mesh.mesh.surface_get_material(surface) as BaseMaterial3D).get_meta("source_optics", {}))
-				if not _require(actual is ShaderMaterial and actual.shader == load("res://nest/estate/estate_glass.gdshader") and str(extras.get("exportVersion", "")) == "building_central_v051", "Actual v051 roof did not bind the thin-glass shader"):
+				if not _require(actual is ShaderMaterial and actual.shader == load("res://nest/rendering/estate_glass.gdshader") and str(extras.get("exportVersion", "")) == "building_central_v051", "Actual v051 roof did not bind the thin-glass shader"):
 					return
 			if actual is ShaderMaterial:
 				if not _require((mesh.layers & DAYLIGHT.NATIVE_HEMISPHERE_LAYER) == 0, "Mixed-surface mesh receives hemisphere irradiance twice"):
 					return
 				var original := actual.get_meta("source_material") as BaseMaterial3D
-				if actual.shader == load("res://nest/estate/estate_opaque.gdshader") or actual.shader == load("res://nest/estate/m01_sheen.gdshader"):
+				if actual.shader == load("res://nest/rendering/estate_opaque.gdshader") or actual.shader == load("res://nest/furniture/shared/bedroom/m01_sheen.gdshader"):
 					if not _require(bool(actual.get_shader_parameter("use_authored_reflection")) == (original.get_meta("extras", {}) as Dictionary).has("preview_surface_finish"), "Studio reflection leaked onto a surface without an authored environment"):
 						return
-				if actual.shader == load("res://nest/estate/estate_opaque.gdshader"):
+				if actual.shader == load("res://nest/rendering/estate_opaque.gdshader"):
 					var vertex_color := bool(mesh.mesh.surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR)
 					if not _require(bool(actual.get_shader_parameter("use_linear_vertex_color")) == vertex_color, "Shared material confused colored and uncolored primitive inputs"):
 						return

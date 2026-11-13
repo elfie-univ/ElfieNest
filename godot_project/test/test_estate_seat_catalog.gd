@@ -1,6 +1,6 @@
 extends SceneTree
 ## The action picker must expose every real seat, including shared mesh instances.
-const CATALOG := preload("res://nest/estate/estate_seat_catalog.gd")
+const CATALOG := preload("res://nest/spatial/estate_seat_catalog.gd")
 
 func _initialize() -> void: call_deferred("run")
 
@@ -24,7 +24,7 @@ func run() -> void:
 		if str(extras.get("kind", "")) not in ["chair", "stool", "ottoman", "floor_cushion"]: continue
 		if not covered.has(mesh.get_instance_id()):
 			push_error("Real seating instance omitted: " + str(mesh.name)); quit(1); return
-	var semantics := preload("res://nest/estate/estate_semantics.gd").new()
+	var semantics := preload("res://nest/spatial/estate_semantics.gd").new()
 	semantics.build(world, estate)
 	var expected := {"central-01":5, "central-02":12, "central-03":12,
 		"terrace-01":1, "terrace-02":3, "terrace-03":3, "terrace-04":4,

@@ -1,7 +1,7 @@
 extends SceneTree
-const CYCLE=preload("res://nest/estate/fountain_cycle.gd")
-const FIXED=preload("res://nest/estate/fountain_score.gd")
-const RANDOM=preload("res://nest/estate/fountain_random.gd")
+const CYCLE=preload("res://nest/courtyard/parts/waterside/fountain_cycle.gd")
+const FIXED=preload("res://nest/courtyard/parts/waterside/fountain_score.gd")
+const RANDOM=preload("res://nest/courtyard/parts/waterside/fountain_random.gd")
 func _initialize()->void:
  var cycle=CYCLE.new()
  var random=RANDOM.new()

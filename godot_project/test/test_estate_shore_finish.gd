@@ -1,7 +1,7 @@
 extends SceneTree
 
-const SAMPLE := preload("res://nest/estate/estate_lighting_sample.gd")
-const SHORE := preload("res://nest/estate/estate_shore_finish.gd")
+const SAMPLE := preload("res://nest/rendering/estate_lighting_sample.gd")
+const SHORE := preload("res://nest/courtyard/parts/waterside/estate_shore_finish.gd")
 var failures: Array[String] = []
 
 func _initialize() -> void:

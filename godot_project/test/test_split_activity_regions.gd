@@ -29,7 +29,7 @@ func run() -> void:
 		for prefix: String in ["dorm", "terrace"]:
 			var zone := "%s-%02d" % [prefix, ordinal]
 			if not require(counts.has(zone), "Missing activity instance " + zone + ": " + str(counts)): return
-	var access := preload("res://nest/estate/estate_outdoor_access.gd").new()
+	var access := preload("res://nest/spatial/estate_outdoor_access.gd").new()
 	root.add_child(access)
 	if not require(access.build(estate), "Split outdoor permissions must build without loading the merged world"): return
 	if not require(access.contains_point(Vector2(0, 20)), "Plaza approach must stay accessible"): return
@@ -49,7 +49,7 @@ func run() -> void:
 	if not require(checked_water, "The current split lake must be checked"): return
 	var invalid: Resource = regions.duplicate(true)
 	invalid.outdoor_permissions.erase("lawn")
-	var rejected := preload("res://nest/estate/estate_outdoor_access.gd").new()
+	var rejected := preload("res://nest/spatial/estate_outdoor_access.gd").new()
 	if not require(not invalid.populate_outdoor(rejected, estate), "Missing activity permissions must fail closed"): return
 	rejected.free()
 	var geometry := NavigationMeshSourceGeometryData3D.new()

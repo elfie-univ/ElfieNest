@@ -8,7 +8,7 @@ func run() -> void:
 	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	world.add_child(estate)
 	if not require(estate.get_meta("split_runtime_ready", false), "Split runtime bindings must be formal assembly resources"): return
-	var semantics := preload("res://nest/estate/estate_semantics.gd").new()
+	var semantics := preload("res://nest/spatial/estate_semantics.gd").new()
 	semantics.build(world, estate)
 	if not require(semantics.room_floors.size() == 8, "Eight split rooms must retain independent semantics"): return
 	var beds := 0

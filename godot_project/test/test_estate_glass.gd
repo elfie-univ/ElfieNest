@@ -1,6 +1,6 @@
 extends SceneTree
 
-const DAYLIGHT := preload("res://nest/estate/estate_daylight.gd")
+const DAYLIGHT := preload("res://nest/rendering/estate_daylight.gd")
 
 
 func _initialize() -> void:

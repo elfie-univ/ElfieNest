@@ -12,9 +12,9 @@ func run() -> void:
 	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
 	if not check_split_ground_clearance(estate): return
-	var display := preload("res://nest/estate/estate_water_display.gd").new()
+	var display := preload("res://nest/courtyard/parts/waterside/estate_water_display.gd").new()
 	root.add_child(display)
-	display.bind(estate,Environment.new(),false)
+	display.bind(estate)
 	var channel := estate.find_child("COMPLETE Short east spillway",true,false) as MeshInstance3D
 	var shallow := channel.get_active_material(0) as ShaderMaterial
 	var opacity: Variant = shallow.get_shader_parameter("water_opacity")

@@ -1,6 +1,6 @@
 extends SceneTree
 ## Construction lookup storage must not survive finished bedding bindings.
-const BEDDING := preload("res://nest/estate/estate_bedding_layers.gd")
+const BEDDING := preload("res://nest/furniture/shared/bedroom/estate_bedding_layers.gd")
 func _initialize() -> void: call_deferred("run")
 func mesh_at(height: float) -> ArrayMesh:
  var arrays:=[];arrays.resize(Mesh.ARRAY_MAX)

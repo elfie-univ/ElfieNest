@@ -11,4 +11,4 @@ targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "line"
 paths = ['''^godot_project/nest/assembly/runtime-inputs\.json$''']
-regexes = ['''^\s*"nest/estate/estate_outdoor_access\.gd":\s*"4242ad74b75cab7e06a7a00e516903545dd3a603ef25966c9267ea9daec2e994",?\s*$''']
+regexes = ['''^\s*"nest/spatial/estate_outdoor_access\.gd":\s*"4242ad74b75cab7e06a7a00e516903545dd3a603ef25966c9267ea9daec2e994",?\s*$''']

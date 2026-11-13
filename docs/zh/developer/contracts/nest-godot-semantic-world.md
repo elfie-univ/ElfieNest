@@ -144,7 +144,7 @@ Godot 源码路径按用途分类，不能拿目录数去对应 Nest 业务模�
 | --- | --- |
 | `nest/`、`characters/` | 创作的物理场景、几何、角色资源和运行内容；它们是要保留的内容，不是额外业务模块 |
 | `runtime/actor/`、`runtime/world/`、`runtime/endpoint/` | 上述少量 authority 胶水；物理可见性和可听性归 World，不归 Actor |
-| `runtime/observer/`、`runtime/lab/`、`nest/ui/` 及有引用的预览 Controller | 展示或开发模式；不因此取得物理、家庭或生命周期 authority |
+| `runtime/observer/`、`runtime/lab/` 及有引用的预览 Controller | 展示或开发模式；不因此取得物理、家庭或生命周期 authority |
 | `test/`、`tools/`、角色工具和创作 Source 树 | 仅供开发；所有发布导出都必须排除，且不得成为 Runtime 依赖 |
 
 `main.gd` 只做装配与模式分派。目录清理不授权删除有引用的场景或资产。反过来，使用

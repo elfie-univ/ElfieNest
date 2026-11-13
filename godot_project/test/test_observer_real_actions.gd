@@ -38,7 +38,7 @@ func _initialize() -> void:
 
 func run() -> void:
 	var nest := ReplayNest.new()
-	var hud: Node = load("res://nest/ui/observation_hud.tscn").instantiate()
+	var hud: Node = load("res://runtime/observer/observation_hud.tscn").instantiate()
 	hud.name = "ObservationHUD"
 	nest.add_child(hud)
 	root.add_child(nest)

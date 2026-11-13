@@ -1,8 +1,8 @@
 [gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://nest/nest.gd" id="1_nest"]
-[ext_resource type="PackedScene" path="res://nest/ui/observation_hud.tscn" id="2_hud"]
-[ext_resource type="Shader" path="res://nest/estate/estate_reflection_sky.gdshader" id="3_reflections"]
+[ext_resource type="PackedScene" path="res://runtime/observer/observation_hud.tscn" id="2_hud"]
+[ext_resource type="Shader" path="res://nest/rendering/estate_reflection_sky.gdshader" id="3_reflections"]
 
 [sub_resource type="ShaderMaterial" id="SkyMaterial_daylight"]
 shader = ExtResource("3_reflections")

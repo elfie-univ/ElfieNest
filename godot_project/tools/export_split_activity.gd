@@ -8,7 +8,7 @@ func run() -> void:
 	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
 	var regions: Resource = estate.get_meta("activity_regions")
-	var access := preload("res://nest/estate/estate_outdoor_access.gd").new()
+	var access := preload("res://nest/spatial/estate_outdoor_access.gd").new()
 	root.add_child(access)
 	if not access.build(estate):
 		push_error("Cannot export split activity permissions")
@@ -27,7 +27,7 @@ func run() -> void:
 		push_error("Cannot save split navigation source geometry")
 		quit(1)
 		return
-	var data := preload("res://nest/estate/estate_spatial_data.gd").new()
+	var data := preload("res://nest/spatial/estate_spatial_data.gd").new()
 	access.capture_precompiled(data)
 	if ResourceSaver.save(data, output + "activity-mask.res", ResourceSaver.FLAG_COMPRESS) != OK:
 		push_error("Cannot save split activity mask")
@@ -39,9 +39,8 @@ func run() -> void:
 		push_error("Split activity export did not preserve its geometry and permissions")
 		quit(1)
 		return
-	var report := {"source": "res://nest/assembly/estate.tscn", "zones": counts, "geometry_sha256": FileAccess.get_sha256(output + "navigation-input.res"), "permissions_sha256": FileAccess.get_sha256("res://nest/assembly/activity_regions.tres"), "physical_obstacles_baked": false, "production_runtime_switched": false, "source_static_bodies": estate.find_children("*", "StaticBody3D", true, false).size(), "source_navigation_links": estate.find_children("*", "NavigationLink3D", true, false).size(), "source_markers": estate.find_children("*", "Marker3D", true, false).size()}
+	var report := {"source": "res://nest/assembly/estate.tscn", "zones": counts, "geometry_sha256": FileAccess.get_sha256(output + "navigation-input.res"), "permissions_sha256": FileAccess.get_sha256("res://nest/assembly/activity_regions.tres"), "physical_obstacles_baked": false, "source_static_bodies": estate.find_children("*", "StaticBody3D", true, false).size(), "source_navigation_links": estate.find_children("*", "NavigationLink3D", true, false).size(), "source_markers": estate.find_children("*", "Marker3D", true, false).size()}
 	report["round_trip_verified"] = true
-	report["merged_display_loaded"] = ResourceLoader.has_cached("res://nest/estate/ElfieNest-complete-final.glb")
 	var file := FileAccess.open(output + "export.json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(report, "  "))
 	file.close()

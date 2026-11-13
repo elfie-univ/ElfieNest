@@ -1,8 +1,8 @@
 extends SceneTree
 
-const DAYLIGHT := preload("res://nest/estate/estate_daylight.gd")
-const CONTROL := preload("res://nest/estate/estate_lighting.gd")
-const SAMPLE := preload("res://nest/estate/estate_lighting_sample.gd")
+const DAYLIGHT := preload("res://nest/rendering/estate_daylight.gd")
+const CONTROL := preload("res://nest/rendering/estate_lighting.gd")
+const SAMPLE := preload("res://nest/rendering/estate_lighting_sample.gd")
 var failures: Array[String] = []
 
 func check(ok: bool, message: String) -> void:

@@ -12,11 +12,9 @@ GODOT_EXPORT_EXCLUDED_PATHS: Final[Tuple[str, ...]] = (
     "characters/tools/*",
     "characters/tovren/source/*",
     "characters/saevi/source/*",
-    # Split assemblies are runtime inputs; the retired merged entry is excluded.
-    "nest/estate/ElfieNest-complete-final*",
-    "nest/estate/estate.tscn",
-    "nest/estate/estate_complete_final.gd",
-    "nest/estate/estate_outdoor_lighting.scn",
+    "nest/buildings/main/source/*",
+    "nest/buildings/pod/source/*",
+    "nest/furniture/shared/bedroom/source/*",
 )
 
 GODOT_EXPORT_EXCLUDE_FILTER: Final[str] = ",".join(GODOT_EXPORT_EXCLUDED_PATHS)

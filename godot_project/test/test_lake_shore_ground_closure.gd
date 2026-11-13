@@ -32,7 +32,7 @@ func _height(point: Vector2) -> float:
 func run() -> void:
 	var estate := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(estate)
-	var cleanup := preload("res://nest/estate/estate_bank_cleanup.gd")
+	var cleanup := preload("res://nest/courtyard/parts/waterside/estate_bank_cleanup.gd")
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
 		if not mesh.is_visible_in_tree(): continue
 		if not (mesh.has_meta("source_ground") or cleanup.is_bank(mesh) or str(mesh.name) in ["GroundPatch_LakeShoreGroundClosure", "GroundPatch_HardscapeSeamClosure"]): continue

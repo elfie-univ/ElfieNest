@@ -243,7 +243,7 @@ def nest_source_fingerprint():
     }
     sources.update(
         path
-        for path in nest_files(*NEST_ASSET_FOLDERS, "estate")
+        for path in nest_files(*NEST_ASSET_FOLDERS, "rendering")
         if path.suffix != ".md"
     )
     digest = hashlib.sha256()
@@ -331,7 +331,9 @@ def publish(shared: bool = False, furniture: bool = False) -> None:
             (SHARED.parent / "full-inventory/static-nodes.json").read_text()
         )
         catalog = json.loads(
-            (ROOT / "godot_project/nest/asset_catalog.json").read_text()
+            (
+                ROOT / "godot_project/tools/nest_authoring/v044-asset-catalog.json"
+            ).read_text()
         )
         assert len(plan["views"]) == portable["assets"]
         authoring = prepare_menu_assets(SHARED, plan)

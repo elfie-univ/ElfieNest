@@ -1,7 +1,7 @@
 @tool
 extends Node3D
 ## Bind imported GLB meshes to individual placements and instance batches.
-const RENDER_BATCHES := preload("res://nest/estate/estate_instance_batches.gd")
+const RENDER_BATCHES := preload("res://nest/rendering/estate_instance_batches.gd")
 
 @export var library: PackedScene
 @export_storage var source_nodes: PackedStringArray

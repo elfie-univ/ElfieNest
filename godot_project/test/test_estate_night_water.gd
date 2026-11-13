@@ -1,7 +1,7 @@
 extends SceneTree
 ## The original fountain water glows; rings illuminate strictly inside-out.
-const DISPLAY := preload("res://nest/estate/estate_water_display.gd")
-const LIGHTING := preload("res://nest/estate/estate_lighting_sample.gd")
+const DISPLAY := preload("res://nest/courtyard/parts/waterside/estate_water_display.gd")
+const LIGHTING := preload("res://nest/rendering/estate_lighting_sample.gd")
 func _initialize() -> void:
 	call_deferred("run")
 
@@ -14,7 +14,7 @@ func run() -> void:
 	var original_meshes := source.find_children("*","MeshInstance3D",true,false).size()
 	var candidate: Node3D = DISPLAY.new()
 	root.add_child(candidate)
-	candidate.call("bind",source,Environment.new(),false)
+	candidate.bind(source)
 	var sill := candidate.get_node_or_null("SubmergedInletSill") as MeshInstance3D
 	if not _require(sill != null and sill.mesh != null, "The shallow channel needs its submerged stone inlet edge"): return
 	var splash := candidate.get_node_or_null("WaterfallLandingSplash") as CPUParticles3D
@@ -59,7 +59,7 @@ func run() -> void:
 				if hit is Vector3 and not _require(point.y >= hit.y + 0.004, "The inlet guide must remain above the real coping rather than disappear inside its stone"): return
 
 		if not _require((strip.get_active_material(0) as BaseMaterial3D).emission_energy_multiplier > 0.0, "Spillway edge light is dark at night"): return
-	if not _require(not preload("res://nest/estate/estate_opaque.gdshader").code.contains("spillway_return"), "Remove the rejected soil-patch glow rather than hide it beneath the ribbon"): return
+	if not _require(not preload("res://nest/rendering/estate_opaque.gdshader").code.contains("spillway_return"), "Remove the rejected soil-patch glow rather than hide it beneath the ribbon"): return
 	var landing: Array = candidate.get("spillway_rings")
 	if not _require(landing.size() == 4 and (candidate.get("spillway_materials") as Array).size() == 3, "Light the original water curtain, foam and channel, plus four landing rings"): return
 	var landing_material := landing[0]["material"] as ShaderMaterial
@@ -132,10 +132,10 @@ func run() -> void:
 	# from current source geometry without the retired lighting layout.
 	var raw := load("res://nest/assembly/estate.tscn").instantiate() as Node3D
 	root.add_child(raw)
-	preload("res://nest/estate/estate_water.gd").attach(raw)
+	preload("res://nest/courtyard/parts/waterside/estate_water.gd").attach(raw)
 	var raw_display := DISPLAY.new()
 	root.add_child(raw_display)
-	raw_display.bind(raw, Environment.new())
+	raw_display.bind(raw)
 	raw_display.sample(4.0, true)
 	if not _require(raw_display.find_children("SpillwayEdge*", "MeshInstance3D", true, false).size() == 2, "Raw water review must still bind both channel edges from the shared contour"): return
 	raw_display.free()

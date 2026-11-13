@@ -1467,7 +1467,9 @@ def main():
         )
     plan = read_json(CANDIDATE / "assembly-plan.json")
     inventory = read_json(BUILD / "full-inventory/static-nodes.json")
-    catalog = read_json(ROOT / "godot_project/nest/asset_catalog.json")
+    catalog = read_json(
+        ROOT / "godot_project/tools/nest_authoring/v044-asset-catalog.json"
+    )
     assert plan["snapshot_sha256"] == catalog["snapshot_sha256"]
     stage = Path(tempfile.mkdtemp(prefix="furniture-v044-", dir=BUILD))
     try:

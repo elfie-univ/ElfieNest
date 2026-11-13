@@ -110,10 +110,10 @@ static func collect_state_libraries(state: SceneState, libraries: Dictionary, vi
 static func shore_geometry(estate: Node3D) -> RefCounted:
 	# Reconstruct measurement inputs from the actual placed lake, without applying
 	# the retired loader's destructive bank/foliage preparation a second time.
-	var shore := preload("res://nest/estate/estate_shore_finish.gd").new()
+	var shore := preload("res://nest/courtyard/parts/waterside/estate_shore_finish.gd").new()
 	var lake := estate.find_child("COMPLETE Inset natural lake", true, false) as MeshInstance3D
 	assert(lake != null and lake.mesh != null)
-	var reader := preload("res://nest/estate/estate_outdoor_access.gd").new()
+	var reader := preload("res://nest/spatial/estate_outdoor_access.gd").new()
 	var loops: Array[PackedVector2Array] = reader._top_outlines(lake, 0, -1.0)
 	reader.free()
 	var largest := 0.0

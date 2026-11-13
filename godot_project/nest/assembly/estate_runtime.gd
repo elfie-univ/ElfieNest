@@ -1,7 +1,7 @@
 @tool
 extends Node3D
 ## Bind the shared split placements to the existing physical and presentation owners.
-const LIVE_LIGHTING := preload("res://nest/estate/estate_lighting.gd")
+const LIVE_LIGHTING := preload("res://nest/rendering/estate_lighting.gd")
 const ACTIVITY := preload("res://nest/assembly/activity_regions.tres")
 const BINDINGS := "res://nest/assembly/runtime-bindings.json"
 var restored_controls := {"lights": 0, "emission": 0}

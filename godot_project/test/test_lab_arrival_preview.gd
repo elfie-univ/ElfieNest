@@ -2,7 +2,7 @@ extends SceneTree
 const NEST := preload("res://nest/nest.tscn")
 const BODY := preload("res://characters/saevi/saevi.tscn")
 const CONSOLE := preload("res://runtime/lab/nest_lab_console.gd")
-const TIMING := preload("res://nest/estate/estate_platform_cycle.gd")
+const TIMING := preload("res://nest/buildings/main/arrival/estate_platform_cycle.gd")
 
 func _initialize() -> void:
 	call_deferred("run")

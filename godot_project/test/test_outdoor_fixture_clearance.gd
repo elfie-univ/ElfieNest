@@ -57,7 +57,7 @@ func run() -> void:
 		check(mesh.global_basis.y.normalized().is_equal_approx(Vector3.UP), "Placed bench component must remain upright")
 	check(bench_count == 9, "Retain all nine placed bench parts")
 	# Day/night controls must not move poles, benches, paving or shared geometry.
-	var control := preload("res://nest/estate/estate_lighting.gd").new()
+	var control := preload("res://nest/rendering/estate_lighting.gd").new()
 	control.bind(estate)
 	control.apply(false)
 	control.apply(true)

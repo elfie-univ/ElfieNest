@@ -2,8 +2,8 @@ extends Node3D
 ## Formal static asset review. Scene changes never reach live Nest authority.
 
 const BASE := "res://v044-review/"
-const RENDER_BATCHES := preload("res://nest/estate/estate_instance_batches.gd")
-const SURFACE_BATCHES := preload("res://nest/estate/estate_surface_batches.gd")
+const RENDER_BATCHES := preload("res://nest/rendering/estate_instance_batches.gd")
+const SURFACE_BATCHES := preload("res://nest/rendering/estate_surface_batches.gd")
 const BED_LIBRARY := "res://nest/furniture/shared/bedroom/bed-shared.glb"
 const BED_LINING_LAYER := 1 << 19
 const DIRECTIONS := Vector3(1.0, 0.65, 1.2)
@@ -195,7 +195,7 @@ func calibrate_building_preview(path: String) -> void:
 			var variants: Dictionary = state.get_node_property_value(node, property)
 			for surfaces: Array in variants.values():
 				for material: Material in surfaces:
-					if material is ShaderMaterial and material.shader == preload("res://nest/estate/estate_glass.gdshader"):
+					if material is ShaderMaterial and material.shader == preload("res://nest/rendering/estate_glass.gdshader"):
 						glass = material
 	if glass == null:
 		push_error("Main building preview cannot resolve its authored skylight material")

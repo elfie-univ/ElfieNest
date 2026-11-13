@@ -70,7 +70,7 @@ accidental shipping of development material.
 | `main.gd`, `main.tscn` | Assembly and mode dispatch only. Remove unused helper APIs after reference proof. |
 | `nest/`, `characters/` | Keep authored physical scenes, geometry, actor resources and runtime assets. These are content, not extra business modules. |
 | `runtime/actor/`, `runtime/world/`, `runtime/endpoint/` | Keep the small ElfieNest-owned authority glue. Spatial visibility and audibility belong to `world`, not the Actor controller. |
-| `runtime/observer/`, `runtime/lab/`, `nest/ui/`, `runtime/lab/lab_preview_controller.gd` | Keep only referenced observer/Lab presentation behavior. They do not own physical or household authority. A rename is not required merely for symmetry. |
+| `runtime/observer/`, `runtime/lab/`, `runtime/lab/lab_preview_controller.gd` | Keep only referenced observer/Lab presentation behavior. They do not own physical or household authority. A rename is not required merely for symmetry. |
 | `test/`, `tools/`, `characters/tools/`, character `source/` trees | Treat as test, authoring or developer-only inputs. Classify audit/render scripts correctly and exclude all of them from release exports. |
 | Unreferenced helpers, reference scenes and ignored-source `.import` sidecars | Review one item at a time; delete only after scene, preload, CLI, documentation and export references are all absent. |
 

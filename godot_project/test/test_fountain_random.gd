@@ -3,8 +3,8 @@ var failures: Array[String]=[]
 func check(ok:bool,message:String)->void:
  if not ok and not failures.has(message): failures.append(message);push_error(message)
 func _initialize()->void:
- var programme=load("res://nest/estate/fountain_random.gd").new()
- var replay=load("res://nest/estate/fountain_random.gd").new()
+ var programme=load("res://nest/courtyard/parts/waterside/fountain_random.gd").new()
+ var replay=load("res://nest/courtyard/parts/waterside/fountain_random.gd").new()
  var seen:Dictionary={}
  for slot in range(32):
   var plan:Dictionary=programme.phrase(slot,42)

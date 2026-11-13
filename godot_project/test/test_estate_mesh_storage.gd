@@ -1,5 +1,5 @@
 extends SceneTree
-const STORAGE := preload("res://nest/estate/estate_mesh_storage.gd")
+const STORAGE := preload("res://nest/rendering/estate_mesh_storage.gd")
 func _initialize() -> void: call_deferred("run")
 func require(ok: bool, message: String) -> bool:
 	if not ok:

@@ -1,5 +1,5 @@
 extends SceneTree
-var BEDDING: Script = preload("res://nest/estate/estate_bedding_layers.gd")
+var BEDDING: Script = preload("res://nest/furniture/shared/bedroom/estate_bedding_layers.gd")
 func _initialize() -> void: call_deferred("run")
 func run() -> void:
  var estate := Node3D.new();root.add_child(estate)

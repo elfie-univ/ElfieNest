@@ -47,7 +47,7 @@ func run() -> void:
 					if part.layers & light.shadow_caster_mask:failures.append("Bollard source is trapped inside its own closed fixture")
 					if part.cast_shadow==GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:failures.append("Bollard must still cast shadows from other lights")
 				if (light.shadow_caster_mask & 29)!=29:failures.append("Bollard must retain actor, ground, furniture and foliage occlusion")
-	var daylight=preload("res://nest/estate/estate_daylight.gd")
+	var daylight=preload("res://nest/rendering/estate_daylight.gd")
 	if daylight.BOLLARD_FIXTURE_LAYER & daylight.NATIVE_HEMISPHERE_LAYER: failures.append("Local bollard isolation overlaps restored daylight hemisphere")
 	for mesh: MeshInstance3D in estate.find_children("*","MeshInstance3D",true,false):
 		for surface in range(mesh.mesh.get_surface_count()):
@@ -59,7 +59,7 @@ func run() -> void:
 	var reference: Node3D=load("res://nest/nest.tscn").instantiate()
 	var environment: Environment=(reference.get_node("WorldEnvironment") as WorldEnvironment).environment.duplicate(true)
 	reference.free()
-	var control=preload("res://nest/estate/estate_lighting_sample.gd").new()
+	var control=preload("res://nest/rendering/estate_lighting_sample.gd").new()
 	control.bind_environment(environment)
 	control.bind_m01(estate)
 	control.apply_environment(0.0,true)

@@ -76,7 +76,7 @@ def test_authority_pack_preserves_payloads_and_input_hashes(tmp_path: Path) -> N
         "nest/buildings/main/central-building.glb.remap": f'[remap]\npath="res://{scene}"'.encode(),
         "nest/assembly/estate.tscn": b"split assembly",
         "nest/assembly/runtime-inputs.json": receipt,
-        "nest/estate/estate_spatial.res": b"all physical shapes and navigation",
+        "nest/spatial/estate_spatial.res": b"all physical shapes and navigation",
         "characters/resident.scn": b"complete resident model",
         "project.binary": b"project settings",
     }
@@ -107,7 +107,7 @@ def test_authority_pack_rejects_unrecognized_pack(tmp_path: Path) -> None:
 
 def test_authority_pack_rejects_missing_split_receipt(tmp_path: Path) -> None:
     original = tmp_path / "full.pck"
-    make_pack(original, {"nest/estate/estate_spatial.res": b"physical world"})
+    make_pack(original, {"nest/spatial/estate_spatial.res": b"physical world"})
     with pytest.raises(ValueError, match="receipt"):
         build_authority_pack(original, tmp_path / "authority.pck")
 
